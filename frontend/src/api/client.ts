@@ -38,17 +38,22 @@ export type FetchLocationDevelopersOptions = {
   sort?: DeveloperSortKey;
 };
 
-export function fetchCountryDevelopers(
+function buildDeveloperQueryParams(
   options: FetchLocationDevelopersOptions = {},
-): Promise<CountryDevelopersResponse> {
+): URLSearchParams {
   const { cursor, limit = 10, sort = 'contributions' } = options;
   const params = new URLSearchParams({ limit: String(limit), sort });
   if (cursor) {
     params.set('cursor', cursor);
   }
+  return params;
+}
 
+export function fetchCountryDevelopers(
+  options: FetchLocationDevelopersOptions = {},
+): Promise<CountryDevelopersResponse> {
   return fetchJson<CountryDevelopersResponse>(
-    `/developers?${params.toString()}`,
+    `/developers?${buildDeveloperQueryParams(options).toString()}`,
   );
 }
 
@@ -56,13 +61,7 @@ export function fetchLocationDevelopers(
   slug: string,
   options: FetchLocationDevelopersOptions = {},
 ): Promise<LocationDevelopersResponse> {
-  const { cursor, limit = 10, sort = 'contributions' } = options;
-  const params = new URLSearchParams({ limit: String(limit), sort });
-  if (cursor) {
-    params.set('cursor', cursor);
-  }
-
   return fetchJson<LocationDevelopersResponse>(
-    `/locations/${slug}/developers?${params.toString()}`,
+    `/locations/${slug}/developers?${buildDeveloperQueryParams(options).toString()}`,
   );
 }

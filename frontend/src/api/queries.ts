@@ -21,35 +21,40 @@ export const statsQueryOptions = queryOptions({
   queryFn: fetchStats,
 })
 
-export function countryDevelopersInfiniteQueryOptions(sort: DeveloperSortKey) {
+type DevelopersPage = {
+  hasMore: boolean;
+  nextCursor: string | null;
+};
+
+function buildDevelopersInfiniteQueryOptions<TPage extends DevelopersPage>(
+  queryKey: readonly unknown[],
+  fetchPage: (cursor: string | undefined) => Promise<TPage>,
+) {
   return infiniteQueryOptions({
-    queryKey: queryKeys.countryDevelopers(sort),
+    queryKey,
     queryFn: ({ pageParam }) =>
-      fetchCountryDevelopers({
-        sort,
-        cursor: pageParam as string | undefined,
-      }),
+      fetchPage(pageParam as string | undefined),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) =>
       lastPage.hasMore ? lastPage.nextCursor ?? undefined : undefined,
-  })
+  });
+}
+
+export function countryDevelopersInfiniteQueryOptions(sort: DeveloperSortKey) {
+  return buildDevelopersInfiniteQueryOptions(
+    queryKeys.countryDevelopers(sort),
+    (cursor) => fetchCountryDevelopers({ sort, cursor }),
+  );
 }
 
 export function locationDevelopersInfiniteQueryOptions(
   slug: string,
   sort: DeveloperSortKey,
 ) {
-  return infiniteQueryOptions({
-    queryKey: queryKeys.locationDevelopers(slug, sort),
-    queryFn: ({ pageParam }) =>
-      fetchLocationDevelopers(slug, {
-        sort,
-        cursor: pageParam as string | undefined,
-      }),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) =>
-      lastPage.hasMore ? lastPage.nextCursor ?? undefined : undefined,
-  })
+  return buildDevelopersInfiniteQueryOptions(
+    queryKeys.locationDevelopers(slug, sort),
+    (cursor) => fetchLocationDevelopers(slug, { sort, cursor }),
+  );
 }
 
 export function useMapData() {

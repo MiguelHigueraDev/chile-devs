@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import {
   and,
   asc,
@@ -131,8 +131,16 @@ export class ApiService {
     sort: DeveloperSortKey,
     locationId?: number,
   ) {
-    const pageSize = Math.min(limit, MAX_DEVELOPERS_PAGE_SIZE);
-    const decodedCursor = cursor ? decodeCursor(cursor, sort) : null;
+    const pageSize = Math.max(1, Math.min(limit, MAX_DEVELOPERS_PAGE_SIZE));
+    let decodedCursor: DeveloperCursor | null = null;
+    if (cursor) {
+      decodedCursor = decodeCursor(cursor, sort);
+      if (!decodedCursor) {
+        throw new BadRequestException(
+          'Invalid or mismatched pagination cursor',
+        );
+      }
+    }
     const sortColumn = SORT_COLUMNS[sort];
 
     const locationFilter =
