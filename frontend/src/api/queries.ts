@@ -1,10 +1,11 @@
 import { infiniteQueryOptions, queryOptions, useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { fetchCountryDevelopers, fetchLocationDevelopers, fetchMapData, fetchStats } from './client'
+import { fetchCountryDevelopers, fetchLocationDevelopers, fetchMapData, fetchSearch, fetchStats } from './client'
 import type { DeveloperSortKey } from '../types/api'
 
 export const queryKeys = {
   map: ['map'] as const,
   stats: ['stats'] as const,
+  search: (query: string) => ['search', query] as const,
   countryDevelopers: (sort: DeveloperSortKey) =>
     ['country', 'developers', sort] as const,
   locationDevelopers: (slug: string, sort: DeveloperSortKey) =>
@@ -80,5 +81,14 @@ export function useLocationDevelopers(
   return useInfiniteQuery({
     ...locationDevelopersInfiniteQueryOptions(slug, sort),
     enabled,
+  })
+}
+
+export function useSearch(query: string | null) {
+  return useQuery({
+    queryKey: queryKeys.search(query ?? ''),
+    queryFn: () => fetchSearch(query!),
+    enabled: !!query,
+    staleTime: 5 * 60 * 1000,
   })
 }

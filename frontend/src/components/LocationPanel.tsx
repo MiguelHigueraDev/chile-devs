@@ -1,15 +1,9 @@
-import { ExternalLink } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCountryDevelopers, useLocationDevelopers } from "../api/queries";
 import { isAllChileLocation } from "../lib/all-chile-location";
 import { formatNumber } from "../lib/utils";
-import type {
-  DeveloperSortKey,
-  DeveloperSummary,
-  MapLocation,
-} from "../types/api";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { TopLanguagesBar } from "./TopLanguagesBar";
+import type { DeveloperSortKey, MapLocation } from "../types/api";
+import { DeveloperList } from "./DeveloperList";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,7 +16,6 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 
 type LocationPanelProps = {
   location: MapLocation | null;
@@ -41,31 +34,6 @@ const SORT_OPTIONS: Array<{ value: DeveloperSortKey; label: string }> = [
   { value: "followers", label: "Followers" },
   { value: "stars", label: "Stars" },
 ];
-
-const SORT_LABELS: Record<DeveloperSortKey, string> = {
-  contributions: "contributions",
-  followers: "followers",
-  stars: "stars",
-};
-
-const PODIUM_ROW_STYLES: Record<1 | 2 | 3, string> = {
-  1: "bg-amber-400/18",
-  2: "bg-neutral-300/12",
-  3: "bg-orange-600/18",
-};
-
-function getDeveloperMetric(
-  dev: DeveloperSummary,
-  sortBy: DeveloperSortKey,
-): number {
-  if (sortBy === "followers") {
-    return dev.followers;
-  }
-  if (sortBy === "stars") {
-    return dev.totalStars;
-  }
-  return dev.contributions;
-}
 
 function LocationDevelopersList({
   slug,
@@ -161,71 +129,13 @@ function LocationDevelopersList({
     );
   }
 
-  const sortLabel = SORT_LABELS[sortBy];
-
   return (
     <>
-      <ul>
-        {developers.map((dev, index) => {
-          const rank = index + 1;
-          const podiumStyle =
-            rank <= 3 ? PODIUM_ROW_STYLES[rank as 1 | 2 | 3] : undefined;
-
-          return (
-            <li
-              key={dev.login}
-              className={cn(
-                "flex items-center gap-3 px-4 py-3",
-                podiumStyle,
-                rank > 3 && "border-border border-t",
-              )}
-            >
-              <span
-                className={cn(
-                  "w-7 shrink-0 text-center text-sm tabular-nums",
-                  rank <= 3
-                    ? "text-foreground font-bold"
-                    : "text-muted-foreground font-medium",
-                )}
-                aria-label={`Rank ${rank}`}
-              >
-                {rank}
-              </span>
-              <Avatar className="size-8">
-                <AvatarImage src={dev.avatarUrl} alt={dev.login} />
-                <AvatarFallback>
-                  {dev.login.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              <div className="min-w-0 flex-1">
-                <a
-                  href={dev.profileUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-foreground hover:text-foreground/80 inline-flex items-center gap-1 text-sm font-medium transition-colors"
-                >
-                  {dev.login}
-                  <ExternalLink className="size-3 opacity-60" />
-                </a>
-                {dev.name && (
-                  <p className="text-muted-foreground truncate text-xs">
-                    {dev.name}
-                  </p>
-                )}
-                {dev.topLanguages.length > 0 && (
-                  <TopLanguagesBar
-                    languages={dev.topLanguages}
-                    className="mt-1.5"
-                  />
-                )}
-              </div>
-              <span className="text-foreground shrink-0 text-sm font-semibold tabular-nums">
-                {formatNumber(getDeveloperMetric(dev, sortBy))}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+      <DeveloperList
+        developers={developers}
+        sortBy={sortBy}
+        showSummary={false}
+      />
       <div ref={sentinelRef} className="h-px" aria-hidden />
       {isFetchingNextPage && (
         <div className="space-y-3 px-4 py-2">
@@ -247,10 +157,10 @@ function LocationDevelopersList({
       )}
       <p className="text-muted-foreground px-4 pt-2 text-xs">
         {hasMore
-          ? `Showing ${formatNumber(developers.length)}${totalCount != null ? ` of ${formatNumber(totalCount)}` : ""} developers by ${sortLabel}`
+          ? `Showing ${formatNumber(developers.length)}${totalCount != null ? ` of ${formatNumber(totalCount)}` : ""} developers`
           : totalCount != null
             ? `All ${formatNumber(totalCount)} developers loaded`
-            : `Showing ${formatNumber(developers.length)} developers by ${sortLabel}`}
+            : `Showing ${formatNumber(developers.length)} developers`}
       </p>
     </>
   );
@@ -268,7 +178,6 @@ export function LocationPanel({ location, onClose }: LocationPanelProps) {
     setSortBy("contributions");
   }
 
-  // Scroll to top when sortBy or slug changes
   useEffect(() => {
     const viewport = scrollRootRef.current?.querySelector(
       '[data-slot="scroll-area-viewport"]',
