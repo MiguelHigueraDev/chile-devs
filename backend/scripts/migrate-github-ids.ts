@@ -11,19 +11,23 @@ import { developerLanguages, developers } from '../src/db/schema';
 const BATCH_SIZE = 50;
 
 type DatabaseIdResponse = {
-  data?: Record<string, { databaseId: number } | null>;
-  errors?: Array<{ message: string }>;
+  data?: Record<string, { databaseId?: number | null } | null>;
+  errors?: Array<{ type?: string; message: string }>;
 };
 
 async function fetchDatabaseIds(
   token: string,
-  logins: string[],
+  nodeIds: string[],
 ): Promise<Map<string, string>> {
-  const userFields = logins
+  // The legacy githubId values are GraphQL node global IDs, so resolve them
+  // directly instead of via login, which goes stale when users rename.
+  const nodeFields = nodeIds
     .map(
-      (login, index) => `
-    u${index}: user(login: ${JSON.stringify(login)}) {
-      databaseId
+      (nodeId, index) => `
+    n${index}: node(id: ${JSON.stringify(nodeId)}) {
+      ... on User {
+        databaseId
+      }
     }`,
     )
     .join('\n');
@@ -36,7 +40,7 @@ async function fetchDatabaseIds(
       'X-GitHub-Api-Version': '2022-11-28',
     },
     body: JSON.stringify({
-      query: `query BatchDatabaseIds { ${userFields} }`,
+      query: `query BatchDatabaseIds { ${nodeFields} }`,
     }),
   });
 
@@ -45,15 +49,20 @@ async function fetchDatabaseIds(
   }
 
   const payload = (await response.json()) as DatabaseIdResponse;
-  if (payload.errors?.length) {
-    throw new Error(payload.errors.map((error) => error.message).join(', '));
+  // NOT_FOUND errors (deleted accounts) leave their alias null in data;
+  // those rows are skipped individually instead of failing the batch.
+  const fatalErrors = (payload.errors ?? []).filter(
+    (error) => error.type !== 'NOT_FOUND',
+  );
+  if (fatalErrors.length > 0) {
+    throw new Error(fatalErrors.map((error) => error.message).join(', '));
   }
 
   const results = new Map<string, string>();
-  logins.forEach((login, index) => {
-    const databaseId = payload.data?.[`u${index}`]?.databaseId;
+  nodeIds.forEach((nodeId, index) => {
+    const databaseId = payload.data?.[`n${index}`]?.databaseId;
     if (databaseId != null) {
-      results.set(login, String(databaseId));
+      results.set(nodeId, String(databaseId));
     }
   });
 
@@ -106,11 +115,11 @@ async function main() {
     if (unresolved.length > 0) {
       const fetched = await fetchDatabaseIds(
         token,
-        unresolved.map((row) => row.login),
+        unresolved.map((row) => row.githubId),
       );
 
       for (const row of unresolved) {
-        const databaseId = fetched.get(row.login);
+        const databaseId = fetched.get(row.githubId);
         if (databaseId) {
           resolvedIds.set(row.githubId, databaseId);
         }
@@ -133,8 +142,36 @@ async function main() {
         .limit(1);
 
       if (existing.length > 0) {
-        console.warn(
-          `Skipping ${row.login}: target github_id ${nextGithubId} already exists`,
+        // Same user already exists under the numeric id; merge the legacy row
+        // into it so reruns converge instead of skipping forever.
+        await db.transaction(async (tx) => {
+          const legacyLanguageRows = await tx
+            .select()
+            .from(developerLanguages)
+            .where(eq(developerLanguages.developerGithubId, row.githubId));
+
+          if (legacyLanguageRows.length > 0) {
+            await tx
+              .insert(developerLanguages)
+              .values(
+                legacyLanguageRows.map((languageRow) => ({
+                  developerGithubId: nextGithubId,
+                  language: languageRow.language,
+                  share: languageRow.share,
+                })),
+              )
+              .onConflictDoNothing();
+          }
+
+          // Cascade removes the legacy developer_languages rows.
+          await tx
+            .delete(developers)
+            .where(eq(developers.githubId, row.githubId));
+        });
+
+        migrated += 1;
+        console.log(
+          `Merged ${row.login}: ${row.githubId} into existing ${nextGithubId}`,
         );
         continue;
       }
