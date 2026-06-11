@@ -1,3 +1,4 @@
+import type { CookieSerializeOptions } from '@fastify/cookie';
 import {
   BadGatewayException,
   BadRequestException,
@@ -58,6 +59,18 @@ export class AuthService {
 
   get oauthStateCookieName(): string {
     return OAUTH_STATE_COOKIE;
+  }
+
+  getSessionCookieOptions(): CookieSerializeOptions {
+    const isProduction =
+      this.configService.get<string>('NODE_ENV') === 'production';
+
+    return {
+      httpOnly: true,
+      sameSite: isProduction ? 'none' : 'lax',
+      secure: isProduction,
+      path: '/',
+    };
   }
 
   createOAuthState(): string {

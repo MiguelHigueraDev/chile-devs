@@ -8,7 +8,6 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AuthGuard } from './auth.guard';
 import { AuthService } from './auth.service';
@@ -16,22 +15,13 @@ import type { AuthenticatedRequest } from './auth.types';
 
 @Controller('api/auth')
 export class AuthController {
-  constructor(
-    private readonly authService: AuthService,
-    private readonly configService: ConfigService,
-  ) {}
+  constructor(private readonly authService: AuthService) {}
 
   @Get('github')
   startGitHubOAuth(@Res() reply: FastifyReply) {
     const state = this.authService.createOAuthState();
-    const isProduction =
-      this.configService.get<string>('NODE_ENV') === 'production';
-
     reply.setCookie(this.authService.oauthStateCookieName, state, {
-      httpOnly: true,
-      sameSite: isProduction ? 'none' : 'lax',
-      secure: isProduction,
-      path: '/',
+      ...this.authService.getSessionCookieOptions(),
       maxAge: 10 * 60,
     });
 
@@ -54,15 +44,14 @@ export class AuthController {
     const { token, redirectUrl } =
       await this.authService.exchangeCodeForSession(code, state, storedState);
 
-    const isProduction =
-      this.configService.get<string>('NODE_ENV') === 'production';
+    const sessionCookieOptions = this.authService.getSessionCookieOptions();
 
-    reply.clearCookie(this.authService.oauthStateCookieName, { path: '/' });
+    reply.clearCookie(
+      this.authService.oauthStateCookieName,
+      sessionCookieOptions,
+    );
     reply.setCookie(this.authService.sessionCookieName, token, {
-      httpOnly: true,
-      sameSite: isProduction ? 'none' : 'lax',
-      secure: isProduction,
-      path: '/',
+      ...sessionCookieOptions,
       maxAge: 30 * 24 * 60 * 60,
     });
 
@@ -77,7 +66,10 @@ export class AuthController {
 
   @Post('logout')
   logout(@Res({ passthrough: true }) reply: FastifyReply) {
-    reply.clearCookie(this.authService.sessionCookieName, { path: '/' });
+    reply.clearCookie(
+      this.authService.sessionCookieName,
+      this.authService.getSessionCookieOptions(),
+    );
     return { ok: true };
   }
 }
