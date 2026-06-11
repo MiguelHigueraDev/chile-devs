@@ -14,7 +14,7 @@ import {
   type AnyColumn,
 } from 'drizzle-orm';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
-import { developers, locations } from '../db/schema';
+import { developers, locations, syncRuns } from '../db/schema';
 
 const MAX_DEVELOPERS_PAGE_SIZE = 10;
 
@@ -326,11 +326,29 @@ export class ApiService {
 
     const mapLocations = await this.getMapData();
 
+    const [lastSync] = await this.db
+      .select({
+        finishedAt: syncRuns.finishedAt,
+        locationName: locations.name,
+      })
+      .from(syncRuns)
+      .leftJoin(locations, eq(syncRuns.lastLocationId, locations.id))
+      .where(eq(syncRuns.status, 'completed'))
+      .orderBy(desc(syncRuns.finishedAt))
+      .limit(1);
+
     return {
       totalDevs: Number(totalDevs),
       totalContributions: Number(totalContributions ?? 0),
       countryLevelDevs: Number(countryLevelDevs[0]?.devCount ?? 0),
       locationsWithDevs: mapLocations.length,
+      lastUpdate:
+        lastSync?.finishedAt != null
+          ? {
+              at: lastSync.finishedAt.toISOString(),
+              location: lastSync.locationName ?? null,
+            }
+          : null,
     };
   }
 }

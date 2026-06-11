@@ -85,6 +85,9 @@ export const syncRuns = pgTable('sync_runs', {
   usersUpserted: integer('users_upserted').notNull().default(0),
   status: syncStatusEnum('status').notNull().default('running'),
   errorMessage: text('error_message'),
+  lastLocationId: integer('last_location_id').references(() => locations.id, {
+    onDelete: 'set null',
+  }),
 });
 
 export type Location = typeof locations.$inferSelect;

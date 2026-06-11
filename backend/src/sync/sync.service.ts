@@ -68,6 +68,7 @@ export class SyncService implements OnModuleInit {
       .returning();
 
     let usersUpserted = 0;
+    let lastLocationId: number | null = null;
 
     try {
       const allLocations = await this.db.select().from(locations);
@@ -106,6 +107,7 @@ export class SyncService implements OnModuleInit {
 
               await this.upsertDeveloper(user, classified.id);
 
+              lastLocationId = classified.id;
               usersUpserted += 1;
             }
           });
@@ -122,6 +124,7 @@ export class SyncService implements OnModuleInit {
           finishedAt: new Date(),
           usersUpserted,
           status: 'completed',
+          lastLocationId,
         })
         .where(eq(syncRuns.id, run.id));
 
@@ -140,6 +143,7 @@ export class SyncService implements OnModuleInit {
           usersUpserted,
           status: 'failed',
           errorMessage: message,
+          lastLocationId,
         })
         .where(eq(syncRuns.id, run.id));
 
