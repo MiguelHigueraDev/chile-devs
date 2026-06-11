@@ -10,7 +10,7 @@ const LEGEND_ITEMS = [
 
 export function MapLegend() {
   return (
-    <Card className="absolute bottom-6 left-4 z-10 w-44 gap-3 border-border/60 bg-card/90 py-4 shadow-lg backdrop-blur-sm">
+    <Card className="absolute bottom-6 left-4 z-10 hidden w-44 gap-3 border-border/60 bg-card/90 py-4 shadow-lg backdrop-blur-sm sm:block">
       <CardHeader className="px-4 py-0">
         <CardTitle className="text-xs font-medium tracking-wide uppercase">
           Developer density
