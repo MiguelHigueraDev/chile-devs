@@ -332,7 +332,7 @@ export function ChileMap({ onLocationSelect }: ChileMapProps) {
   }, [locations, mapReady])
 
   return (
-    <div className="relative min-h-0 flex-1">
+    <div className="relative h-full w-full">
       {error && (
         <Card className="absolute top-4 left-1/2 z-10 -translate-x-1/2 border-destructive/30 bg-destructive/90 py-3 shadow-lg">
           <CardContent className="px-4 py-0 text-sm text-white">
