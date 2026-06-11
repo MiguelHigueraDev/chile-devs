@@ -46,14 +46,14 @@ export class QueryParserService {
       return cached;
     }
 
-    this.enforceRateLimit();
-
     const apiKey = this.config.get<string>('GOOGLE_GENERATIVE_AI_API_KEY');
     if (!apiKey) {
       throw new ServiceUnavailableException(
         'Search is not configured. Set GOOGLE_GENERATIVE_AI_API_KEY in backend/.env',
       );
     }
+
+    this.enforceRateLimit();
 
     const parsed = await this.parseWithLlm(rawQuery);
     this.rememberCache(normalized, parsed);

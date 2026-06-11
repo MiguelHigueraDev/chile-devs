@@ -11,6 +11,8 @@ import {
   type SearchInterpretation,
 } from './search.types';
 
+const NO_MATCHING_LOCATION_ID = -1;
+
 type DeveloperRow = {
   login: string;
   name: string | null;
@@ -194,7 +196,7 @@ export class SearchService {
       .where(inArray(locations.slug, resolvedLocationSlugs));
 
     if (matchedLocations.length === 0) {
-      return eq(developers.locationId, -1);
+      return eq(developers.locationId, NO_MATCHING_LOCATION_ID);
     }
 
     return inArray(
