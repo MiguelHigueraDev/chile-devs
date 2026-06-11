@@ -7,7 +7,8 @@ export const queryKeys = {
   map: ['map'] as const,
   stats: ['stats'] as const,
   githubStars: ['github', 'stars'] as const,
-  search: (query: string) => ['search', query] as const,
+  search: (query: string, sort: DeveloperSortKey) =>
+    ['search', query, sort] as const,
   countryDevelopers: (sort: DeveloperSortKey) =>
     ['country', 'developers', sort] as const,
   locationDevelopers: (slug: string, sort: DeveloperSortKey) =>
@@ -96,10 +97,10 @@ export function useLocationDevelopers(
   })
 }
 
-export function useSearch(query: string | null) {
+export function useSearch(query: string | null, sort: DeveloperSortKey) {
   return useQuery({
-    queryKey: queryKeys.search(query ?? ''),
-    queryFn: () => fetchSearch(query!),
+    queryKey: queryKeys.search(query ?? '', sort),
+    queryFn: () => fetchSearch(query!, sort),
     enabled: !!query,
     staleTime: 5 * 60 * 1000,
   })

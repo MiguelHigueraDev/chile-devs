@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useCountryDevelopers, useLocationDevelopers } from "../api/queries";
 import { isAllChileLocation } from "../lib/all-chile-location";
+import { useDeveloperSortPreference } from "../lib/developer-sort-preference";
 import { formatNumber } from "../lib/utils";
 import type { DeveloperSortKey, MapLocation } from "../types/api";
 import { DeveloperList } from "./DeveloperList";
@@ -170,13 +171,7 @@ export function LocationPanel({ location, onClose }: LocationPanelProps) {
   const scrollRootRef = useRef<HTMLDivElement>(null);
   const slug = location?.slug ?? null;
   const countryWide = location ? isAllChileLocation(location) : false;
-  const [sortBy, setSortBy] = useState<DeveloperSortKey>("contributions");
-  const [prevSlug, setPrevSlug] = useState<string | null>(slug);
-
-  if (slug !== prevSlug) {
-    setPrevSlug(slug);
-    setSortBy("contributions");
-  }
+  const [sortBy, setSortBy] = useDeveloperSortPreference();
 
   useEffect(() => {
     const viewport = scrollRootRef.current?.querySelector(

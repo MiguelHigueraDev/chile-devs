@@ -1,4 +1,5 @@
 import { useSearch } from "../api/queries";
+import { useDeveloperSortPreference } from "../lib/developer-sort-preference";
 import type { SearchInterpretation } from "../types/api";
 import { DeveloperList } from "./DeveloperList";
 import { Badge } from "@/components/ui/badge";
@@ -70,7 +71,8 @@ export function SearchResultsPanel({
   query,
   onClose,
 }: SearchResultsPanelProps) {
-  const { data, error, isPending } = useSearch(query);
+  const [sortBy] = useDeveloperSortPreference();
+  const { data, error, isPending } = useSearch(query, sortBy);
 
   return (
     <Sheet
