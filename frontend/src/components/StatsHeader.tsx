@@ -6,7 +6,6 @@ const METRICS = [
   { key: 'totalDevs' as const, label: 'Developers' },
   { key: 'totalContributions' as const, label: 'Contributions (1y)' },
   { key: 'locationsWithDevs' as const, label: 'Locations' },
-  { key: 'countryLevelDevs' as const, label: 'Country-level only', muted: true },
 ]
 
 export function StatsHeader() {
@@ -49,13 +48,7 @@ export function StatsHeader() {
                 />
               )}
               <div className="flex flex-col items-end gap-0.5">
-                <span
-                  className={
-                    metric.muted
-                      ? 'text-muted-foreground text-base font-semibold tabular-nums'
-                      : 'text-base font-semibold tabular-nums'
-                  }
-                >
+                <span className="text-base font-semibold tabular-nums">
                   {stats[metric.key].toLocaleString()}
                 </span>
                 <span className="text-muted-foreground text-[10px] tracking-wider uppercase">
