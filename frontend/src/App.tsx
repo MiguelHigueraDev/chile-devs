@@ -26,7 +26,10 @@ function App() {
     const urlState = readAppUrlState();
     return urlState.searchQuery ? null : urlState.locationSlug;
   });
-  const [searchQuery, setSearchQuery] = useState<string | null>(
+  const [searchInput, setSearchInput] = useState(
+    () => readAppUrlState().searchQuery ?? "",
+  );
+  const [activeSearchQuery, setActiveSearchQuery] = useState<string | null>(
     () => readAppUrlState().searchQuery,
   );
 
@@ -47,11 +50,13 @@ function App() {
 
       if (urlState.searchQuery) {
         setLocationSlug(null);
-        setSearchQuery(urlState.searchQuery);
+        setSearchInput(urlState.searchQuery);
+        setActiveSearchQuery(urlState.searchQuery);
         return;
       }
 
-      setSearchQuery(null);
+      setActiveSearchQuery(null);
+      setSearchInput("");
       setLocationSlug(urlState.locationSlug);
     },
     [setSortBy],
@@ -60,7 +65,7 @@ function App() {
   useEffect(() => {
     const nextState = {
       locationSlug,
-      searchQuery,
+      searchQuery: activeSearchQuery,
       sort: locationSlug ? sortBy : null,
     };
     const prevState = urlSyncRef.current;
@@ -71,7 +76,7 @@ function App() {
 
     syncAppUrlState(nextState, isInitialSync || !panelChanged);
     urlSyncRef.current = nextState;
-  }, [locationSlug, searchQuery, sortBy]);
+  }, [locationSlug, activeSearchQuery, sortBy]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -82,10 +87,11 @@ function App() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, [applyUrlState]);
 
-  const panelOpen = selectedLocation || searchQuery;
+  const panelOpen = selectedLocation || activeSearchQuery;
 
   const handleLocationSelect = useCallback((location: MapLocation) => {
-    setSearchQuery(null);
+    setActiveSearchQuery(null);
+    setSearchInput("");
     setLocationSlug(location.slug);
   }, []);
 
@@ -99,11 +105,13 @@ function App() {
         )}
       >
         <StatsHeader
-          searchQuery={searchQuery ?? ""}
+          searchQuery={searchInput}
+          onSearchQueryChange={setSearchInput}
           onViewAllDevelopers={handleLocationSelect}
           onSearch={(query) => {
             setLocationSlug(null);
-            setSearchQuery(query);
+            setSearchInput(query);
+            setActiveSearchQuery(query);
           }}
         />
         <div className="flex min-h-0 flex-1 flex-col gap-1 px-3 py-2 sm:px-4">
@@ -120,9 +128,9 @@ function App() {
         onClose={() => setLocationSlug(null)}
       />
       <SearchResultsPanel
-        query={searchQuery}
+        query={activeSearchQuery}
         sortBy={sortBy}
-        onClose={() => setSearchQuery(null)}
+        onClose={() => setActiveSearchQuery(null)}
       />
     </div>
   );

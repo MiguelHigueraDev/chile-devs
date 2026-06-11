@@ -1,19 +1,22 @@
 import { Search } from "lucide-react";
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type SearchBarProps = {
   query?: string;
+  onQueryChange: (query: string) => void;
   onSearch: (query: string) => void;
   className?: string;
 };
 
-export function SearchBar({ query = "", onSearch, className }: SearchBarProps) {
-  const [value, setValue] = useState(query);
-
+export function SearchBar({
+  query = "",
+  onQueryChange,
+  onSearch,
+  className,
+}: SearchBarProps) {
   const submit = () => {
-    const trimmed = value.trim();
+    const trimmed = query.trim();
     if (!trimmed) return;
     onSearch(trimmed);
   };
@@ -30,8 +33,8 @@ export function SearchBar({ query = "", onSearch, className }: SearchBarProps) {
         <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
         <input
           type="search"
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
           placeholder='Try "Top TypeScript developers in Biobío"'
           className="border-input bg-background placeholder:text-muted-foreground focus-visible:ring-ring h-8 w-full rounded-md border pr-3 pl-8 text-base focus-visible:ring-2 focus-visible:outline-none sm:text-sm"
           aria-label="Search developers"

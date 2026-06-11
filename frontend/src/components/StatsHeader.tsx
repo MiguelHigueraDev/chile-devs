@@ -6,12 +6,14 @@ import { Button } from '@/components/ui/button'
 
 type StatsHeaderProps = {
   searchQuery: string
+  onSearchQueryChange: (query: string) => void
   onViewAllDevelopers: (location: MapLocation) => void
   onSearch: (query: string) => void
 }
 
 export function StatsHeader({
   searchQuery,
+  onSearchQueryChange,
   onViewAllDevelopers,
   onSearch,
 }: StatsHeaderProps) {
@@ -42,8 +44,8 @@ export function StatsHeader({
       </div>
 
       <SearchBar
-        key={searchQuery || "empty"}
         query={searchQuery}
+        onQueryChange={onSearchQueryChange}
         onSearch={onSearch}
         className="w-full sm:max-w-md sm:shrink-0"
       />
