@@ -1,7 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { count, sql } from 'drizzle-orm';
-import { DRIZZLE, type DrizzleDB } from './db.module';
-import { developerLanguages, developers } from './schema';
+import { sql } from 'drizzle-orm';
+import { DRIZZLE, type DrizzleDB } from './db.tokens';
 
 @Injectable()
 export class LanguageBackfillService implements OnModuleInit {
@@ -14,21 +13,26 @@ export class LanguageBackfillService implements OnModuleInit {
   }
 
   async backfillIfNeeded(): Promise<number> {
-    const [{ langRows }] = await this.db
-      .select({ langRows: count() })
-      .from(developerLanguages);
+    const rows = await this.db.execute<{ needs_backfill: boolean }>(sql`
+      SELECT EXISTS (
+        SELECT 1
+        FROM developers d
+        CROSS JOIN LATERAL jsonb_array_elements(d.top_languages) AS lang
+        WHERE lang->>'name' IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM developer_languages dl
+          WHERE dl.developer_github_id = d.github_id
+          AND dl.language = lower(lang->>'name')
+        )
+      ) AS needs_backfill
+    `);
 
-    const [{ devsWithLanguages }] = await this.db
-      .select({ devsWithLanguages: count() })
-      .from(developers)
-      .where(sql`jsonb_array_length(${developers.topLanguages}) > 0`);
-
-    if (langRows > 0 || devsWithLanguages === 0) {
+    if (!rows[0]?.needs_backfill) {
       return 0;
     }
 
     this.logger.log(
-      `developer_languages is empty but ${devsWithLanguages} developers have top_languages — backfilling...`,
+      'Some developer language rows are missing — backfilling from top_languages...',
     );
 
     const result = await this.db.execute(sql`

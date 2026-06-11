@@ -1,13 +1,12 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { drizzle, PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import { DRIZZLE, type DrizzleDB } from './db.tokens';
 import { LanguageBackfillService } from './language-backfill.service';
 import * as schema from './schema';
 
-export const DRIZZLE = Symbol('DRIZZLE');
-
-export type DrizzleDB = PostgresJsDatabase<typeof schema>;
+export { DRIZZLE, type DrizzleDB } from './db.tokens';
 
 @Global()
 @Module({
