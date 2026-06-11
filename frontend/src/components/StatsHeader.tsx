@@ -9,6 +9,9 @@ type StatsHeaderProps = {
   onSearchQueryChange: (query: string) => void
   onViewAllDevelopers: (location: MapLocation) => void
   onSearch: (query: string) => void
+  recentSearches?: string[]
+  onRemoveRecentSearch?: (query: string) => void
+  onClearRecentSearches?: () => void
 }
 
 export function StatsHeader({
@@ -16,6 +19,9 @@ export function StatsHeader({
   onSearchQueryChange,
   onViewAllDevelopers,
   onSearch,
+  recentSearches,
+  onRemoveRecentSearch,
+  onClearRecentSearches,
 }: StatsHeaderProps) {
   const { data: stats } = useStats()
 
@@ -47,6 +53,9 @@ export function StatsHeader({
         query={searchQuery}
         onQueryChange={onSearchQueryChange}
         onSearch={onSearch}
+        recentSearches={recentSearches}
+        onRemoveRecentSearch={onRemoveRecentSearch}
+        onClearRecentSearches={onClearRecentSearches}
         className="w-full sm:max-w-md sm:shrink-0"
       />
     </header>

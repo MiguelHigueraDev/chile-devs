@@ -14,6 +14,7 @@ import {
   setDeveloperSortPreference,
   useDeveloperSortPreference,
 } from "./lib/developer-sort-preference";
+import { useSearchHistory } from "./lib/search-history";
 import type { MapLocation } from "./types/api";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,12 @@ function App() {
   const { data: locations = [] } = useMapData();
   const { data: stats } = useStats();
   const [sortBy, setSortBy] = useDeveloperSortPreference();
+  const {
+    entries: recentSearches,
+    add: addRecentSearch,
+    remove: removeRecentSearch,
+    clear: clearRecentSearches,
+  } = useSearchHistory();
   const [locationSlug, setLocationSlug] = useState<string | null>(() => {
     const urlState = readAppUrlState();
     return urlState.searchQuery ? null : urlState.locationSlug;
@@ -112,7 +119,11 @@ function App() {
             setLocationSlug(null);
             setSearchInput(query);
             setActiveSearchQuery(query);
+            addRecentSearch(query);
           }}
+          recentSearches={recentSearches}
+          onRemoveRecentSearch={removeRecentSearch}
+          onClearRecentSearches={clearRecentSearches}
         />
         <div className="flex min-h-0 flex-1 flex-col gap-1 px-3 py-2 sm:px-4">
           <div className="border-border relative min-h-0 flex-1 overflow-hidden rounded-lg border">
