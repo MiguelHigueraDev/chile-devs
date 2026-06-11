@@ -5,7 +5,15 @@ import type {
   StatsResponse,
 } from '../types/api';
 
-const API_BASE = '/api';
+function getApiBase(): string {
+  const backendUrl = import.meta.env.VITE_BACKEND_URL;
+  if (backendUrl) {
+    return `${backendUrl.replace(/\/$/, '')}/api`;
+  }
+  return '/api';
+}
+
+const API_BASE = getApiBase();
 
 async function fetchJson<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`);
