@@ -34,7 +34,9 @@ export function readAppUrlState(): AppUrlState {
   return {
     locationSlug: locationSlug || null,
     searchQuery: searchQuery || null,
-    sort: parseSortParam(params.get(APP_URL_PARAMS.sort)),
+    sort: searchQuery
+      ? null
+      : parseSortParam(params.get(APP_URL_PARAMS.sort)),
   };
 }
 
@@ -48,9 +50,9 @@ export function buildAppUrlSearchParams(state: AppUrlState): URLSearchParams {
   }
 
   if (
+    state.locationSlug &&
     state.sort &&
-    state.sort !== 'contributions' &&
-    (state.searchQuery || state.locationSlug)
+    state.sort !== 'contributions'
   ) {
     params.set(APP_URL_PARAMS.sort, state.sort);
   }

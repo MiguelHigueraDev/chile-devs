@@ -61,7 +61,7 @@ function App() {
     const nextState = {
       locationSlug,
       searchQuery,
-      sort: locationSlug || searchQuery ? sortBy : null,
+      sort: locationSlug ? sortBy : null,
     };
     const prevState = urlSyncRef.current;
     const panelChanged =

@@ -12,11 +12,12 @@ const VALID_SORTS = new Set<DeveloperSortKey>([
 
 export function getDeveloperSortPreference(): DeveloperSortKey {
   try {
-    const urlSort = parseSortParam(
-      new URLSearchParams(window.location.search).get(APP_URL_PARAMS.sort),
-    );
-    if (urlSort) {
-      return urlSort;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get(APP_URL_PARAMS.search)) {
+      const urlSort = parseSortParam(params.get(APP_URL_PARAMS.sort));
+      if (urlSort) {
+        return urlSort;
+      }
     }
 
     const stored = localStorage.getItem(STORAGE_KEY);
