@@ -10,10 +10,18 @@ import { AuthService } from './auth.service';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('SESSION_SECRET') ?? 'dev-secret',
-        signOptions: { expiresIn: '30d' },
-      }),
+      useFactory: (configService: ConfigService) => {
+        const secret = configService.get<string>('SESSION_SECRET');
+        if (!secret?.trim()) {
+          throw new Error(
+            'SESSION_SECRET is required but missing or empty. Set it in your environment.',
+          );
+        }
+        return {
+          secret,
+          signOptions: { expiresIn: '30d' },
+        };
+      },
     }),
   ],
   controllers: [AuthController],
