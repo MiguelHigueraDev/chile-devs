@@ -1,4 +1,5 @@
 import {
+  BadGatewayException,
   BadRequestException,
   Inject,
   Injectable,
@@ -111,49 +112,62 @@ export class AuthService {
       throw new BadRequestException('GitHub OAuth is not configured');
     }
 
-    const tokenResponse = await fetchWithTimeout(
-      'https://github.com/login/oauth/access_token',
-      {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
+    let githubUser: GitHubUserResponse;
+    try {
+      const tokenResponse = await fetchWithTimeout(
+        'https://github.com/login/oauth/access_token',
+        {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            client_id: clientId,
+            client_secret: clientSecret,
+            code,
+            redirect_uri: this.getCallbackUrl(),
+          }),
         },
-        body: JSON.stringify({
-          client_id: clientId,
-          client_secret: clientSecret,
-          code,
-          redirect_uri: this.getCallbackUrl(),
-        }),
-      },
-    );
-
-    if (!tokenResponse.ok) {
-      throw new UnauthorizedException('Failed to exchange OAuth code');
-    }
-
-    const tokenData = (await tokenResponse.json()) as GitHubTokenResponse;
-    if (!tokenData.access_token) {
-      throw new UnauthorizedException(
-        tokenData.error_description ??
-          tokenData.error ??
-          'Failed to obtain access token',
       );
+
+      if (!tokenResponse.ok) {
+        throw new UnauthorizedException('Failed to exchange OAuth code');
+      }
+
+      const tokenData = (await tokenResponse.json()) as GitHubTokenResponse;
+      if (!tokenData.access_token) {
+        throw new UnauthorizedException(
+          tokenData.error_description ??
+            tokenData.error ??
+            'Failed to obtain access token',
+        );
+      }
+
+      const userResponse = await fetchWithTimeout(
+        'https://api.github.com/user',
+        {
+          headers: {
+            Accept: 'application/vnd.github+json',
+            Authorization: `Bearer ${tokenData.access_token}`,
+            'X-GitHub-Api-Version': '2022-11-28',
+          },
+        },
+      );
+
+      if (!userResponse.ok) {
+        throw new UnauthorizedException('Failed to fetch GitHub user');
+      }
+
+      githubUser = (await userResponse.json()) as GitHubUserResponse;
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new BadGatewayException('GitHub OAuth upstream failure', {
+        cause: error,
+      });
     }
-
-    const userResponse = await fetchWithTimeout('https://api.github.com/user', {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        Authorization: `Bearer ${tokenData.access_token}`,
-        'X-GitHub-Api-Version': '2022-11-28',
-      },
-    });
-
-    if (!userResponse.ok) {
-      throw new UnauthorizedException('Failed to fetch GitHub user');
-    }
-
-    const githubUser = (await userResponse.json()) as GitHubUserResponse;
     const githubId = String(githubUser.id);
 
     const [developer] = await this.db

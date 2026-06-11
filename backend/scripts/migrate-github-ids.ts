@@ -142,10 +142,61 @@ async function main() {
         .limit(1);
 
       if (existing.length > 0) {
-        // Same user already exists under the numeric id; rewire legacy languages
-        // to the winner, then delete the legacy developer row.
+        // Same user already exists under the numeric id; merge profile fields,
+        // rewire legacy languages to the winner, then delete the legacy row.
         try {
           await db.transaction(async (tx) => {
+            const [legacyDeveloper] = await tx
+              .select()
+              .from(developers)
+              .where(eq(developers.githubId, row.githubId))
+              .limit(1);
+
+            const [targetDeveloper] = await tx
+              .select()
+              .from(developers)
+              .where(eq(developers.githubId, nextGithubId))
+              .limit(1);
+
+            if (legacyDeveloper && targetDeveloper) {
+              await tx
+                .update(developers)
+                .set({
+                  name: targetDeveloper.name ?? legacyDeveloper.name,
+                  rawLocation:
+                    targetDeveloper.rawLocation ?? legacyDeveloper.rawLocation,
+                  portfolioUrl:
+                    targetDeveloper.portfolioUrl ??
+                    legacyDeveloper.portfolioUrl,
+                  description:
+                    targetDeveloper.description ?? legacyDeveloper.description,
+                  role: targetDeveloper.role ?? legacyDeveloper.role,
+                  claimedAt:
+                    targetDeveloper.claimedAt ?? legacyDeveloper.claimedAt,
+                  followers: Math.max(
+                    targetDeveloper.followers,
+                    legacyDeveloper.followers,
+                  ),
+                  contributions: Math.max(
+                    targetDeveloper.contributions,
+                    legacyDeveloper.contributions,
+                  ),
+                  totalStars: Math.max(
+                    targetDeveloper.totalStars,
+                    legacyDeveloper.totalStars,
+                  ),
+                  topLanguages:
+                    targetDeveloper.topLanguages.length > 0
+                      ? targetDeveloper.topLanguages
+                      : legacyDeveloper.topLanguages,
+                  lastSeenAt:
+                    targetDeveloper.lastSeenAt > legacyDeveloper.lastSeenAt
+                      ? targetDeveloper.lastSeenAt
+                      : legacyDeveloper.lastSeenAt,
+                })
+                .where(eq(developers.githubId, nextGithubId));
+            }
+
             const winnerLanguages = await tx
               .select({ language: developerLanguages.language })
               .from(developerLanguages)
