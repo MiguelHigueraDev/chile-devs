@@ -52,6 +52,14 @@ function formatInterpretationChips(
     );
   }
 
+  if (interpretation.username) {
+    chips.push(`@${interpretation.username}`);
+  }
+
+  if (interpretation.displayName) {
+    chips.push(interpretation.displayName);
+  }
+
   const sortLabels = {
     contributions: "by contributions",
     followers: "by followers",

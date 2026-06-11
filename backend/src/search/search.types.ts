@@ -7,6 +7,8 @@ export const parsedQuerySchema = z
     languageMode: z.enum(['any', 'all']),
     locationSlugs: z.array(z.string()),
     zone: z.enum(['north', 'central', 'south']).nullable(),
+    username: z.string().nullable(),
+    displayName: z.string().nullable(),
     sort: z.enum(['contributions', 'followers', 'stars', 'languageShare']),
     shareLanguage: z.string().nullable(),
   })

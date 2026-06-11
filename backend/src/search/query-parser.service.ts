@@ -28,6 +28,9 @@ Rules:
   Use "followers" for most followers.
   Use "languageShare" when ranking by highest share of a specific language (set shareLanguage too).
 - shareLanguage: lowercase language name when sort is languageShare, otherwise null.
+- username: GitHub username/login when the query targets a specific user (e.g. "octocat", "@octocat", "user octocat"). null otherwise.
+- displayName: real name / display name when searching for a person by name (e.g. "Juan Pérez", "developers named Maria"). null otherwise.
+- Person filters combine with location/language filters (e.g. "Maria in Santiago").
 - "whole country" or no location => locationSlugs: [], zone: null.
 - Spanish and English queries are both supported.`;
 
@@ -55,7 +58,10 @@ export class QueryParserService {
 
     this.enforceRateLimit();
 
-    const parsed = await this.parseWithLlm(rawQuery);
+    const parsed = this.applyPersonSearchFallback(
+      rawQuery,
+      await this.parseWithLlm(rawQuery),
+    );
     this.rememberCache(normalized, parsed);
     return parsed;
   }
@@ -152,8 +158,105 @@ export class QueryParserService {
         validSlugs.has(slug),
       ),
       zone: parsed.zone,
+      username: this.normalizeUsername(parsed.username),
+      displayName: this.normalizeDisplayName(parsed.displayName),
       sort: parsed.sort,
       shareLanguage: parsed.shareLanguage?.toLowerCase() ?? null,
     };
   }
+
+  private normalizeUsername(value: string | null | undefined): string | null {
+    if (!value) {
+      return null;
+    }
+
+    const trimmed = value.trim().replace(/^@+/, '');
+    return trimmed.length > 0 ? trimmed.toLowerCase() : null;
+  }
+
+  private normalizeDisplayName(
+    value: string | null | undefined,
+  ): string | null {
+    if (!value) {
+      return null;
+    }
+
+    const trimmed = value.trim().replace(/\s+/g, ' ');
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  private applyPersonSearchFallback(
+    rawQuery: string,
+    parsed: ParsedQuery,
+  ): ParsedQuery {
+    if (parsed.username || parsed.displayName) {
+      return parsed;
+    }
+
+    const trimmed = rawQuery.trim();
+    if (!trimmed) {
+      return parsed;
+    }
+
+    const hasStructuredFilters =
+      parsed.languages.length > 0 ||
+      parsed.locationSlugs.length > 0 ||
+      parsed.zone !== null ||
+      parsed.sort !== 'contributions';
+
+    if (hasStructuredFilters) {
+      return parsed;
+    }
+
+    const atUsername = trimmed.match(
+      /^@([a-zA-Z0-9](?:[a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?)$/,
+    );
+    if (atUsername?.[1]) {
+      return { ...parsed, username: atUsername[1].toLowerCase() };
+    }
+
+    if (trimmed.includes(' ')) {
+      return { ...parsed, displayName: trimmed.replace(/\s+/g, ' ') };
+    }
+
+    const githubUsername = trimmed.match(
+      /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,37}[a-zA-Z0-9])?$/,
+    );
+    if (githubUsername && !this.isLikelyLanguageName(trimmed)) {
+      return { ...parsed, username: trimmed.toLowerCase() };
+    }
+
+    return parsed;
+  }
+
+  private isLikelyLanguageName(term: string): boolean {
+    const normalized = term.trim().toLowerCase();
+    return COMMON_LANGUAGE_NAMES.has(normalized);
+  }
 }
+
+const COMMON_LANGUAGE_NAMES = new Set([
+  'c',
+  'c#',
+  'c++',
+  'css',
+  'dart',
+  'elixir',
+  'go',
+  'golang',
+  'haskell',
+  'html',
+  'java',
+  'javascript',
+  'kotlin',
+  'php',
+  'python',
+  'ruby',
+  'rust',
+  'scala',
+  'shell',
+  'sql',
+  'swift',
+  'typescript',
+  'vue',
+]);

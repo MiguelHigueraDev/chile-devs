@@ -47,9 +47,7 @@ export function SearchBar({
   const showDropdown = open && filteredRecents.length > 0;
 
   const activeOptionIndex =
-    showDropdown &&
-    activeIndex >= 0 &&
-    activeIndex < filteredRecents.length
+    showDropdown && activeIndex >= 0 && activeIndex < filteredRecents.length
       ? activeIndex
       : -1;
 
@@ -162,15 +160,13 @@ export function SearchBar({
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={handleInputKeyDown}
-          placeholder='Try "Top TypeScript developers in Biobío"'
+          placeholder='Try "Top TypeScript developers" or "@username"'
           className="border-input bg-background placeholder:text-muted-foreground focus-visible:ring-ring h-8 w-full rounded-md border pr-3 pl-8 text-base focus-visible:ring-2 focus-visible:outline-none sm:text-sm"
           aria-label="Search developers"
         />
 
         {showDropdown && (
-          <div
-            className="border-border bg-popover text-popover-foreground absolute top-[calc(100%+0.375rem)] right-0 left-0 z-50 overflow-hidden rounded-md border shadow-md"
-          >
+          <div className="border-border bg-popover text-popover-foreground absolute top-[calc(100%+0.375rem)] right-0 left-0 z-50 overflow-hidden rounded-md border shadow-md">
             <ul
               id={listboxId}
               role="listbox"
