@@ -34,7 +34,10 @@ export type LocationDevelopersResponse = {
   developers: DeveloperSummary[];
   nextCursor: string | null;
   hasMore: boolean;
+  sort?: DeveloperSortKey;
 };
+
+export type CountryDevelopersResponse = LocationDevelopersResponse;
 
 export type StatsResponse = {
   totalDevs: number;

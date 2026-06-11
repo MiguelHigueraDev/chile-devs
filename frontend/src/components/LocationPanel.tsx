@@ -1,6 +1,7 @@
 import { ExternalLink } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocationDevelopers } from "../api/queries";
+import { useCountryDevelopers, useLocationDevelopers } from "../api/queries";
+import { isAllChileLocation } from "../lib/all-chile-location";
 import type {
   DeveloperSortKey,
   DeveloperSummary,
@@ -29,6 +30,7 @@ type LocationDevelopersListProps = {
   slug: string;
   sortBy: DeveloperSortKey;
   scrollRootRef: React.RefObject<HTMLDivElement | null>;
+  countryWide?: boolean;
 };
 
 const SORT_OPTIONS: Array<{ value: DeveloperSortKey; label: string }> = [
@@ -60,7 +62,10 @@ function LocationDevelopersList({
   slug,
   sortBy,
   scrollRootRef,
+  countryWide = false,
 }: LocationDevelopersListProps) {
+  const locationQuery = useLocationDevelopers(slug, sortBy, !countryWide);
+  const countryQuery = useCountryDevelopers(sortBy, countryWide);
   const {
     data,
     error,
@@ -68,7 +73,7 @@ function LocationDevelopersList({
     hasNextPage,
     isFetchingNextPage,
     isPending,
-  } = useLocationDevelopers(slug, sortBy);
+  } = countryWide ? countryQuery : locationQuery;
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const developers = useMemo(() => {
@@ -83,7 +88,8 @@ function LocationDevelopersList({
     );
   }, [data]);
 
-  const totalCount = data?.pages.find((page) => page.devCount != null)?.devCount ?? null;
+  const totalCount =
+    data?.pages.find((page) => page.devCount != null)?.devCount ?? null;
   const hasMore = hasNextPage ?? false;
 
   useEffect(() => {
@@ -112,13 +118,7 @@ function LocationDevelopersList({
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [
-    fetchNextPage,
-    hasMore,
-    isFetchingNextPage,
-    isPending,
-    scrollRootRef,
-  ]);
+  }, [fetchNextPage, hasMore, isFetchingNextPage, isPending, scrollRootRef]);
 
   if (isPending) {
     return (
@@ -216,6 +216,7 @@ function LocationDevelopersList({
 export function LocationPanel({ location, onClose }: LocationPanelProps) {
   const scrollRootRef = useRef<HTMLDivElement>(null);
   const slug = location?.slug ?? null;
+  const countryWide = location ? isAllChileLocation(location) : false;
   const [sortBy, setSortBy] = useState<DeveloperSortKey>("contributions");
   const [prevSlug, setPrevSlug] = useState<string | null>(slug);
 
@@ -241,7 +242,9 @@ export function LocationPanel({ location, onClose }: LocationPanelProps) {
             <SheetHeader className="shrink-0 border-b pb-4">
               <SheetTitle className="text-lg">{location.name}</SheetTitle>
               <SheetDescription>
-                Top developers in this location
+                {countryWide
+                  ? "All developers in Chile"
+                  : "Top developers in this location"}
               </SheetDescription>
               <div className="flex flex-wrap gap-2 pt-2">
                 <Badge variant="secondary">
@@ -277,6 +280,7 @@ export function LocationPanel({ location, onClose }: LocationPanelProps) {
                 slug={location.slug}
                 sortBy={sortBy}
                 scrollRootRef={scrollRootRef}
+                countryWide={countryWide}
               />
             </ScrollArea>
 

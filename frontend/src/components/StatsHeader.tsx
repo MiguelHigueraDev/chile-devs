@@ -1,4 +1,7 @@
 import { useStats } from '../api/queries'
+import { createAllChileLocation } from '../lib/all-chile-location'
+import type { MapLocation } from '../types/api'
+import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -8,7 +11,11 @@ const METRICS = [
   { key: 'locationsWithDevs' as const, label: 'Locations' },
 ]
 
-export function StatsHeader() {
+type StatsHeaderProps = {
+  onViewAllDevelopers: (location: MapLocation) => void
+}
+
+export function StatsHeader({ onViewAllDevelopers }: StatsHeaderProps) {
   const { data: stats, error, isPending } = useStats()
 
   return (
@@ -20,6 +27,17 @@ export function StatsHeader() {
         <p className="text-muted-foreground text-sm">
           GitHub contributions from developers across Chile
         </p>
+        {stats && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-3"
+            onClick={() => onViewAllDevelopers(createAllChileLocation(stats))}
+          >
+            View all developers
+          </Button>
+        )}
       </div>
 
       <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto sm:gap-6">

@@ -125,27 +125,18 @@ export class ApiService {
     }));
   }
 
-  async getLocationDevelopers(
-    slug: string,
-    limit = MAX_DEVELOPERS_PAGE_SIZE,
-    cursor?: string,
-    sort: DeveloperSortKey = 'contributions',
+  private async paginateDevelopers(
+    limit: number,
+    cursor: string | undefined,
+    sort: DeveloperSortKey,
+    locationId?: number,
   ) {
     const pageSize = Math.min(limit, MAX_DEVELOPERS_PAGE_SIZE);
     const decodedCursor = cursor ? decodeCursor(cursor, sort) : null;
     const sortColumn = SORT_COLUMNS[sort];
 
-    const [location] = await this.db
-      .select()
-      .from(locations)
-      .where(eq(locations.slug, slug))
-      .limit(1);
-
-    if (!location) {
-      return null;
-    }
-
-    const locationFilter = eq(developers.locationId, location.id);
+    const locationFilter =
+      locationId != null ? eq(developers.locationId, locationId) : undefined;
     const cursorFilter = decodedCursor
       ? or(
           lt(sortColumn, decodedCursor.value),
@@ -155,6 +146,14 @@ export class ApiService {
           ),
         )
       : undefined;
+
+    const filters = [locationFilter, cursorFilter].filter(Boolean);
+    const whereClause =
+      filters.length === 0
+        ? undefined
+        : filters.length === 1
+          ? filters[0]
+          : and(...filters);
 
     const devs = await this.db
       .select({
@@ -169,7 +168,7 @@ export class ApiService {
         rawLocation: developers.rawLocation,
       })
       .from(developers)
-      .where(cursorFilter ? and(locationFilter, cursorFilter) : locationFilter)
+      .where(whereClause)
       .orderBy(desc(sortColumn), asc(developers.githubId))
       .limit(pageSize + 1);
 
@@ -192,12 +191,44 @@ export class ApiService {
       ({ githubId: _githubId, ...developer }) => developer,
     );
 
-    if (decodedCursor) {
+    return {
+      developers: developersResponse,
+      nextCursor,
+      hasMore,
+      sort,
+      isFirstPage: !decodedCursor,
+    };
+  }
+
+  async getLocationDevelopers(
+    slug: string,
+    limit = MAX_DEVELOPERS_PAGE_SIZE,
+    cursor?: string,
+    sort: DeveloperSortKey = 'contributions',
+  ) {
+    const [location] = await this.db
+      .select()
+      .from(locations)
+      .where(eq(locations.slug, slug))
+      .limit(1);
+
+    if (!location) {
+      return null;
+    }
+
+    const page = await this.paginateDevelopers(
+      limit,
+      cursor,
+      sort,
+      location.id,
+    );
+
+    if (!page.isFirstPage) {
       return {
-        developers: developersResponse,
-        nextCursor,
-        hasMore,
-        sort,
+        developers: page.developers,
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+        sort: page.sort,
       };
     }
 
@@ -221,10 +252,44 @@ export class ApiService {
       },
       devCount: Number(devCount),
       totalContributions: Number(totalContributions ?? 0),
-      developers: developersResponse,
-      nextCursor,
-      hasMore,
-      sort,
+      developers: page.developers,
+      nextCursor: page.nextCursor,
+      hasMore: page.hasMore,
+      sort: page.sort,
+    };
+  }
+
+  async getCountryDevelopers(
+    limit = MAX_DEVELOPERS_PAGE_SIZE,
+    cursor?: string,
+    sort: DeveloperSortKey = 'contributions',
+  ) {
+    const page = await this.paginateDevelopers(limit, cursor, sort);
+
+    if (!page.isFirstPage) {
+      return {
+        developers: page.developers,
+        nextCursor: page.nextCursor,
+        hasMore: page.hasMore,
+        sort: page.sort,
+      };
+    }
+
+    const [{ devCount }] = await this.db
+      .select({ devCount: count() })
+      .from(developers);
+
+    const [{ totalContributions }] = await this.db
+      .select({ totalContributions: sum(developers.contributions) })
+      .from(developers);
+
+    return {
+      devCount: Number(devCount),
+      totalContributions: Number(totalContributions ?? 0),
+      developers: page.developers,
+      nextCursor: page.nextCursor,
+      hasMore: page.hasMore,
+      sort: page.sort,
     };
   }
 

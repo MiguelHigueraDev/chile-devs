@@ -22,6 +22,19 @@ export class ApiController {
     return this.apiService.getStats();
   }
 
+  @Get('developers')
+  getCountryDevelopers(
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('cursor') cursor?: string,
+    @Query('sort') sort?: string,
+  ) {
+    return this.apiService.getCountryDevelopers(
+      limit ?? 10,
+      cursor,
+      parseDeveloperSort(sort),
+    );
+  }
+
   @Get('locations/:slug/developers')
   async getLocationDevelopers(
     @Param('slug') slug: string,
