@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { ExternalLinkWarningDialog } from "./ExternalLinkWarningDialog";
 import { TopLanguagesBar } from "./TopLanguagesBar";
 
 type DeveloperProfilePanelProps = {
@@ -80,6 +81,8 @@ function ProfileView({
   isOwner: boolean;
   onEdit: () => void;
 }) {
+  const [portfolioWarningOpen, setPortfolioWarningOpen] = useState(false);
+
   return (
     <div className="space-y-5 px-4 py-4">
       <div className="flex items-start gap-4">
@@ -144,20 +147,28 @@ function ProfileView({
           </a>
         </Button>
         {developer.portfolioUrl && (
-          <Button variant="outline" size="sm" asChild>
-            <a
-              href={developer.portfolioUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5"
-            >
-              <Globe className="size-3.5" />
-              Portfolio
-              <ExternalLink className="size-3 opacity-60" />
-            </a>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="inline-flex items-center gap-1.5"
+            onClick={() => setPortfolioWarningOpen(true)}
+          >
+            <Globe className="size-3.5" />
+            Portfolio
+            <ExternalLink className="size-3 opacity-60" />
           </Button>
         )}
       </div>
+
+      {developer.portfolioUrl && (
+        <ExternalLinkWarningDialog
+          open={portfolioWarningOpen}
+          onOpenChange={setPortfolioWarningOpen}
+          url={developer.portfolioUrl}
+          developerLogin={developer.login}
+        />
+      )}
 
       {isOwner && (
         <Button type="button" variant="secondary" size="sm" onClick={onEdit}>
