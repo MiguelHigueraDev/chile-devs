@@ -110,6 +110,7 @@ export class SyncService implements OnModuleInit {
                   locationId: classified.id,
                   followers: user.followers,
                   contributions: user.contributions,
+                  totalStars: user.totalStars,
                   profileUrl: user.profileUrl,
                   lastSeenAt: new Date(),
                 })
@@ -123,6 +124,7 @@ export class SyncService implements OnModuleInit {
                     locationId: classified.id,
                     followers: user.followers,
                     contributions: user.contributions,
+                    totalStars: user.totalStars,
                     profileUrl: user.profileUrl,
                     lastSeenAt: new Date(),
                   },

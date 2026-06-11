@@ -41,8 +41,15 @@ type ContributionsUser = {
   } | null;
 } | null;
 
+type StarsUser = {
+  repositories: {
+    nodes: Array<{ stargazerCount: number } | null>;
+  } | null;
+} | null;
+
 const SEARCH_PAGE_SIZE = 50;
 const CONTRIBUTIONS_BATCH_SIZE = 10;
+const STARS_BATCH_SIZE = 5;
 
 const SEARCH_QUERY = `
   query SearchUsers($query: String!, $cursor: String) {
@@ -81,6 +88,7 @@ export type GitHubUserResult = {
   rawLocation: string | null;
   followers: number;
   contributions: number;
+  totalStars: number;
   profileUrl: string;
 };
 
@@ -125,9 +133,17 @@ export class GithubService {
         baseUsers.map((u) => u.login),
         rateLimit,
       );
+      const totalStars = await this.fetchStarsBatch(
+        baseUsers.map((u) => u.login),
+        rateLimit,
+      );
 
       const users = baseUsers.map((node) =>
-        this.toUserResult(node, contributions.get(node.login) ?? 0),
+        this.toUserResult(
+          node,
+          contributions.get(node.login) ?? 0,
+          totalStars.get(node.login) ?? 0,
+        ),
       );
 
       if (onPage) {
@@ -194,6 +210,87 @@ export class GithubService {
     }
 
     return contributions;
+  }
+
+  private async fetchStarsBatch(
+    logins: string[],
+    priorRateLimit?: RateLimit,
+  ): Promise<Map<string, number>> {
+    const stars = new Map<string, number>();
+
+    for (let i = 0; i < logins.length; i += STARS_BATCH_SIZE) {
+      const batch = logins.slice(i, i + STARS_BATCH_SIZE);
+      const query = this.buildStarsQuery(batch);
+
+      const response = await this.graphql<{
+        data?: Record<string, StarsUser> & { rateLimit?: RateLimit };
+        errors?: Array<{ message: string }>;
+      }>(query, {});
+
+      if (response.errors?.length) {
+        this.logger.warn(
+          `Stars batch failed for ${batch.join(', ')}: ${this.formatGraphqlErrors(response.errors)}`,
+        );
+        continue;
+      }
+
+      batch.forEach((login, index) => {
+        const user = response.data?.[`u${index}`];
+        stars.set(login, this.sumPublicRepoStars(user?.repositories?.nodes));
+      });
+
+      const rateLimit = response.data?.rateLimit ?? priorRateLimit;
+      if (rateLimit && rateLimit.remaining < 50) {
+        await this.waitForRateLimit(rateLimit.resetAt);
+      }
+
+      if (i + STARS_BATCH_SIZE < logins.length) {
+        await this.sleep(200);
+      }
+    }
+
+    return stars;
+  }
+
+  private buildStarsQuery(logins: string[]): string {
+    const userFields = logins
+      .map(
+        (login, index) => `
+      u${index}: user(login: ${JSON.stringify(login)}) {
+        repositories(
+          ownerAffiliations: OWNER
+          isFork: false
+          privacy: PUBLIC
+          first: 100
+          orderBy: {field: STARGAZERS, direction: DESC}
+        ) {
+          nodes {
+            stargazerCount
+          }
+        }
+      }`,
+      )
+      .join('\n');
+
+    return `
+      query BatchStars {
+        ${userFields}
+        rateLimit {
+          remaining
+          resetAt
+        }
+      }
+    `;
+  }
+
+  private sumPublicRepoStars(
+    nodes: Array<{ stargazerCount: number } | null> | undefined,
+  ): number {
+    if (!nodes?.length) {
+      return 0;
+    }
+
+    return nodes.reduce((sum, repo) => sum + (repo?.stargazerCount ?? 0), 0);
   }
 
   private buildContributionsQuery(logins: string[]): string {
@@ -296,6 +393,7 @@ export class GithubService {
   private toUserResult(
     node: GitHubSearchUser,
     contributions: number,
+    totalStars: number,
   ): GitHubUserResult {
     return {
       githubId: node.id,
@@ -305,6 +403,7 @@ export class GithubService {
       rawLocation: node.location,
       followers: node.followers.totalCount,
       contributions,
+      totalStars,
       profileUrl: node.url,
     };
   }

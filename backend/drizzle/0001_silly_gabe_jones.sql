@@ -1,0 +1,1 @@
+ALTER TABLE "developers" ADD COLUMN "total_stars" integer DEFAULT 0 NOT NULL;
