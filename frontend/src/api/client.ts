@@ -22,11 +22,22 @@ export function fetchStats(): Promise<StatsResponse> {
   return fetchJson<StatsResponse>('/stats');
 }
 
+export type FetchLocationDevelopersOptions = {
+  cursor?: string;
+  limit?: number;
+};
+
 export function fetchLocationDevelopers(
   slug: string,
-  limit = 10,
+  options: FetchLocationDevelopersOptions = {},
 ): Promise<LocationDevelopersResponse> {
+  const { cursor, limit = 10 } = options;
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor) {
+    params.set('cursor', cursor);
+  }
+
   return fetchJson<LocationDevelopersResponse>(
-    `/locations/${slug}/developers?limit=${limit}`,
+    `/locations/${slug}/developers?${params.toString()}`,
   );
 }

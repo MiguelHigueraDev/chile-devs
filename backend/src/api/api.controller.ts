@@ -26,10 +26,12 @@ export class ApiController {
   async getLocationDevelopers(
     @Param('slug') slug: string,
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('cursor') cursor?: string,
   ) {
     const result = await this.apiService.getLocationDevelopers(
       slug,
       limit ?? 10,
+      cursor,
     );
 
     if (!result) {
