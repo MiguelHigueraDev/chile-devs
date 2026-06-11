@@ -277,7 +277,8 @@ export function DeveloperProfilePanel({
   const { data: me } = useMe();
 
   const isEditing = editMode;
-  const isOwner = !!me?.hasProfile && me.login === login;
+  const isOwner = !!login && me?.login === login;
+  const canEditProfile = isOwner && !!me?.hasProfile;
   const showClaimCta = !developer?.claimed && !me;
 
   return (
@@ -329,7 +330,7 @@ export function DeveloperProfilePanel({
                     </p>
                   )}
 
-                  {isOwner && me?.hasProfile && isEditing ? (
+                  {canEditProfile && isEditing ? (
                     <ProfileEditForm
                       key={developer.login}
                       developer={developer}
@@ -338,7 +339,7 @@ export function DeveloperProfilePanel({
                   ) : (
                     <ProfileView
                       developer={developer}
-                      isOwner={isOwner && !!me?.hasProfile}
+                      isOwner={canEditProfile}
                       onEdit={() => onEditModeChange?.(true)}
                     />
                   )}
