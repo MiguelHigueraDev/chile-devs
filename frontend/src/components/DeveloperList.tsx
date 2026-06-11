@@ -47,10 +47,7 @@ function getDeveloperMetric(
   return dev.contributions;
 }
 
-function formatMetricValue(
-  value: number,
-  sortBy: DeveloperMetricKey,
-): string {
+function formatMetricValue(value: number, sortBy: DeveloperMetricKey): string {
   if (sortBy === "languageShare") {
     return `${value}%`;
   }
@@ -141,4 +138,5 @@ export function DeveloperList({
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export { getDeveloperMetric, SORT_LABELS };
