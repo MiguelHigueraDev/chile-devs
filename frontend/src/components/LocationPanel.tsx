@@ -148,7 +148,9 @@ function LocationDevelopersList({
   }
 
   if (error && developers.length === 0) {
-    return <p className="text-destructive px-4 py-4 text-sm">{error.message}</p>;
+    return (
+      <p className="text-destructive px-4 py-4 text-sm">{error.message}</p>
+    );
   }
 
   if (developers.length === 0) {
@@ -265,6 +267,14 @@ export function LocationPanel({ location, onClose }: LocationPanelProps) {
     setPrevSlug(slug);
     setSortBy("contributions");
   }
+
+  // Scroll to top when sortBy or slug changes
+  useEffect(() => {
+    const viewport = scrollRootRef.current?.querySelector(
+      '[data-slot="scroll-area-viewport"]',
+    );
+    viewport?.scrollTo({ top: 0 });
+  }, [sortBy, slug]);
 
   return (
     <Sheet
