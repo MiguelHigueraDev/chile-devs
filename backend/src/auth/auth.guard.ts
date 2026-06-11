@@ -16,7 +16,10 @@ export class AuthGuard implements CanActivate {
     const request = context
       .switchToHttp()
       .getRequest<FastifyRequest & Partial<AuthenticatedRequest>>();
-    const token = request.cookies?.[this.authService.sessionCookieName];
+    const token = this.authService.extractSessionToken(
+      request.headers.authorization,
+      request.cookies,
+    );
     const session = await this.authService.getSessionFromToken(token);
 
     if (!session) {

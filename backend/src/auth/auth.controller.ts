@@ -41,8 +41,11 @@ export class AuthController {
 
     const storedState =
       request.cookies?.[this.authService.oauthStateCookieName];
-    const { token, redirectUrl } =
-      await this.authService.exchangeCodeForSession(code, state, storedState);
+    const { token } = await this.authService.exchangeCodeForSession(
+      code,
+      state,
+      storedState,
+    );
 
     const sessionCookieOptions = this.authService.getSessionCookieOptions();
 
@@ -50,12 +53,11 @@ export class AuthController {
       this.authService.oauthStateCookieName,
       sessionCookieOptions,
     );
-    reply.setCookie(this.authService.sessionCookieName, token, {
-      ...sessionCookieOptions,
-      maxAge: 30 * 24 * 60 * 60,
-    });
 
-    return reply.redirect(redirectUrl, 302);
+    return reply.redirect(
+      this.authService.buildAuthenticatedRedirectUrl(token),
+      302,
+    );
   }
 
   @Get('me')

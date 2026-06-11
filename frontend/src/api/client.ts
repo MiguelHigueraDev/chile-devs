@@ -1,4 +1,8 @@
 import { getDeveloperSortPreference } from '../lib/developer-sort-preference';
+import {
+  clearAuthToken,
+  getAuthToken,
+} from '../lib/auth-token';
 import type {
   CountryDevelopersResponse,
   DeveloperDetail,
@@ -24,18 +28,37 @@ const API_BASE = getApiBase();
 type FetchJsonOptions = {
   method?: string;
   body?: unknown;
-  credentials?: RequestCredentials;
+  auth?: boolean;
 };
+
+function buildHeaders(options: {
+  body?: unknown;
+  auth?: boolean;
+}): HeadersInit | undefined {
+  const headers: Record<string, string> = {};
+
+  if (options.body) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  if (options.auth) {
+    const token = getAuthToken();
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+  }
+
+  return Object.keys(headers).length > 0 ? headers : undefined;
+}
 
 async function fetchJson<T>(
   path: string,
   options: FetchJsonOptions = {},
 ): Promise<T> {
-  const { method = 'GET', body, credentials } = options;
+  const { method = 'GET', body, auth = false } = options;
   const response = await fetch(`${API_BASE}${path}`, {
     method,
-    credentials,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    headers: buildHeaders({ body, auth }),
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!response.ok) {
@@ -112,10 +135,16 @@ export function fetchDeveloper(login: string): Promise<DeveloperDetail> {
 }
 
 export async function fetchMe(): Promise<MeResponse | null> {
+  const token = getAuthToken();
+  if (!token) {
+    return null;
+  }
+
   const response = await fetch(`${API_BASE}/auth/me`, {
-    credentials: 'include',
+    headers: { Authorization: `Bearer ${token}` },
   });
   if (response.status === 401) {
+    clearAuthToken();
     return null;
   }
   if (!response.ok) {
@@ -130,15 +159,19 @@ export function updateMyProfile(
   return fetchJson<DeveloperDetail>('/developers/me', {
     method: 'PATCH',
     body: input,
-    credentials: 'include',
+    auth: true,
   });
 }
 
-export function logout(): Promise<{ ok: boolean }> {
-  return fetchJson<{ ok: boolean }>('/auth/logout', {
-    method: 'POST',
-    credentials: 'include',
-  });
+export async function logout(): Promise<{ ok: boolean }> {
+  try {
+    return await fetchJson<{ ok: boolean }>('/auth/logout', {
+      method: 'POST',
+      auth: true,
+    });
+  } finally {
+    clearAuthToken();
+  }
 }
 
 export function getGitHubAuthUrl(): string {

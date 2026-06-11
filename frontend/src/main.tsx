@@ -3,8 +3,14 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
+import { queryKeys } from "./api/queries";
+import { consumeSessionFromUrlHash } from "./lib/auth-token";
 import { queryClient } from "./lib/query-client";
 import { Analytics } from "@vercel/analytics/react";
+
+if (consumeSessionFromUrlHash()) {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.me });
+}
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

@@ -108,6 +108,25 @@ export class AuthService {
     ).redirectUrl;
   }
 
+  buildAuthenticatedRedirectUrl(token: string): string {
+    const base = this.getFrontendUrl().replace(/\/$/, '');
+    return `${base}#session=${encodeURIComponent(token)}`;
+  }
+
+  extractSessionToken(
+    authorization: string | undefined,
+    cookies: Record<string, string | undefined> | undefined,
+  ): string | undefined {
+    if (authorization?.startsWith('Bearer ')) {
+      const token = authorization.slice('Bearer '.length).trim();
+      if (token) {
+        return token;
+      }
+    }
+
+    return cookies?.[this.sessionCookieName];
+  }
+
   async exchangeCodeForSession(
     code: string,
     state: string,
