@@ -29,15 +29,15 @@ export const ZONES: Record<GeoZone, string[]> = {
     'atacama',
     'coquimbo-region',
   ],
-  central: [
-    'valparaiso-region',
-    'metropolitana',
-    'ohiggins',
-    'maule',
-    'nuble',
+  central: ['valparaiso-region', 'metropolitana', 'ohiggins', 'maule', 'nuble'],
+  south: [
+    'araucania',
     'biobio',
+    'los-rios',
+    'los-lagos',
+    'aysen',
+    'magallanes',
   ],
-  south: ['araucania', 'los-rios', 'los-lagos', 'aysen', 'magallanes'],
 };
 
 export const LOCATION_SLUGS = LOCATION_SEEDS.map((location) => location.slug);
