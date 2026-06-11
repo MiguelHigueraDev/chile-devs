@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import postgres from 'postgres';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import {
@@ -142,37 +142,49 @@ async function main() {
         .limit(1);
 
       if (existing.length > 0) {
-        // Same user already exists under the numeric id; merge the legacy row
-        // into it so reruns converge instead of skipping forever.
-        await db.transaction(async (tx) => {
-          const legacyLanguageRows = await tx
-            .select()
-            .from(developerLanguages)
-            .where(eq(developerLanguages.developerGithubId, row.githubId));
+        // Same user already exists under the numeric id; rewire legacy languages
+        // to the winner, then delete the legacy developer row.
+        try {
+          await db.transaction(async (tx) => {
+            const winnerLanguages = await tx
+              .select({ language: developerLanguages.language })
+              .from(developerLanguages)
+              .where(eq(developerLanguages.developerGithubId, nextGithubId));
 
-          if (legacyLanguageRows.length > 0) {
+            const conflictingLanguages = winnerLanguages.map(
+              (entry) => entry.language,
+            );
+            if (conflictingLanguages.length > 0) {
+              await tx
+                .delete(developerLanguages)
+                .where(
+                  and(
+                    eq(developerLanguages.developerGithubId, row.githubId),
+                    inArray(developerLanguages.language, conflictingLanguages),
+                  ),
+                );
+            }
+
             await tx
-              .insert(developerLanguages)
-              .values(
-                legacyLanguageRows.map((languageRow) => ({
-                  developerGithubId: nextGithubId,
-                  language: languageRow.language,
-                  share: languageRow.share,
-                })),
-              )
-              .onConflictDoNothing();
-          }
+              .update(developerLanguages)
+              .set({ developerGithubId: nextGithubId })
+              .where(eq(developerLanguages.developerGithubId, row.githubId));
 
-          // Cascade removes the legacy developer_languages rows.
-          await tx
-            .delete(developers)
-            .where(eq(developers.githubId, row.githubId));
-        });
+            await tx
+              .delete(developers)
+              .where(eq(developers.githubId, row.githubId));
+          });
 
-        migrated += 1;
-        console.log(
-          `Merged ${row.login}: ${row.githubId} into existing ${nextGithubId}`,
-        );
+          migrated += 1;
+          console.log(
+            `Merged ${row.login}: ${row.githubId} into existing ${nextGithubId}`,
+          );
+        } catch (error) {
+          console.error(
+            `Failed to merge ${row.login}: ${row.githubId} -> ${nextGithubId}`,
+            error,
+          );
+        }
         continue;
       }
 
