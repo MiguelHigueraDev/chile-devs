@@ -172,6 +172,7 @@ export class ApiService {
         contributions: developers.contributions,
         followers: developers.followers,
         totalStars: developers.totalStars,
+        topLanguages: developers.topLanguages,
         profileUrl: developers.profileUrl,
         rawLocation: developers.rawLocation,
       })

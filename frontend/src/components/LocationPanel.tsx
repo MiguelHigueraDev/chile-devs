@@ -177,6 +177,19 @@ function LocationDevelopersList({
                   {dev.name}
                 </p>
               )}
+              {dev.topLanguages.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {dev.topLanguages.map((language) => (
+                    <Badge
+                      key={language.name}
+                      variant="outline"
+                      className="px-1.5 py-0 text-[10px] font-normal"
+                    >
+                      {language.name}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </div>
             <span className="text-foreground shrink-0 text-sm font-semibold tabular-nums">
               {getDeveloperMetric(dev, sortBy).toLocaleString()}

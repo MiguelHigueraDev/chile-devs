@@ -8,6 +8,13 @@
       "when": 1781143668812,
       "tag": "0000_stale_mephisto",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781155037690,
+      "tag": "0001_acoustic_beyonder",
+      "breakpoints": true
     }
   ]
 }

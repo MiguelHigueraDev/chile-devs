@@ -1,0 +1,1 @@
+ALTER TABLE "developers" ADD COLUMN "top_languages" jsonb DEFAULT '[]'::jsonb NOT NULL;

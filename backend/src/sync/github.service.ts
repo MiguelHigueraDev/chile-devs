@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LOCATION_SEEDS } from '../db/locations.data';
-import type { Location } from '../db/schema';
+import type { Location, TopLanguage } from '../db/schema';
 
 type GitHubSearchUser = {
   id: string;
@@ -47,9 +47,24 @@ type StarsUser = {
   } | null;
 } | null;
 
+type LanguageRepo = {
+  languages: {
+    edges: Array<{ size: number; node: { name: string } | null } | null>;
+  } | null;
+} | null;
+
+type LanguagesUser = {
+  repositories: {
+    nodes: Array<LanguageRepo>;
+  } | null;
+} | null;
+
 const SEARCH_PAGE_SIZE = 50;
 const CONTRIBUTIONS_BATCH_SIZE = 10;
 const STARS_BATCH_SIZE = 5;
+const LANGUAGES_BATCH_SIZE = 5;
+const LANGUAGES_REPO_LIMIT = 30;
+const TOP_LANGUAGES_COUNT = 5;
 
 const SEARCH_QUERY = `
   query SearchUsers($query: String!, $cursor: String) {
@@ -89,6 +104,7 @@ export type GitHubUserResult = {
   followers: number;
   contributions: number;
   totalStars: number;
+  topLanguages: TopLanguage[];
   profileUrl: string;
 };
 
@@ -137,12 +153,17 @@ export class GithubService {
         baseUsers.map((u) => u.login),
         rateLimit,
       );
+      const topLanguages = await this.fetchLanguagesBatch(
+        baseUsers.map((u) => u.login),
+        rateLimit,
+      );
 
       const users = baseUsers.map((node) =>
         this.toUserResult(
           node,
           contributions.get(node.login) ?? 0,
           totalStars.get(node.login) ?? 0,
+          topLanguages.get(node.login) ?? [],
         ),
       );
 
@@ -250,6 +271,120 @@ export class GithubService {
     }
 
     return stars;
+  }
+
+  private async fetchLanguagesBatch(
+    logins: string[],
+    priorRateLimit?: RateLimit,
+  ): Promise<Map<string, TopLanguage[]>> {
+    const languages = new Map<string, TopLanguage[]>();
+
+    for (let i = 0; i < logins.length; i += LANGUAGES_BATCH_SIZE) {
+      const batch = logins.slice(i, i + LANGUAGES_BATCH_SIZE);
+      const query = this.buildLanguagesQuery(batch);
+
+      const response = await this.graphql<{
+        data?: Record<string, LanguagesUser> & { rateLimit?: RateLimit };
+        errors?: Array<{ message: string }>;
+      }>(query, {});
+
+      if (response.errors?.length) {
+        this.logger.warn(
+          `Languages batch failed for ${batch.join(', ')}: ${this.formatGraphqlErrors(response.errors)}`,
+        );
+        continue;
+      }
+
+      batch.forEach((login, index) => {
+        const user = response.data?.[`u${index}`];
+        languages.set(
+          login,
+          this.aggregateTopLanguages(user?.repositories?.nodes),
+        );
+      });
+
+      const rateLimit = response.data?.rateLimit ?? priorRateLimit;
+      if (rateLimit && rateLimit.remaining < 50) {
+        await this.waitForRateLimit(rateLimit.resetAt);
+      }
+
+      if (i + LANGUAGES_BATCH_SIZE < logins.length) {
+        await this.sleep(200);
+      }
+    }
+
+    return languages;
+  }
+
+  private buildLanguagesQuery(logins: string[]): string {
+    const userFields = logins
+      .map(
+        (login, index) => `
+      u${index}: user(login: ${JSON.stringify(login)}) {
+        repositories(
+          ownerAffiliations: OWNER
+          isFork: false
+          privacy: PUBLIC
+          first: ${LANGUAGES_REPO_LIMIT}
+          orderBy: {field: STARGAZERS, direction: DESC}
+        ) {
+          nodes {
+            languages(first: 10, orderBy: {field: SIZE, direction: DESC}) {
+              edges {
+                size
+                node {
+                  name
+                }
+              }
+            }
+          }
+        }
+      }`,
+      )
+      .join('\n');
+
+    return `
+      query BatchLanguages {
+        ${userFields}
+        rateLimit {
+          remaining
+          resetAt
+        }
+      }
+    `;
+  }
+
+  private aggregateTopLanguages(
+    nodes: Array<LanguageRepo> | undefined,
+  ): TopLanguage[] {
+    const byteTotals = new Map<string, number>();
+
+    for (const repo of nodes ?? []) {
+      for (const edge of repo?.languages?.edges ?? []) {
+        const name = edge?.node?.name;
+        if (!name) {
+          continue;
+        }
+
+        byteTotals.set(name, (byteTotals.get(name) ?? 0) + edge.size);
+      }
+    }
+
+    const totalBytes = [...byteTotals.values()].reduce(
+      (sum, bytes) => sum + bytes,
+      0,
+    );
+    if (totalBytes === 0) {
+      return [];
+    }
+
+    return [...byteTotals.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, TOP_LANGUAGES_COUNT)
+      .map(([name, bytes]) => ({
+        name,
+        share: Math.round((bytes / totalBytes) * 100),
+      }));
   }
 
   private buildStarsQuery(logins: string[]): string {
@@ -394,6 +529,7 @@ export class GithubService {
     node: GitHubSearchUser,
     contributions: number,
     totalStars: number,
+    topLanguages: TopLanguage[],
   ): GitHubUserResult {
     return {
       githubId: node.id,
@@ -404,6 +540,7 @@ export class GithubService {
       followers: node.followers.totalCount,
       contributions,
       totalStars,
+      topLanguages,
       profileUrl: node.url,
     };
   }
