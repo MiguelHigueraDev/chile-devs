@@ -38,7 +38,7 @@ export class SyncService implements OnModuleInit {
     }
   }
 
-  @Cron(CronExpression.EVERY_6_HOURS)
+  @Cron(CronExpression.EVERY_2_HOURS)
   async scheduledSync() {
     await this.runSync();
   }
