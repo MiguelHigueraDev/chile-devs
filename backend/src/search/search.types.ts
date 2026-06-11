@@ -11,9 +11,12 @@ export const parsedQuerySchema = z
     shareLanguage: z.string().nullable(),
   })
   .refine(
-    (data) => data.sort !== 'languageShare' || data.shareLanguage !== null,
+    (data) =>
+      data.sort !== 'languageShare' ||
+      (typeof data.shareLanguage === 'string' &&
+        data.shareLanguage.trim().length > 0),
     {
-      message: 'shareLanguage is required when sort is languageShare',
+      error: 'shareLanguage is required when sort is languageShare',
       path: ['shareLanguage'],
     },
   );
