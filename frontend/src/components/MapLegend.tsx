@@ -1,11 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 const LEGEND_ITEMS = [
-  { color: '#3b82f6', label: '1–19 devs' },
-  { color: '#6366f1', label: '20–49 devs' },
-  { color: '#8b5cf6', label: '50–99 devs' },
-  { color: '#a855f7', label: '100–199 devs' },
-  { color: '#d946ef', label: '200+ devs' },
+  { color: '#dc2626', label: '1–20 devs' },
+  { color: '#ea580c', label: '21–75 devs' },
+  { color: '#ca8a04', label: '76–200 devs' },
+  { color: '#65a30d', label: '201–499 devs' },
+  { color: '#16a34a', label: '500+ devs' },
 ]
 
 export function MapLegend() {
