@@ -6,6 +6,7 @@ import {
   desc,
   eq,
   exists,
+  ilike,
   inArray,
   or,
   sql,
@@ -138,6 +139,11 @@ export class SearchService {
       filters.push(locationFilter);
     }
 
+    const personFilter = this.buildPersonFilter(parsed);
+    if (personFilter) {
+      filters.push(personFilter);
+    }
+
     const shareLanguage = this.resolveShareLanguage(parsed);
     const whereClause =
       filters.length === 0
@@ -233,6 +239,28 @@ export class SearchService {
     );
   }
 
+  private buildPersonFilter(parsed: ParsedQuery): SQL | undefined {
+    const clauses: SQL[] = [];
+
+    if (parsed.username) {
+      clauses.push(
+        ilike(developers.login, `%${escapeLikePattern(parsed.username)}%`),
+      );
+    }
+
+    if (parsed.displayName) {
+      clauses.push(
+        ilike(developers.name, `%${escapeLikePattern(parsed.displayName)}%`),
+      );
+    }
+
+    if (clauses.length === 0) {
+      return undefined;
+    }
+
+    return clauses.length === 1 ? clauses[0] : or(...clauses);
+  }
+
   private resolveShareLanguage(parsed: ParsedQuery): string | null {
     if (parsed.shareLanguage) {
       return parsed.shareLanguage;
@@ -244,4 +272,8 @@ export class SearchService {
 
     return null;
   }
+}
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (character) => `\\${character}`);
 }

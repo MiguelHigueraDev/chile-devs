@@ -83,6 +83,8 @@ export type SearchInterpretation = {
   languageMode: 'any' | 'all';
   locationSlugs: string[];
   zone: 'north' | 'central' | 'south' | null;
+  username: string | null;
+  displayName: string | null;
   sort: SearchSortKey;
   shareLanguage: string | null;
   resolvedLocationSlugs: string[];
