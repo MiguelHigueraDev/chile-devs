@@ -1,3 +1,4 @@
+import { getDeveloperSortPreference } from '../lib/developer-sort-preference';
 import type {
   CountryDevelopersResponse,
   DeveloperSortKey,
@@ -78,7 +79,10 @@ export function fetchLocationDevelopers(
   );
 }
 
-export function fetchSearch(query: string): Promise<SearchResponse> {
-  const params = new URLSearchParams({ q: query });
+export function fetchSearch(
+  query: string,
+  sort: DeveloperSortKey = getDeveloperSortPreference(),
+): Promise<SearchResponse> {
+  const params = new URLSearchParams({ q: query, sort });
   return fetchJson<SearchResponse>(`/search?${params.toString()}`);
 }

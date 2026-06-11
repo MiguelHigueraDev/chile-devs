@@ -1,4 +1,5 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import type { DeveloperSortKey } from '../api/api.service';
 import {
   and,
   asc,
@@ -59,7 +60,10 @@ export class SearchService {
     private readonly queryParser: QueryParserService,
   ) {}
 
-  async search(rawQuery: string) {
+  async search(
+    rawQuery: string,
+    preferredSort: DeveloperSortKey = 'contributions',
+  ) {
     const query = rawQuery.trim();
     if (!query) {
       throw new BadRequestException('Query parameter "q" is required');
@@ -71,15 +75,19 @@ export class SearchService {
     }
 
     const parsed = await this.queryParser.parseQuery(query);
+    const effectiveParsed = {
+      ...parsed,
+      sort: this.resolveEffectiveSort(parsed, preferredSort),
+    };
     const resolvedLocationSlugs = [
       ...resolveLocationSlugs(parsed.locationSlugs, parsed.zone),
     ];
     const interpretation = this.buildInterpretation(
-      parsed,
+      effectiveParsed,
       resolvedLocationSlugs,
     );
     const developersResult = await this.executeSearch(
-      parsed,
+      effectiveParsed,
       resolvedLocationSlugs,
     );
 
@@ -88,6 +96,19 @@ export class SearchService {
       interpretation,
       developers: developersResult,
     };
+  }
+
+  private resolveEffectiveSort(
+    parsed: ParsedQuery,
+    preferredSort: DeveloperSortKey,
+  ): ParsedQuery['sort'] {
+    if (parsed.sort === 'languageShare') {
+      return 'languageShare';
+    }
+    if (parsed.sort === 'followers' || parsed.sort === 'stars') {
+      return parsed.sort;
+    }
+    return preferredSort;
   }
 
   private buildInterpretation(
