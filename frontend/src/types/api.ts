@@ -8,12 +8,15 @@ export type MapLocation = {
   totalContributions: number;
 };
 
+export type DeveloperSortKey = 'contributions' | 'followers' | 'stars';
+
 export type DeveloperSummary = {
   login: string;
   name: string | null;
   avatarUrl: string;
   contributions: number;
   followers: number;
+  totalStars: number;
   profileUrl: string;
   rawLocation: string | null;
 };

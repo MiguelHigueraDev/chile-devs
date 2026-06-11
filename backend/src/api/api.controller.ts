@@ -6,7 +6,7 @@ import {
   ParseIntPipe,
   Query,
 } from '@nestjs/common';
-import { ApiService } from './api.service';
+import { ApiService, parseDeveloperSort } from './api.service';
 
 @Controller('api')
 export class ApiController {
@@ -27,11 +27,13 @@ export class ApiController {
     @Param('slug') slug: string,
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
     @Query('cursor') cursor?: string,
+    @Query('sort') sort?: string,
   ) {
     const result = await this.apiService.getLocationDevelopers(
       slug,
       limit ?? 10,
       cursor,
+      parseDeveloperSort(sort),
     );
 
     if (!result) {

@@ -11,39 +11,79 @@ import {
   or,
   sql,
   sum,
+  type AnyColumn,
 } from 'drizzle-orm';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
 import { developers, locations } from '../db/schema';
 
 const MAX_DEVELOPERS_PAGE_SIZE = 10;
 
+export const DEVELOPER_SORT_KEYS = [
+  'contributions',
+  'followers',
+  'stars',
+] as const;
+
+export type DeveloperSortKey = (typeof DEVELOPER_SORT_KEYS)[number];
+
+const SORT_COLUMNS: Record<DeveloperSortKey, AnyColumn> = {
+  contributions: developers.contributions,
+  followers: developers.followers,
+  stars: developers.totalStars,
+};
+
 type DeveloperCursor = {
-  contributions: number;
+  sort: DeveloperSortKey;
+  value: number;
   githubId: string;
 };
 
-function encodeCursor(contributions: number, githubId: string): string {
-  return Buffer.from(`${contributions}:${githubId}`).toString('base64url');
+function encodeCursor(
+  sort: DeveloperSortKey,
+  value: number,
+  githubId: string,
+): string {
+  return Buffer.from(`${sort}:${value}:${githubId}`).toString('base64url');
 }
 
-function decodeCursor(cursor: string): DeveloperCursor | null {
+function decodeCursor(
+  cursor: string,
+  expectedSort: DeveloperSortKey,
+): DeveloperCursor | null {
   try {
     const decoded = Buffer.from(cursor, 'base64url').toString('utf8');
-    const separatorIndex = decoded.lastIndexOf(':');
-    if (separatorIndex === -1) {
+    const firstSep = decoded.indexOf(':');
+    const lastSep = decoded.lastIndexOf(':');
+    if (firstSep === -1 || lastSep === firstSep) {
       return null;
     }
 
-    const contributions = Number(decoded.slice(0, separatorIndex));
-    const githubId = decoded.slice(separatorIndex + 1);
-    if (!Number.isFinite(contributions) || !githubId) {
+    const sort = decoded.slice(0, firstSep) as DeveloperSortKey;
+    const value = Number(decoded.slice(firstSep + 1, lastSep));
+    const githubId = decoded.slice(lastSep + 1);
+    if (
+      sort !== expectedSort ||
+      !Number.isFinite(value) ||
+      !githubId ||
+      !DEVELOPER_SORT_KEYS.includes(sort)
+    ) {
       return null;
     }
 
-    return { contributions, githubId };
+    return { sort, value, githubId };
   } catch {
     return null;
   }
+}
+
+export function parseDeveloperSort(sort?: string): DeveloperSortKey {
+  if (!sort || sort === 'contributions') {
+    return 'contributions';
+  }
+  if (sort === 'followers' || sort === 'stars') {
+    return sort;
+  }
+  return 'contributions';
 }
 
 @Injectable()
@@ -89,9 +129,11 @@ export class ApiService {
     slug: string,
     limit = MAX_DEVELOPERS_PAGE_SIZE,
     cursor?: string,
+    sort: DeveloperSortKey = 'contributions',
   ) {
     const pageSize = Math.min(limit, MAX_DEVELOPERS_PAGE_SIZE);
-    const decodedCursor = cursor ? decodeCursor(cursor) : null;
+    const decodedCursor = cursor ? decodeCursor(cursor, sort) : null;
+    const sortColumn = SORT_COLUMNS[sort];
 
     const [location] = await this.db
       .select()
@@ -106,9 +148,9 @@ export class ApiService {
     const locationFilter = eq(developers.locationId, location.id);
     const cursorFilter = decodedCursor
       ? or(
-          lt(developers.contributions, decodedCursor.contributions),
+          lt(sortColumn, decodedCursor.value),
           and(
-            eq(developers.contributions, decodedCursor.contributions),
+            eq(sortColumn, decodedCursor.value),
             gt(developers.githubId, decodedCursor.githubId),
           ),
         )
@@ -122,20 +164,27 @@ export class ApiService {
         avatarUrl: developers.avatarUrl,
         contributions: developers.contributions,
         followers: developers.followers,
+        totalStars: developers.totalStars,
         profileUrl: developers.profileUrl,
         rawLocation: developers.rawLocation,
       })
       .from(developers)
       .where(cursorFilter ? and(locationFilter, cursorFilter) : locationFilter)
-      .orderBy(desc(developers.contributions), asc(developers.githubId))
+      .orderBy(desc(sortColumn), asc(developers.githubId))
       .limit(pageSize + 1);
 
     const hasMore = devs.length > pageSize;
     const pageDevs = hasMore ? devs.slice(0, pageSize) : devs;
     const lastDev = pageDevs.at(-1);
+    const lastDevSortValue =
+      sort === 'contributions'
+        ? lastDev?.contributions
+        : sort === 'followers'
+          ? lastDev?.followers
+          : lastDev?.totalStars;
     const nextCursor =
-      hasMore && lastDev
-        ? encodeCursor(lastDev.contributions, lastDev.githubId)
+      hasMore && lastDev && lastDevSortValue != null
+        ? encodeCursor(sort, lastDevSortValue, lastDev.githubId)
         : null;
 
     const developersResponse = pageDevs.map(
@@ -148,6 +197,7 @@ export class ApiService {
         developers: developersResponse,
         nextCursor,
         hasMore,
+        sort,
       };
     }
 
@@ -174,6 +224,7 @@ export class ApiService {
       developers: developersResponse,
       nextCursor,
       hasMore,
+      sort,
     };
   }
 

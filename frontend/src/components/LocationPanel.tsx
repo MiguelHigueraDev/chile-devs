@@ -1,9 +1,14 @@
 import { ExternalLink } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchLocationDevelopers } from "../api/client";
-import type { DeveloperSummary, MapLocation } from "../types/api";
+import type {
+  DeveloperSortKey,
+  DeveloperSummary,
+  MapLocation,
+} from "../types/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -22,11 +27,38 @@ type LocationPanelProps = {
 
 type LocationDevelopersListProps = {
   slug: string;
+  sortBy: DeveloperSortKey;
   scrollRootRef: React.RefObject<HTMLDivElement | null>;
 };
 
+const SORT_OPTIONS: Array<{ value: DeveloperSortKey; label: string }> = [
+  { value: "contributions", label: "Contributions" },
+  { value: "followers", label: "Followers" },
+  { value: "stars", label: "Stars" },
+];
+
+const SORT_LABELS: Record<DeveloperSortKey, string> = {
+  contributions: "contributions",
+  followers: "followers",
+  stars: "stars",
+};
+
+function getDeveloperMetric(
+  dev: DeveloperSummary,
+  sortBy: DeveloperSortKey,
+): number {
+  if (sortBy === "followers") {
+    return dev.followers;
+  }
+  if (sortBy === "stars") {
+    return dev.totalStars;
+  }
+  return dev.contributions;
+}
+
 function LocationDevelopersList({
   slug,
+  sortBy,
   scrollRootRef,
 }: LocationDevelopersListProps) {
   const [developers, setDevelopers] = useState<DeveloperSummary[]>([]);
@@ -43,7 +75,7 @@ function LocationDevelopersList({
     let cancelled = false;
     isFetchingRef.current = true;
 
-    fetchLocationDevelopers(slug)
+    fetchLocationDevelopers(slug, { sort: sortBy })
       .then((data) => {
         if (cancelled) return;
         setDevelopers(data.developers);
@@ -68,7 +100,7 @@ function LocationDevelopersList({
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, sortBy]);
 
   const loadMore = useCallback(
     async (cursor: string) => {
@@ -77,7 +109,10 @@ function LocationDevelopersList({
       setLoadingMore(true);
 
       try {
-        const data = await fetchLocationDevelopers(slug, { cursor });
+        const data = await fetchLocationDevelopers(slug, {
+          cursor,
+          sort: sortBy,
+        });
         setDevelopers((prev) => {
           const existing = new Set(prev.map((dev) => dev.login));
           const newDevs = data.developers.filter(
@@ -99,7 +134,7 @@ function LocationDevelopersList({
         setLoadingMore(false);
       }
     },
-    [slug],
+    [slug, sortBy],
   );
 
   useEffect(() => {
@@ -160,6 +195,8 @@ function LocationDevelopersList({
     );
   }
 
+  const sortLabel = SORT_LABELS[sortBy];
+
   return (
     <>
       <ul className="divide-border divide-y">
@@ -188,7 +225,7 @@ function LocationDevelopersList({
               )}
             </div>
             <span className="text-foreground shrink-0 text-sm font-semibold tabular-nums">
-              {dev.contributions.toLocaleString()}
+              {getDeveloperMetric(dev, sortBy).toLocaleString()}
             </span>
           </li>
         ))}
@@ -210,10 +247,10 @@ function LocationDevelopersList({
       )}
       <p className="text-muted-foreground pt-2 text-xs">
         {hasMore
-          ? `Showing ${developers.length.toLocaleString()}${totalCount != null ? ` of ${totalCount.toLocaleString()}` : ""} developers by contributions`
+          ? `Showing ${developers.length.toLocaleString()}${totalCount != null ? ` of ${totalCount.toLocaleString()}` : ""} developers by ${sortLabel}`
           : totalCount != null
             ? `All ${totalCount.toLocaleString()} developers loaded`
-            : `Showing ${developers.length.toLocaleString()} developers by contributions`}
+            : `Showing ${developers.length.toLocaleString()} developers by ${sortLabel}`}
       </p>
     </>
   );
@@ -221,6 +258,14 @@ function LocationDevelopersList({
 
 export function LocationPanel({ location, onClose }: LocationPanelProps) {
   const scrollRootRef = useRef<HTMLDivElement>(null);
+  const slug = location?.slug ?? null;
+  const [sortBy, setSortBy] = useState<DeveloperSortKey>("contributions");
+  const [prevSlug, setPrevSlug] = useState<string | null>(slug);
+
+  if (slug !== prevSlug) {
+    setPrevSlug(slug);
+    setSortBy("contributions");
+  }
 
   return (
     <Sheet
@@ -239,7 +284,7 @@ export function LocationPanel({ location, onClose }: LocationPanelProps) {
             <SheetHeader className="shrink-0 border-b pb-4">
               <SheetTitle className="text-lg">{location.name}</SheetTitle>
               <SheetDescription>
-                Top contributors in this location
+                Top developers in this location
               </SheetDescription>
               <div className="flex flex-wrap gap-2 pt-2">
                 <Badge variant="secondary">
@@ -249,12 +294,31 @@ export function LocationPanel({ location, onClose }: LocationPanelProps) {
                   {location.totalContributions.toLocaleString()} contributions
                 </Badge>
               </div>
+              <div
+                className="flex flex-wrap gap-1 pt-2"
+                role="group"
+                aria-label="Sort developers by"
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    size="xs"
+                    variant={sortBy === option.value ? "secondary" : "outline"}
+                    aria-pressed={sortBy === option.value}
+                    onClick={() => setSortBy(option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
             </SheetHeader>
 
             <ScrollArea ref={scrollRootRef} className="min-h-0 flex-1 px-4">
               <LocationDevelopersList
-                key={location.slug}
+                key={`${location.slug}-${sortBy}`}
                 slug={location.slug}
+                sortBy={sortBy}
                 scrollRootRef={scrollRootRef}
               />
             </ScrollArea>

@@ -40,6 +40,7 @@ export const developers = pgTable('developers', {
     .references(() => locations.id),
   followers: integer('followers').notNull().default(0),
   contributions: integer('contributions').notNull().default(0),
+  totalStars: integer('total_stars').notNull().default(0),
   profileUrl: text('profile_url').notNull(),
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true })
     .notNull()

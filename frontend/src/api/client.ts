@@ -1,4 +1,5 @@
 import type {
+  DeveloperSortKey,
   LocationDevelopersResponse,
   MapLocation,
   StatsResponse,
@@ -25,14 +26,15 @@ export function fetchStats(): Promise<StatsResponse> {
 export type FetchLocationDevelopersOptions = {
   cursor?: string;
   limit?: number;
+  sort?: DeveloperSortKey;
 };
 
 export function fetchLocationDevelopers(
   slug: string,
   options: FetchLocationDevelopersOptions = {},
 ): Promise<LocationDevelopersResponse> {
-  const { cursor, limit = 10 } = options;
-  const params = new URLSearchParams({ limit: String(limit) });
+  const { cursor, limit = 10, sort = 'contributions' } = options;
+  const params = new URLSearchParams({ limit: String(limit), sort });
   if (cursor) {
     params.set('cursor', cursor);
   }
