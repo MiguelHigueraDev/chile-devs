@@ -10,6 +10,11 @@ export type MapLocation = {
 
 export type DeveloperSortKey = 'contributions' | 'followers' | 'stars';
 
+export type TopLanguage = {
+  name: string;
+  share: number;
+};
+
 export type DeveloperSummary = {
   login: string;
   name: string | null;
@@ -17,6 +22,7 @@ export type DeveloperSummary = {
   contributions: number;
   followers: number;
   totalStars: number;
+  topLanguages: TopLanguage[];
   profileUrl: string;
   rawLocation: string | null;
 };

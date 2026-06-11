@@ -111,6 +111,7 @@ export class SyncService implements OnModuleInit {
                   followers: user.followers,
                   contributions: user.contributions,
                   totalStars: user.totalStars,
+                  topLanguages: user.topLanguages,
                   profileUrl: user.profileUrl,
                   lastSeenAt: new Date(),
                 })
@@ -125,6 +126,7 @@ export class SyncService implements OnModuleInit {
                     followers: user.followers,
                     contributions: user.contributions,
                     totalStars: user.totalStars,
+                    topLanguages: user.topLanguages,
                     profileUrl: user.profileUrl,
                     lastSeenAt: new Date(),
                   },

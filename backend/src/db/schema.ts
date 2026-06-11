@@ -1,11 +1,17 @@
 import {
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   serial,
   text,
   timestamp,
 } from 'drizzle-orm/pg-core';
+
+export type TopLanguage = {
+  name: string;
+  share: number;
+};
 
 export const locationKindEnum = pgEnum('location_kind', [
   'country',
@@ -41,6 +47,10 @@ export const developers = pgTable('developers', {
   followers: integer('followers').notNull().default(0),
   contributions: integer('contributions').notNull().default(0),
   totalStars: integer('total_stars').notNull().default(0),
+  topLanguages: jsonb('top_languages')
+    .$type<TopLanguage[]>()
+    .notNull()
+    .default([]),
   profileUrl: text('profile_url').notNull(),
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true })
     .notNull()

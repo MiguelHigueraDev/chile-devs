@@ -1,6 +1,6 @@
 {
-  "id": "0bfb1f95-33f6-498e-872a-f2ff8eeb51cb",
-  "prevId": "d285bd82-82d3-4a77-817d-7913e9cf2f60",
+  "id": "554a2b03-474c-4b79-933b-ff44e0a2e733",
+  "prevId": "0bfb1f95-33f6-498e-872a-f2ff8eeb51cb",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -64,6 +64,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "top_languages": {
+          "name": "top_languages",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
         },
         "profile_url": {
           "name": "profile_url",
