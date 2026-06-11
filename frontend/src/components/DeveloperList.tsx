@@ -93,6 +93,14 @@ export function DeveloperList({
             onKeyDown={
               onDeveloperSelect
                 ? (event) => {
+                    if (
+                      event.target instanceof Element &&
+                      event.target.closest(
+                        'a,button,input,textarea,select,[role="link"],[role="button"]',
+                      )
+                    ) {
+                      return;
+                    }
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
                       onDeveloperSelect(dev.login);
