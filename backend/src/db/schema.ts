@@ -72,7 +72,7 @@ export const developerLanguages = pgTable(
     primaryKey({
       columns: [table.developerGithubId, table.language],
     }),
-    index('idx_dev_lang_share').on(table.language, table.share.desc()),
+    index('idx_dev_lang_share').on(table.language, table.share),
   ],
 );
 

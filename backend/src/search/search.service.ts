@@ -1,7 +1,22 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, exists, inArray, or, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  exists,
+  inArray,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
-import { developerLanguages, developers, locations } from '../db/schema';
+import {
+  developerLanguages,
+  developers,
+  locations,
+  type TopLanguage,
+} from '../db/schema';
 import { resolveLocationSlugs } from './geo.data';
 import { QueryParserService } from './query-parser.service';
 import {
@@ -20,10 +35,22 @@ type DeveloperRow = {
   contributions: number;
   followers: number;
   totalStars: number;
-  topLanguages: Array<{ name: string; share: number }>;
+  topLanguages: TopLanguage[];
   profileUrl: string;
   rawLocation: string | null;
 };
+
+const developerSelect = {
+  login: developers.login,
+  name: developers.name,
+  avatarUrl: developers.avatarUrl,
+  contributions: developers.contributions,
+  followers: developers.followers,
+  totalStars: developers.totalStars,
+  topLanguages: developers.topLanguages,
+  profileUrl: developers.profileUrl,
+  rawLocation: developers.rawLocation,
+} as const;
 
 @Injectable()
 export class SearchService {
@@ -100,17 +127,7 @@ export class SearchService {
 
     if (parsed.sort === 'languageShare' && shareLanguage) {
       const rows = await this.db
-        .select({
-          login: developers.login,
-          name: developers.name,
-          avatarUrl: developers.avatarUrl,
-          contributions: developers.contributions,
-          followers: developers.followers,
-          totalStars: developers.totalStars,
-          topLanguages: developers.topLanguages,
-          profileUrl: developers.profileUrl,
-          rawLocation: developers.rawLocation,
-        })
+        .select(developerSelect)
         .from(developers)
         .innerJoin(
           developerLanguages,
@@ -138,17 +155,7 @@ export class SearchService {
           : developers.contributions;
 
     const rows = await this.db
-      .select({
-        login: developers.login,
-        name: developers.name,
-        avatarUrl: developers.avatarUrl,
-        contributions: developers.contributions,
-        followers: developers.followers,
-        totalStars: developers.totalStars,
-        topLanguages: developers.topLanguages,
-        profileUrl: developers.profileUrl,
-        rawLocation: developers.rawLocation,
-      })
+      .select(developerSelect)
       .from(developers)
       .where(whereClause)
       .orderBy(desc(sortColumn), asc(developers.login))
@@ -165,7 +172,7 @@ export class SearchService {
     const perLanguage = parsed.languages.map((language) =>
       exists(
         this.db
-          .select({ one: developerLanguages.language })
+          .select({ one: sql`1` })
           .from(developerLanguages)
           .where(
             and(
