@@ -232,7 +232,6 @@ export function LocationPanel({ location, onClose }: LocationPanelProps) {
     >
       <SheetContent
         side="right"
-        showOverlay={false}
         className="border-border/60 bg-background/95 w-full backdrop-blur-md sm:max-w-md"
         onInteractOutside={(event) => event.preventDefault()}
         onPointerDownOutside={(event) => event.preventDefault()}
@@ -248,7 +247,7 @@ export function LocationPanel({ location, onClose }: LocationPanelProps) {
                 <Badge variant="secondary">
                   {location.devCount.toLocaleString()} developers
                 </Badge>
-                <Badge variant="muted">
+                <Badge variant="outline">
                   {location.totalContributions.toLocaleString()} contributions
                 </Badge>
               </div>
