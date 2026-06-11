@@ -11,6 +11,7 @@ export class SearchController {
       throw new BadRequestException('Query parameter "q" is required');
     }
 
-    return this.searchService.search(q);
+    const trimmed = q.trim();
+    return this.searchService.search(trimmed);
   }
 }
