@@ -10,6 +10,8 @@ export type MapLocation = {
 
 export type DeveloperSortKey = 'contributions' | 'followers' | 'stars';
 
+export type SearchSortKey = DeveloperSortKey | 'languageShare';
+
 export type TopLanguage = {
   name: string;
   share: number;
@@ -50,4 +52,20 @@ export type StatsResponse = {
   totalContributions: number;
   countryLevelDevs: number;
   locationsWithDevs: number;
+};
+
+export type SearchInterpretation = {
+  languages: string[];
+  languageMode: 'any' | 'all';
+  locationSlugs: string[];
+  zone: 'north' | 'central' | 'south' | null;
+  sort: SearchSortKey;
+  shareLanguage: string | null;
+  resolvedLocationSlugs: string[];
+};
+
+export type SearchResponse = {
+  query: string;
+  interpretation: SearchInterpretation;
+  developers: DeveloperSummary[];
 };

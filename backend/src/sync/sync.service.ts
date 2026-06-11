@@ -3,8 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { count, eq, sql } from 'drizzle-orm';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
-import { developers, locations, syncRuns } from '../db/schema';
-import { GithubService } from './github.service';
+import {
+  developerLanguages,
+  developers,
+  locations,
+  syncRuns,
+} from '../db/schema';
+import { GithubService, type GitHubUserResult } from './github.service';
 
 @Injectable()
 export class SyncService implements OnModuleInit {
@@ -99,38 +104,7 @@ export class SyncService implements OnModuleInit {
                 allLocations,
               );
 
-              await this.db
-                .insert(developers)
-                .values({
-                  githubId: user.githubId,
-                  login: user.login,
-                  name: user.name,
-                  avatarUrl: user.avatarUrl,
-                  rawLocation: user.rawLocation,
-                  locationId: classified.id,
-                  followers: user.followers,
-                  contributions: user.contributions,
-                  totalStars: user.totalStars,
-                  topLanguages: user.topLanguages,
-                  profileUrl: user.profileUrl,
-                  lastSeenAt: new Date(),
-                })
-                .onConflictDoUpdate({
-                  target: developers.githubId,
-                  set: {
-                    login: user.login,
-                    name: user.name,
-                    avatarUrl: user.avatarUrl,
-                    rawLocation: user.rawLocation,
-                    locationId: classified.id,
-                    followers: user.followers,
-                    contributions: user.contributions,
-                    totalStars: user.totalStars,
-                    topLanguages: user.topLanguages,
-                    profileUrl: user.profileUrl,
-                    lastSeenAt: new Date(),
-                  },
-                });
+              await this.upsertDeveloper(user, classified.id);
 
               usersUpserted += 1;
             }
@@ -184,5 +158,71 @@ export class SyncService implements OnModuleInit {
       .limit(1);
 
     return runs[0] ?? null;
+  }
+
+  private async upsertDeveloper(
+    user: GitHubUserResult,
+    locationId: number,
+  ): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx
+        .insert(developers)
+        .values({
+          githubId: user.githubId,
+          login: user.login,
+          name: user.name,
+          avatarUrl: user.avatarUrl,
+          rawLocation: user.rawLocation,
+          locationId,
+          followers: user.followers,
+          contributions: user.contributions,
+          totalStars: user.totalStars,
+          topLanguages: user.topLanguages,
+          profileUrl: user.profileUrl,
+          lastSeenAt: new Date(),
+        })
+        .onConflictDoUpdate({
+          target: developers.githubId,
+          set: {
+            login: user.login,
+            name: user.name,
+            avatarUrl: user.avatarUrl,
+            rawLocation: user.rawLocation,
+            locationId,
+            followers: user.followers,
+            contributions: user.contributions,
+            totalStars: user.totalStars,
+            topLanguages: user.topLanguages,
+            profileUrl: user.profileUrl,
+            lastSeenAt: new Date(),
+          },
+        });
+
+      await tx
+        .delete(developerLanguages)
+        .where(sql`developer_github_id = ${user.githubId}`);
+
+      if (user.topLanguages.length > 0) {
+        const dedupedLanguages = new Map<
+          string,
+          { name: string; share: number }
+        >();
+        for (const lang of user.topLanguages) {
+          const key = lang.name.toLowerCase();
+          const existing = dedupedLanguages.get(key);
+          if (!existing || lang.share > existing.share) {
+            dedupedLanguages.set(key, lang);
+          }
+        }
+
+        await tx.insert(developerLanguages).values(
+          [...dedupedLanguages.values()].map((lang) => ({
+            developerGithubId: user.githubId,
+            language: lang.name.toLowerCase(),
+            share: lang.share,
+          })),
+        );
+      }
+    });
   }
 }

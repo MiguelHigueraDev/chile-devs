@@ -1,8 +1,10 @@
 import {
+  index,
   integer,
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   serial,
   text,
   timestamp,
@@ -57,6 +59,23 @@ export const developers = pgTable('developers', {
     .defaultNow(),
 });
 
+export const developerLanguages = pgTable(
+  'developer_languages',
+  {
+    developerGithubId: text('developer_github_id')
+      .notNull()
+      .references(() => developers.githubId, { onDelete: 'cascade' }),
+    language: text('language').notNull(),
+    share: integer('share').notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.developerGithubId, table.language],
+    }),
+    index('idx_dev_lang_share').on(table.language, table.share),
+  ],
+);
+
 export const syncRuns = pgTable('sync_runs', {
   id: serial('id').primaryKey(),
   startedAt: timestamp('started_at', { withTimezone: true })
@@ -70,4 +89,5 @@ export const syncRuns = pgTable('sync_runs', {
 
 export type Location = typeof locations.$inferSelect;
 export type Developer = typeof developers.$inferSelect;
+export type DeveloperLanguage = typeof developerLanguages.$inferSelect;
 export type SyncRun = typeof syncRuns.$inferSelect;

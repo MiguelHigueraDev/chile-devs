@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ApiModule } from './api/api.module';
 import { DbModule } from './db/db.module';
+import { SearchModule } from './search/search.module';
 import { SyncModule } from './sync/sync.module';
 
 @Module({
@@ -12,6 +13,7 @@ import { SyncModule } from './sync/sync.module';
     DbModule,
     SyncModule,
     ApiModule,
+    SearchModule,
   ],
 })
 export class AppModule {}
