@@ -225,20 +225,18 @@ export function LocationPanel({ location, onClose }: LocationPanelProps) {
   return (
     <Sheet
       open={!!location}
+      modal={false}
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
-      modal={false}
     >
       <SheetContent
         side="right"
-        className="border-border/60 bg-background/95 w-full backdrop-blur-md sm:max-w-md"
-        onInteractOutside={(event) => event.preventDefault()}
-        onPointerDownOutside={(event) => event.preventDefault()}
+        className="border-border/60 bg-background/98 flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
       >
         {location && (
           <>
-            <SheetHeader className="border-b pb-4">
+            <SheetHeader className="shrink-0 border-b pb-4">
               <SheetTitle className="text-lg">{location.name}</SheetTitle>
               <SheetDescription>
                 Top contributors in this location
@@ -253,7 +251,7 @@ export function LocationPanel({ location, onClose }: LocationPanelProps) {
               </div>
             </SheetHeader>
 
-            <ScrollArea ref={scrollRootRef} className="flex-1 px-4">
+            <ScrollArea ref={scrollRootRef} className="min-h-0 flex-1 px-4">
               <LocationDevelopersList
                 key={location.slug}
                 slug={location.slug}
@@ -261,7 +259,7 @@ export function LocationPanel({ location, onClose }: LocationPanelProps) {
               />
             </ScrollArea>
 
-            <Separator />
+            <Separator className="shrink-0" />
           </>
         )}
       </SheetContent>
