@@ -1,49 +1,135 @@
-import { ExternalLink } from 'lucide-react'
-import { useEffect, useState } from 'react'
-import { fetchLocationDevelopers } from '../api/client'
-import type { DeveloperSummary, MapLocation } from '../types/api'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
-import { ScrollArea } from '@/components/ui/scroll-area'
-import { Separator } from '@/components/ui/separator'
+import { ExternalLink } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { fetchLocationDevelopers } from "../api/client";
+import type { DeveloperSummary, MapLocation } from "../types/api";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from '@/components/ui/sheet'
-import { Skeleton } from '@/components/ui/skeleton'
+} from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type LocationPanelProps = {
-  location: MapLocation | null
-  onClose: () => void
-}
+  location: MapLocation | null;
+  onClose: () => void;
+};
 
-function LocationDevelopersList({ slug }: { slug: string }) {
-  const [developers, setDevelopers] = useState<DeveloperSummary[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+type LocationDevelopersListProps = {
+  slug: string;
+  scrollRootRef: React.RefObject<HTMLDivElement | null>;
+};
+
+function LocationDevelopersList({
+  slug,
+  scrollRootRef,
+}: LocationDevelopersListProps) {
+  const [developers, setDevelopers] = useState<DeveloperSummary[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const isFetchingRef = useRef(false);
 
   useEffect(() => {
-    let cancelled = false
+    let cancelled = false;
+    isFetchingRef.current = true;
 
     fetchLocationDevelopers(slug)
       .then((data) => {
-        if (cancelled) return
-        setDevelopers(data.developers)
-        setLoading(false)
+        if (cancelled) return;
+        setDevelopers(data.developers);
+        setNextCursor(data.nextCursor);
+        setHasMore(data.hasMore);
+        if (data.devCount != null) {
+          setTotalCount(data.devCount);
+        }
       })
-      .catch((err: Error) => {
-        if (cancelled) return
-        setError(err.message)
-        setLoading(false)
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setError(
+          err instanceof Error ? err.message : "Failed to load developers",
+        );
       })
+      .finally(() => {
+        if (cancelled) return;
+        isFetchingRef.current = false;
+        setLoading(false);
+      });
 
     return () => {
-      cancelled = true
+      cancelled = true;
+    };
+  }, [slug]);
+
+  const loadMore = useCallback(
+    async (cursor: string) => {
+      if (isFetchingRef.current) return;
+      isFetchingRef.current = true;
+      setLoadingMore(true);
+
+      try {
+        const data = await fetchLocationDevelopers(slug, { cursor });
+        setDevelopers((prev) => {
+          const existing = new Set(prev.map((dev) => dev.login));
+          const newDevs = data.developers.filter(
+            (dev) => !existing.has(dev.login),
+          );
+          return [...prev, ...newDevs];
+        });
+        setNextCursor(data.nextCursor);
+        setHasMore(data.hasMore);
+        if (data.devCount != null) {
+          setTotalCount(data.devCount);
+        }
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Failed to load developers",
+        );
+      } finally {
+        isFetchingRef.current = false;
+        setLoadingMore(false);
+      }
+    },
+    [slug],
+  );
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const scrollRoot = scrollRootRef.current?.querySelector(
+      '[data-slot="scroll-area-viewport"]',
+    );
+    if (
+      !sentinel ||
+      !scrollRoot ||
+      loading ||
+      loadingMore ||
+      !hasMore ||
+      !nextCursor
+    ) {
+      return;
     }
-  }, [slug])
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          void loadMore(nextCursor);
+        }
+      },
+      { root: scrollRoot, rootMargin: "100px" },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loading, loadingMore, loadMore, nextCursor, scrollRootRef]);
 
   if (loading) {
     return (
@@ -59,11 +145,11 @@ function LocationDevelopersList({ slug }: { slug: string }) {
           </div>
         ))}
       </div>
-    )
+    );
   }
 
   if (error) {
-    return <p className="text-destructive py-4 text-sm">{error}</p>
+    return <p className="text-destructive py-4 text-sm">{error}</p>;
   }
 
   if (developers.length === 0) {
@@ -71,7 +157,7 @@ function LocationDevelopersList({ slug }: { slug: string }) {
       <p className="text-muted-foreground py-4 text-sm">
         No developers found for this location.
       </p>
-    )
+    );
   }
 
   return (
@@ -107,19 +193,40 @@ function LocationDevelopersList({ slug }: { slug: string }) {
           </li>
         ))}
       </ul>
+      <div ref={sentinelRef} className="h-px" aria-hidden />
+      {loadingMore && (
+        <div className="space-y-3 py-2">
+          {Array.from({ length: 2 }).map((_, index) => (
+            <div key={index} className="flex items-center gap-3">
+              <Skeleton className="size-8 rounded-full" />
+              <div className="flex-1 space-y-1.5">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-2.5 w-32" />
+              </div>
+              <Skeleton className="h-3 w-10" />
+            </div>
+          ))}
+        </div>
+      )}
       <p className="text-muted-foreground pt-2 text-xs">
-        Showing top {developers.length} developers by contributions
+        {hasMore
+          ? `Showing ${developers.length.toLocaleString()}${totalCount != null ? ` of ${totalCount.toLocaleString()}` : ""} developers by contributions`
+          : totalCount != null
+            ? `All ${totalCount.toLocaleString()} developers loaded`
+            : `Showing ${developers.length.toLocaleString()} developers by contributions`}
       </p>
     </>
-  )
+  );
 }
 
 export function LocationPanel({ location, onClose }: LocationPanelProps) {
+  const scrollRootRef = useRef<HTMLDivElement>(null);
+
   return (
     <Sheet
       open={!!location}
       onOpenChange={(open) => {
-        if (!open) onClose()
+        if (!open) onClose();
       }}
       modal={false}
     >
@@ -147,10 +254,11 @@ export function LocationPanel({ location, onClose }: LocationPanelProps) {
               </div>
             </SheetHeader>
 
-            <ScrollArea className="flex-1 px-4">
+            <ScrollArea ref={scrollRootRef} className="flex-1 px-4">
               <LocationDevelopersList
                 key={location.slug}
                 slug={location.slug}
+                scrollRootRef={scrollRootRef}
               />
             </ScrollArea>
 
@@ -159,5 +267,5 @@ export function LocationPanel({ location, onClose }: LocationPanelProps) {
         )}
       </SheetContent>
     </Sheet>
-  )
+  );
 }

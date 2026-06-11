@@ -19,16 +19,18 @@ export type DeveloperSummary = {
 };
 
 export type LocationDevelopersResponse = {
-  location: {
+  location?: {
     slug: string;
     name: string;
     kind: string;
     lat: number;
     lng: number;
   };
-  devCount: number;
-  totalContributions: number;
+  devCount?: number;
+  totalContributions?: number;
   developers: DeveloperSummary[];
+  nextCursor: string | null;
+  hasMore: boolean;
 };
 
 export type StatsResponse = {
