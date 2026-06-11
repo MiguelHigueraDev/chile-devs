@@ -6,6 +6,7 @@ import {
   NestFastifyApplication,
 } from '@nestjs/platform-fastify';
 import { AppModule } from './app.module';
+import { parseFrontendUrlConfig } from './lib/frontend-url';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -15,13 +16,9 @@ async function bootstrap() {
 
   await app.register(fastifyCookie);
 
-  const frontendUrl =
-    app.get(ConfigService).get<string>('FRONTEND_URL') ??
-    'http://localhost:5173';
-  const corsOrigins = frontendUrl
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  const { corsOrigins } = parseFrontendUrlConfig(
+    app.get(ConfigService).get<string>('FRONTEND_URL'),
+  );
 
   app.enableCors({
     origin: corsOrigins,

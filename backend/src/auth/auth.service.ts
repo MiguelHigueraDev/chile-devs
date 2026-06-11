@@ -11,6 +11,7 @@ import { eq } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
 import { developers } from '../db/schema';
+import { parseFrontendUrlConfig } from '../lib/frontend-url';
 import type { SessionPayload } from './auth.types';
 
 const SESSION_COOKIE = 'chile_devs_session';
@@ -89,9 +90,9 @@ export class AuthService {
   }
 
   getFrontendUrl(): string {
-    return (
-      this.configService.get<string>('FRONTEND_URL') ?? 'http://localhost:5173'
-    );
+    return parseFrontendUrlConfig(
+      this.configService.get<string>('FRONTEND_URL'),
+    ).redirectUrl;
   }
 
   async exchangeCodeForSession(
