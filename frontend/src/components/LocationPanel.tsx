@@ -8,6 +8,7 @@ import type {
   MapLocation,
 } from "../types/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { TopLanguagesBar } from "./TopLanguagesBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -178,17 +179,10 @@ function LocationDevelopersList({
                 </p>
               )}
               {dev.topLanguages.length > 0 && (
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {dev.topLanguages.map((language) => (
-                    <Badge
-                      key={language.name}
-                      variant="outline"
-                      className="px-1.5 py-0 text-[10px] font-normal"
-                    >
-                      {language.name}
-                    </Badge>
-                  ))}
-                </div>
+                <TopLanguagesBar
+                  languages={dev.topLanguages}
+                  className="mt-1.5"
+                />
               )}
             </div>
             <span className="text-foreground shrink-0 text-sm font-semibold tabular-nums">
