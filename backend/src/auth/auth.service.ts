@@ -14,6 +14,21 @@ import type { SessionPayload } from './auth.types';
 
 const SESSION_COOKIE = 'chile_devs_session';
 const OAUTH_STATE_COOKIE = 'chile_devs_oauth_state';
+const GITHUB_FETCH_TIMEOUT_MS = 10_000;
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit = {},
+  timeoutMs = GITHUB_FETCH_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 type GitHubTokenResponse = {
   access_token?: string;
@@ -96,7 +111,7 @@ export class AuthService {
       throw new BadRequestException('GitHub OAuth is not configured');
     }
 
-    const tokenResponse = await fetch(
+    const tokenResponse = await fetchWithTimeout(
       'https://github.com/login/oauth/access_token',
       {
         method: 'POST',
@@ -126,7 +141,7 @@ export class AuthService {
       );
     }
 
-    const userResponse = await fetch('https://api.github.com/user', {
+    const userResponse = await fetchWithTimeout('https://api.github.com/user', {
       headers: {
         Accept: 'application/vnd.github+json',
         Authorization: `Bearer ${tokenData.access_token}`,
