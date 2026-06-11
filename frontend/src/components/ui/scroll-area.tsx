@@ -3,10 +3,12 @@ import * as React from 'react'
 
 import { cn } from '@/lib/utils'
 
-const ScrollArea = React.forwardRef<
-  HTMLDivElement,
-  React.ComponentProps<typeof ScrollAreaPrimitive.Root>
->(function ScrollArea({ className, children, ...props }, ref) {
+function ScrollArea({
+  className,
+  children,
+  ref,
+  ...props
+}: React.ComponentProps<typeof ScrollAreaPrimitive.Root>) {
   return (
     <ScrollAreaPrimitive.Root
       ref={ref}
@@ -24,7 +26,7 @@ const ScrollArea = React.forwardRef<
       <ScrollAreaPrimitive.Corner />
     </ScrollAreaPrimitive.Root>
   )
-})
+}
 
 function ScrollBar({
   className,
