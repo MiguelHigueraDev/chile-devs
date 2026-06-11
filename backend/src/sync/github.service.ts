@@ -329,7 +329,7 @@ export class GithubService {
           orderBy: {field: STARGAZERS, direction: DESC}
         ) {
           nodes {
-            languages(first: 10, orderBy: SIZE_DESC) {
+            languages(first: 10, orderBy: {field: SIZE, direction: DESC}) {
               edges {
                 size
                 node {
