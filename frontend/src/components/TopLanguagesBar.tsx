@@ -7,6 +7,10 @@ type TopLanguagesBarProps = {
   className?: string;
 };
 
+function normalizedShare(share: number, totalShare: number): number {
+  return totalShare > 0 ? Math.round((share / totalShare) * 100) : 0;
+}
+
 export function TopLanguagesBar({ languages, className }: TopLanguagesBarProps) {
   if (languages.length === 0) {
     return null;
@@ -20,7 +24,10 @@ export function TopLanguagesBar({ languages, className }: TopLanguagesBarProps) 
         className="bg-muted/60 flex h-1.5 w-full overflow-hidden rounded-full"
         role="img"
         aria-label={languages
-          .map((language) => `${language.name} ${language.share}%`)
+          .map(
+            (language) =>
+              `${language.name} ${normalizedShare(language.share, totalShare)}%`,
+          )
           .join(', ')}
       >
         {languages.map((language) => (
@@ -48,7 +55,9 @@ export function TopLanguagesBar({ languages, className }: TopLanguagesBarProps) 
             />
             <span className="truncate">
               {language.name}{' '}
-              <span className="tabular-nums">{language.share}%</span>
+              <span className="tabular-nums">
+                {normalizedShare(language.share, totalShare)}%
+              </span>
             </span>
           </li>
         ))}
