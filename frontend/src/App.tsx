@@ -19,7 +19,7 @@ function App() {
           selectedLocation && 'pointer-events-none blur-[2px] brightness-[0.94]',
         )}
       >
-        <StatsHeader />
+        <StatsHeader onViewAllDevelopers={setSelectedLocation} />
         <div className="relative min-h-0 flex-1">
           <ChileMap onLocationSelect={setSelectedLocation} />
         </div>

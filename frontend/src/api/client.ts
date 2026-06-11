@@ -1,4 +1,5 @@
 import type {
+  CountryDevelopersResponse,
   DeveloperSortKey,
   LocationDevelopersResponse,
   MapLocation,
@@ -37,17 +38,30 @@ export type FetchLocationDevelopersOptions = {
   sort?: DeveloperSortKey;
 };
 
-export function fetchLocationDevelopers(
-  slug: string,
+function buildDeveloperQueryParams(
   options: FetchLocationDevelopersOptions = {},
-): Promise<LocationDevelopersResponse> {
+): URLSearchParams {
   const { cursor, limit = 10, sort = 'contributions' } = options;
   const params = new URLSearchParams({ limit: String(limit), sort });
   if (cursor) {
     params.set('cursor', cursor);
   }
+  return params;
+}
 
+export function fetchCountryDevelopers(
+  options: FetchLocationDevelopersOptions = {},
+): Promise<CountryDevelopersResponse> {
+  return fetchJson<CountryDevelopersResponse>(
+    `/developers?${buildDeveloperQueryParams(options).toString()}`,
+  );
+}
+
+export function fetchLocationDevelopers(
+  slug: string,
+  options: FetchLocationDevelopersOptions = {},
+): Promise<LocationDevelopersResponse> {
   return fetchJson<LocationDevelopersResponse>(
-    `/locations/${slug}/developers?${params.toString()}`,
+    `/locations/${slug}/developers?${buildDeveloperQueryParams(options).toString()}`,
   );
 }
