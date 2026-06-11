@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { parseSortParam, APP_URL_PARAMS } from './app-url-state';
 import type { DeveloperSortKey } from '../types/api';
 
 const STORAGE_KEY = 'chile-devs:developer-sort';
@@ -11,6 +12,13 @@ const VALID_SORTS = new Set<DeveloperSortKey>([
 
 export function getDeveloperSortPreference(): DeveloperSortKey {
   try {
+    const urlSort = parseSortParam(
+      new URLSearchParams(window.location.search).get(APP_URL_PARAMS.sort),
+    );
+    if (urlSort) {
+      return urlSort;
+    }
+
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored && VALID_SORTS.has(stored as DeveloperSortKey)) {
       return stored as DeveloperSortKey;

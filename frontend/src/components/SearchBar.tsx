@@ -4,12 +4,13 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type SearchBarProps = {
+  query?: string;
   onSearch: (query: string) => void;
   className?: string;
 };
 
-export function SearchBar({ onSearch, className }: SearchBarProps) {
-  const [value, setValue] = useState("");
+export function SearchBar({ query = "", onSearch, className }: SearchBarProps) {
+  const [value, setValue] = useState(query);
 
   const submit = () => {
     const trimmed = value.trim();

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useCountryDevelopers, useLocationDevelopers } from "../api/queries";
 import { isAllChileLocation } from "../lib/all-chile-location";
-import { useDeveloperSortPreference } from "../lib/developer-sort-preference";
 import { formatNumber } from "../lib/utils";
 import type { DeveloperSortKey, MapLocation } from "../types/api";
 import { DeveloperList } from "./DeveloperList";
@@ -20,6 +19,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 type LocationPanelProps = {
   location: MapLocation | null;
+  sortBy: DeveloperSortKey;
+  onSortChange: (sort: DeveloperSortKey) => void;
   onClose: () => void;
 };
 
@@ -167,11 +168,15 @@ function LocationDevelopersList({
   );
 }
 
-export function LocationPanel({ location, onClose }: LocationPanelProps) {
+export function LocationPanel({
+  location,
+  sortBy,
+  onSortChange,
+  onClose,
+}: LocationPanelProps) {
   const scrollRootRef = useRef<HTMLDivElement>(null);
   const slug = location?.slug ?? null;
   const countryWide = location ? isAllChileLocation(location) : false;
-  const [sortBy, setSortBy] = useDeveloperSortPreference();
 
   useEffect(() => {
     const viewport = scrollRootRef.current?.querySelector(
@@ -221,7 +226,7 @@ export function LocationPanel({ location, onClose }: LocationPanelProps) {
                     size="xs"
                     variant={sortBy === option.value ? "secondary" : "outline"}
                     aria-pressed={sortBy === option.value}
-                    onClick={() => setSortBy(option.value)}
+                    onClick={() => onSortChange(option.value)}
                   >
                     {option.label}
                   </Button>
