@@ -39,7 +39,7 @@ export const locations = pgTable('locations', {
 
 export const developers = pgTable('developers', {
   githubId: text('github_id').primaryKey(),
-  login: text('login').notNull(),
+  login: text('login').notNull().unique(),
   name: text('name'),
   avatarUrl: text('avatar_url').notNull(),
   rawLocation: text('raw_location'),

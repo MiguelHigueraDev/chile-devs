@@ -2,6 +2,8 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -94,6 +96,8 @@ export function parseDeveloperSort(sort?: string): DeveloperSortKey {
 
 @Injectable()
 export class ApiService {
+  private readonly logger = new Logger(ApiService.name);
+
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
 
   async getMapData() {
@@ -343,7 +347,7 @@ export class ApiService {
   }
 
   async getDeveloperByLogin(login: string) {
-    const [row] = await this.db
+    const rows = await this.db
       .select({
         login: developers.login,
         name: developers.name,
@@ -363,7 +367,18 @@ export class ApiService {
       .from(developers)
       .innerJoin(locations, eq(developers.locationId, locations.id))
       .where(eq(developers.login, login))
-      .limit(1);
+      .limit(2);
+
+    if (rows.length > 1) {
+      this.logger.error(
+        `Duplicate developer login "${login}" (${rows.length} rows); run migration 0006`,
+      );
+      throw new InternalServerErrorException(
+        'Duplicate developer login; data migration required',
+      );
+    }
+
+    const [row] = rows;
 
     if (!row) {
       return null;

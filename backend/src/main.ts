@@ -15,7 +15,7 @@ async function bootstrap() {
   await app.register(fastifyCookie);
 
   app.enableCors({
-    origin: true,
+    origin: ['http://localhost:5173', 'https://chile-devs.vercel.app'],
     credentials: true,
   });
 
