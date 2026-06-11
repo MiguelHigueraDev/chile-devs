@@ -1,0 +1,39 @@
+export type MapLocation = {
+  slug: string;
+  name: string;
+  kind: 'country' | 'region' | 'city';
+  lat: number;
+  lng: number;
+  devCount: number;
+  totalContributions: number;
+};
+
+export type DeveloperSummary = {
+  login: string;
+  name: string | null;
+  avatarUrl: string;
+  contributions: number;
+  followers: number;
+  profileUrl: string;
+  rawLocation: string | null;
+};
+
+export type LocationDevelopersResponse = {
+  location: {
+    slug: string;
+    name: string;
+    kind: string;
+    lat: number;
+    lng: number;
+  };
+  devCount: number;
+  totalContributions: number;
+  developers: DeveloperSummary[];
+};
+
+export type StatsResponse = {
+  totalDevs: number;
+  totalContributions: number;
+  countryLevelDevs: number;
+  locationsWithDevs: number;
+};

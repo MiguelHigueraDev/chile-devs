@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: chile-devs-postgres
+    restart: unless-stopped
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: chile_devs
+      POSTGRES_PASSWORD: chile_devs
+      POSTGRES_DB: chile_devs
+    volumes:
+      - chile_devs_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U chile_devs -d chile_devs']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  chile_devs_pg_data:
