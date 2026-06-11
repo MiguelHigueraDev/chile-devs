@@ -1,4 +1,11 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   and,
   asc,
@@ -15,6 +22,7 @@ import {
 } from 'drizzle-orm';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
 import { developers, locations, syncRuns } from '../db/schema';
+import type { UpdateProfileInput } from './update-profile.dto';
 
 const MAX_DEVELOPERS_PAGE_SIZE = 10;
 
@@ -88,6 +96,8 @@ export function parseDeveloperSort(sort?: string): DeveloperSortKey {
 
 @Injectable()
 export class ApiService {
+  private readonly logger = new Logger(ApiService.name);
+
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
 
   async getMapData() {
@@ -300,6 +310,137 @@ export class ApiService {
       hasMore: page.hasMore,
       sort: page.sort,
     };
+  }
+
+  private mapDeveloperDetail(row: {
+    login: string;
+    name: string | null;
+    avatarUrl: string;
+    contributions: number;
+    followers: number;
+    totalStars: number;
+    topLanguages: (typeof developers.$inferSelect)['topLanguages'];
+    profileUrl: string;
+    rawLocation: string | null;
+    portfolioUrl: string | null;
+    description: string | null;
+    role: string | null;
+    claimedAt: Date | null;
+    locationName: string;
+  }) {
+    return {
+      login: row.login,
+      name: row.name,
+      avatarUrl: row.avatarUrl,
+      contributions: row.contributions,
+      followers: row.followers,
+      totalStars: row.totalStars,
+      topLanguages: row.topLanguages,
+      profileUrl: row.profileUrl,
+      rawLocation: row.rawLocation,
+      locationName: row.locationName,
+      portfolioUrl: row.portfolioUrl,
+      description: row.description,
+      role: row.role,
+      claimed: row.claimedAt != null,
+    };
+  }
+
+  async getDeveloperByLogin(login: string) {
+    const rows = await this.db
+      .select({
+        login: developers.login,
+        name: developers.name,
+        avatarUrl: developers.avatarUrl,
+        contributions: developers.contributions,
+        followers: developers.followers,
+        totalStars: developers.totalStars,
+        topLanguages: developers.topLanguages,
+        profileUrl: developers.profileUrl,
+        rawLocation: developers.rawLocation,
+        portfolioUrl: developers.portfolioUrl,
+        description: developers.description,
+        role: developers.role,
+        claimedAt: developers.claimedAt,
+        locationName: locations.name,
+      })
+      .from(developers)
+      .innerJoin(locations, eq(developers.locationId, locations.id))
+      .where(eq(developers.login, login))
+      .limit(2);
+
+    if (rows.length > 1) {
+      this.logger.error(
+        `Duplicate developer login "${login}" (${rows.length} rows); run migration 0006`,
+      );
+      throw new InternalServerErrorException(
+        'Duplicate developer login; data migration required',
+      );
+    }
+
+    const [row] = rows;
+
+    if (!row) {
+      return null;
+    }
+
+    return this.mapDeveloperDetail(row);
+  }
+
+  async updateMyProfile(githubId: string, input: UpdateProfileInput) {
+    const [existing] = await this.db
+      .select({ githubId: developers.githubId })
+      .from(developers)
+      .where(eq(developers.githubId, githubId))
+      .limit(1);
+
+    if (!existing) {
+      throw new NotFoundException('Your profile is not indexed yet');
+    }
+
+    const updates: Partial<typeof developers.$inferInsert> = {};
+    if (input.portfolioUrl !== undefined) {
+      updates.portfolioUrl = input.portfolioUrl;
+    }
+    if (input.description !== undefined) {
+      updates.description = input.description;
+    }
+    if (input.role !== undefined) {
+      updates.role = input.role;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      throw new BadRequestException('No profile fields provided');
+    }
+
+    await this.db
+      .update(developers)
+      .set(updates)
+      .where(eq(developers.githubId, githubId));
+
+    const [row] = await this.db
+      .select({
+        login: developers.login,
+        name: developers.name,
+        avatarUrl: developers.avatarUrl,
+        contributions: developers.contributions,
+        followers: developers.followers,
+        totalStars: developers.totalStars,
+        topLanguages: developers.topLanguages,
+        profileUrl: developers.profileUrl,
+        rawLocation: developers.rawLocation,
+        portfolioUrl: developers.portfolioUrl,
+        description: developers.description,
+        role: developers.role,
+        claimedAt: developers.claimedAt,
+        locationName: locations.name,
+      })
+      .from(developers)
+      .innerJoin(locations, eq(developers.locationId, locations.id))
+      .where(eq(developers.githubId, githubId))
+      .limit(1);
+
+    return this.mapDeveloperDetail(row);
   }
 
   async getStats() {

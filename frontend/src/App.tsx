@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMapData, useStats } from "./api/queries";
 import { ChileMap } from "./components/ChileMap";
+import { DeveloperProfilePanel } from "./components/DeveloperProfilePanel";
 import { LocationPanel } from "./components/LocationPanel";
 import { SearchResultsPanel } from "./components/SearchResultsPanel";
 import { StatsFooter } from "./components/StatsFooter";
@@ -39,6 +40,10 @@ function App() {
   const [activeSearchQuery, setActiveSearchQuery] = useState<string | null>(
     () => readAppUrlState().searchQuery,
   );
+  const [devLogin, setDevLogin] = useState<string | null>(
+    () => readAppUrlState().devLogin,
+  );
+  const [profileEditMode, setProfileEditMode] = useState(false);
 
   const selectedLocation = useMemo(
     () =>
@@ -59,12 +64,14 @@ function App() {
         setLocationSlug(null);
         setSearchInput(urlState.searchQuery);
         setActiveSearchQuery(urlState.searchQuery);
+        setDevLogin(urlState.devLogin);
         return;
       }
 
       setActiveSearchQuery(null);
       setSearchInput("");
       setLocationSlug(urlState.locationSlug);
+      setDevLogin(urlState.devLogin);
     },
     [setSortBy],
   );
@@ -74,6 +81,7 @@ function App() {
       locationSlug,
       searchQuery: activeSearchQuery,
       sort: locationSlug ? sortBy : null,
+      devLogin,
     };
     const prevState = urlSyncRef.current;
     const panelChanged =
@@ -83,7 +91,7 @@ function App() {
 
     syncAppUrlState(nextState, isInitialSync || !panelChanged);
     urlSyncRef.current = nextState;
-  }, [locationSlug, activeSearchQuery, sortBy]);
+  }, [locationSlug, activeSearchQuery, sortBy, devLogin]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -94,7 +102,7 @@ function App() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, [applyUrlState]);
 
-  const panelOpen = selectedLocation || activeSearchQuery;
+  const panelOpen = selectedLocation || activeSearchQuery || devLogin;
 
   const handleLocationSelect = useCallback((location: MapLocation) => {
     setActiveSearchQuery(null);
@@ -121,6 +129,14 @@ function App() {
             setActiveSearchQuery(query);
             addRecentSearch(query);
           }}
+          onOpenMyProfile={(login) => {
+            setDevLogin(login);
+            setProfileEditMode(false);
+          }}
+          onEditMyProfile={(login) => {
+            setDevLogin(login);
+            setProfileEditMode(true);
+          }}
           recentSearches={recentSearches}
           onRemoveRecentSearch={removeRecentSearch}
           onClearRecentSearches={clearRecentSearches}
@@ -137,11 +153,24 @@ function App() {
         sortBy={sortBy}
         onSortChange={setSortBy}
         onClose={() => setLocationSlug(null)}
+        onDeveloperSelect={setDevLogin}
+        devPanelOpen={!!devLogin}
       />
       <SearchResultsPanel
         query={activeSearchQuery}
         sortBy={sortBy}
         onClose={() => setActiveSearchQuery(null)}
+        onDeveloperSelect={setDevLogin}
+        devPanelOpen={!!devLogin}
+      />
+      <DeveloperProfilePanel
+        login={devLogin}
+        editMode={profileEditMode}
+        onEditModeChange={setProfileEditMode}
+        onClose={() => {
+          setDevLogin(null);
+          setProfileEditMode(false);
+        }}
       />
     </div>
   );

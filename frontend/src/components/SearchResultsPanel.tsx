@@ -16,6 +16,8 @@ type SearchResultsPanelProps = {
   query: string | null;
   sortBy: DeveloperSortKey;
   onClose: () => void;
+  onDeveloperSelect?: (login: string) => void;
+  devPanelOpen?: boolean;
 };
 
 function formatInterpretationChips(
@@ -71,12 +73,14 @@ export function SearchResultsPanel({
   query,
   sortBy,
   onClose,
+  onDeveloperSelect,
+  devPanelOpen = false,
 }: SearchResultsPanelProps) {
   const { data, error, isPending } = useSearch(query, sortBy);
 
   return (
     <Sheet
-      open={!!query}
+      open={!!query && !devPanelOpen}
       modal={false}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -134,6 +138,7 @@ export function SearchResultsPanel({
                   developers={data.developers}
                   sortBy={data.interpretation.sort}
                   shareLanguage={data.interpretation.shareLanguage}
+                  onDeveloperSelect={onDeveloperSelect}
                 />
               )}
             </ScrollArea>

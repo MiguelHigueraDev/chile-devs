@@ -12,6 +12,7 @@ type DeveloperListProps = {
   sortBy: DeveloperMetricKey;
   shareLanguage?: string | null;
   showSummary?: boolean;
+  onDeveloperSelect?: (login: string) => void;
 };
 
 const SORT_LABELS: Record<DeveloperMetricKey, string> = {
@@ -59,6 +60,7 @@ export function DeveloperList({
   sortBy,
   shareLanguage,
   showSummary = true,
+  onDeveloperSelect,
 }: DeveloperListProps) {
   const sortLabel =
     sortBy === "languageShare" && shareLanguage
@@ -80,7 +82,34 @@ export function DeveloperList({
               "flex items-center gap-3 px-4 py-3",
               podiumStyle,
               rank > 3 && "border-border border-t",
+              onDeveloperSelect &&
+                "hover:bg-accent/40 cursor-pointer transition-colors",
             )}
+            onClick={
+              onDeveloperSelect
+                ? () => onDeveloperSelect(dev.login)
+                : undefined
+            }
+            onKeyDown={
+              onDeveloperSelect
+                ? (event) => {
+                    if (
+                      event.target instanceof Element &&
+                      event.target.closest(
+                        'a,button,input,textarea,select,[role="link"],[role="button"]',
+                      )
+                    ) {
+                      return;
+                    }
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      onDeveloperSelect(dev.login);
+                    }
+                  }
+                : undefined
+            }
+            role={onDeveloperSelect ? "button" : undefined}
+            tabIndex={onDeveloperSelect ? 0 : undefined}
           >
             <span
               className={cn(
@@ -100,15 +129,21 @@ export function DeveloperList({
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <a
-                href={dev.profileUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-foreground hover:text-foreground/80 inline-flex items-center gap-1 text-sm font-medium transition-colors"
-              >
-                {dev.login}
-                <ExternalLink className="size-3 opacity-60" />
-              </a>
+              <div className="inline-flex items-center gap-1">
+                <span className="text-foreground text-sm font-medium">
+                  {dev.login}
+                </span>
+                <a
+                  href={dev.profileUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label={`Open ${dev.login} on GitHub`}
+                  className="text-muted-foreground hover:text-foreground inline-flex transition-colors"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <ExternalLink className="size-3" />
+                </a>
+              </div>
               {dev.name && (
                 <p className="text-muted-foreground truncate text-xs">
                   {dev.name}

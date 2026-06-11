@@ -4,7 +4,7 @@ import { LOCATION_SEEDS } from '../db/locations.data';
 import type { Location, TopLanguage } from '../db/schema';
 
 type GitHubSearchUser = {
-  id: string;
+  databaseId: number;
   login: string;
   name: string | null;
   avatarUrl: string;
@@ -76,7 +76,7 @@ const SEARCH_QUERY = `
       }
       nodes {
         ... on User {
-          id
+          databaseId
           login
           name
           avatarUrl
@@ -532,7 +532,7 @@ export class GithubService {
     topLanguages: TopLanguage[],
   ): GitHubUserResult {
     return {
-      githubId: node.id,
+      githubId: String(node.databaseId),
       login: node.login,
       name: node.name,
       avatarUrl: node.avatarUrl,

@@ -5,6 +5,7 @@ export const APP_URL_PARAMS = {
   location: 'location',
   search: 'q',
   sort: 'sort',
+  dev: 'dev',
 } as const;
 
 export const VALID_SORTS = new Set<DeveloperSortKey>([
@@ -17,6 +18,7 @@ export type AppUrlState = {
   locationSlug: string | null;
   searchQuery: string | null;
   sort: DeveloperSortKey | null;
+  devLogin: string | null;
 };
 
 export function parseSortParam(value: string | null): DeveloperSortKey | null {
@@ -37,6 +39,7 @@ export function readAppUrlState(): AppUrlState {
     sort: searchQuery
       ? null
       : parseSortParam(params.get(APP_URL_PARAMS.sort)),
+    devLogin: params.get(APP_URL_PARAMS.dev) || null,
   };
 }
 
@@ -55,6 +58,10 @@ export function buildAppUrlSearchParams(state: AppUrlState): URLSearchParams {
     state.sort !== 'contributions'
   ) {
     params.set(APP_URL_PARAMS.sort, state.sort);
+  }
+
+  if (state.devLogin) {
+    params.set(APP_URL_PARAMS.dev, state.devLogin);
   }
 
   return params;

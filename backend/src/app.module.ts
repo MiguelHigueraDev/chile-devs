@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ApiModule } from './api/api.module';
+import { AuthModule } from './auth/auth.module';
 import { DbModule } from './db/db.module';
 import { SearchModule } from './search/search.module';
 import { SyncModule } from './sync/sync.module';
@@ -12,6 +13,7 @@ import { SyncModule } from './sync/sync.module';
     ScheduleModule.forRoot(),
     DbModule,
     SyncModule,
+    AuthModule,
     ApiModule,
     SearchModule,
   ],
