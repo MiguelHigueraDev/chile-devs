@@ -10,9 +10,22 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource-variable/geist": "^5.2.9",
+    "@radix-ui/react-avatar": "^1.1.12",
+    "@radix-ui/react-dialog": "^1.1.16",
+    "@radix-ui/react-scroll-area": "^1.2.11",
+    "@radix-ui/react-separator": "^1.1.9",
+    "@radix-ui/react-slot": "^1.2.5",
+    "@radix-ui/react-tooltip": "^1.2.9",
+    "@tailwindcss/vite": "^4.3.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.17.0",
     "maplibre-gl": "^5.24.0",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react-dom": "^19.2.6",
+    "tailwind-merge": "^3.6.0",
+    "tailwindcss": "^4.3.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
