@@ -13,9 +13,10 @@ function App() {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden">
       <div
+        inert={selectedLocation ? true : undefined}
         className={cn(
           'flex min-h-0 flex-1 flex-col transition-[filter] duration-500 ease-in-out motion-reduce:transition-none',
-          selectedLocation && 'blur-[2px] brightness-[0.94]',
+          selectedLocation && 'pointer-events-none blur-[2px] brightness-[0.94]',
         )}
       >
         <StatsHeader />
