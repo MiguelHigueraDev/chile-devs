@@ -1,14 +1,22 @@
 import { z } from 'zod';
 import type { GeoZone } from './geo.data';
 
-export const parsedQuerySchema = z.object({
-  languages: z.array(z.string()),
-  languageMode: z.enum(['any', 'all']),
-  locationSlugs: z.array(z.string()),
-  zone: z.enum(['north', 'central', 'south']).nullable(),
-  sort: z.enum(['contributions', 'followers', 'stars', 'languageShare']),
-  shareLanguage: z.string().nullable(),
-});
+export const parsedQuerySchema = z
+  .object({
+    languages: z.array(z.string()),
+    languageMode: z.enum(['any', 'all']),
+    locationSlugs: z.array(z.string()),
+    zone: z.enum(['north', 'central', 'south']).nullable(),
+    sort: z.enum(['contributions', 'followers', 'stars', 'languageShare']),
+    shareLanguage: z.string().nullable(),
+  })
+  .refine(
+    (data) => data.sort !== 'languageShare' || data.shareLanguage !== null,
+    {
+      message: 'shareLanguage is required when sort is languageShare',
+      path: ['shareLanguage'],
+    },
+  );
 
 export type ParsedQuery = z.infer<typeof parsedQuerySchema>;
 
