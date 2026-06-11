@@ -1,10 +1,12 @@
 import { infiniteQueryOptions, queryOptions, useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { fetchCountryDevelopers, fetchLocationDevelopers, fetchMapData, fetchSearch, fetchStats } from './client'
+import { fetchGithubStars } from '../lib/github'
 import type { DeveloperSortKey } from '../types/api'
 
 export const queryKeys = {
   map: ['map'] as const,
   stats: ['stats'] as const,
+  githubStars: ['github', 'stars'] as const,
   search: (query: string) => ['search', query] as const,
   countryDevelopers: (sort: DeveloperSortKey) =>
     ['country', 'developers', sort] as const,
@@ -20,6 +22,12 @@ export const mapDataQueryOptions = queryOptions({
 export const statsQueryOptions = queryOptions({
   queryKey: queryKeys.stats,
   queryFn: fetchStats,
+})
+
+export const githubStarsQueryOptions = queryOptions({
+  queryKey: queryKeys.githubStars,
+  queryFn: fetchGithubStars,
+  staleTime: 30 * 60 * 1000,
 })
 
 type DevelopersPage = {
@@ -64,6 +72,10 @@ export function useMapData() {
 
 export function useStats() {
   return useQuery(statsQueryOptions)
+}
+
+export function useGithubStars() {
+  return useQuery(githubStarsQueryOptions)
 }
 
 export function useCountryDevelopers(sort: DeveloperSortKey, enabled = true) {
