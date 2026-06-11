@@ -35,8 +35,33 @@ Edit `backend/.env` and set at least:
 | --- | --- |
 | `DATABASE_URL` | PostgreSQL connection string (defaults in `.env.example` match Docker Compose) |
 | `GITHUB_TOKEN` | GitHub personal access token — required to sync developer data |
+| `GITHUB_OAUTH_CLIENT_ID` | GitHub OAuth App client ID — required for profile claiming |
+| `GITHUB_OAUTH_CLIENT_SECRET` | GitHub OAuth App client secret — required for profile claiming |
+| `GITHUB_OAUTH_CALLBACK_URL` | OAuth callback URL (default: `http://localhost:3000/api/auth/github/callback`) |
+| `SESSION_SECRET` | Secret used to sign login session cookies |
+| `FRONTEND_URL` | Frontend origin for OAuth redirects (default: `http://localhost:5173`) |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | Google AI Studio key — required for natural-language search |
 | `SYNC_TOKEN` | Secret for the manual sync endpoint |
+
+### GitHub OAuth setup (profile claiming)
+
+Developers can sign in with GitHub to claim their profile and add a portfolio URL, role, and description.
+
+1. Create a [GitHub OAuth App](https://github.com/settings/developers).
+2. Set **Authorization callback URL** to `http://localhost:3000/api/auth/github/callback`.
+3. Copy the client ID and client secret into `backend/.env`.
+4. Set a random `SESSION_SECRET` (any long random string).
+
+In production, set `GITHUB_OAUTH_CALLBACK_URL` and `FRONTEND_URL` to your deployed API and frontend URLs. If the frontend and API are on different origins, run the API with `NODE_ENV=production` so session cookies use `SameSite=None; Secure`.
+
+If you already synced developers before profile claiming shipped, convert stored GitHub GraphQL node IDs to numeric database IDs (required for secure OAuth matching):
+
+```bash
+cd backend
+pnpm db:migrate-github-ids
+```
+
+Then sign out and sign back in so your session uses the numeric GitHub user ID.
 
 The API runs at `http://localhost:3000`. On first start with a valid `GITHUB_TOKEN` and an empty database, a sync runs automatically. Syncs also run every 3 hours.
 

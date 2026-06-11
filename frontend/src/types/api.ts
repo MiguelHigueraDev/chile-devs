@@ -29,6 +29,26 @@ export type DeveloperSummary = {
   rawLocation: string | null;
 };
 
+export type DeveloperDetail = DeveloperSummary & {
+  locationName: string;
+  portfolioUrl: string | null;
+  description: string | null;
+  role: string | null;
+  claimed: boolean;
+};
+
+export type MeResponse = {
+  login: string;
+  avatarUrl: string | null;
+  hasProfile: boolean;
+};
+
+export type UpdateProfileInput = {
+  portfolioUrl?: string | null;
+  description?: string | null;
+  role?: string | null;
+};
+
 export type LocationDevelopersResponse = {
   location?: {
     slug: string;

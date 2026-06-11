@@ -36,6 +36,13 @@
       "when": 1781193107137,
       "tag": "0004_fixed_reptil",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781194000000,
+      "tag": "0005_developer_profile",
+      "breakpoints": true
     }
   ]
 }

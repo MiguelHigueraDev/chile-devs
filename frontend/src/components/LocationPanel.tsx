@@ -22,6 +22,8 @@ type LocationPanelProps = {
   sortBy: DeveloperSortKey;
   onSortChange: (sort: DeveloperSortKey) => void;
   onClose: () => void;
+  onDeveloperSelect?: (login: string) => void;
+  devPanelOpen?: boolean;
 };
 
 type LocationDevelopersListProps = {
@@ -29,6 +31,7 @@ type LocationDevelopersListProps = {
   sortBy: DeveloperSortKey;
   scrollRootRef: React.RefObject<HTMLDivElement | null>;
   countryWide?: boolean;
+  onDeveloperSelect?: (login: string) => void;
 };
 
 const SORT_OPTIONS: Array<{ value: DeveloperSortKey; label: string }> = [
@@ -42,6 +45,7 @@ function LocationDevelopersList({
   sortBy,
   scrollRootRef,
   countryWide = false,
+  onDeveloperSelect,
 }: LocationDevelopersListProps) {
   const locationQuery = useLocationDevelopers(slug, sortBy, !countryWide);
   const countryQuery = useCountryDevelopers(sortBy, countryWide);
@@ -137,6 +141,7 @@ function LocationDevelopersList({
         developers={developers}
         sortBy={sortBy}
         showSummary={false}
+        onDeveloperSelect={onDeveloperSelect}
       />
       <div ref={sentinelRef} className="h-px" aria-hidden />
       {isFetchingNextPage && (
@@ -173,6 +178,8 @@ export function LocationPanel({
   sortBy,
   onSortChange,
   onClose,
+  onDeveloperSelect,
+  devPanelOpen = false,
 }: LocationPanelProps) {
   const scrollRootRef = useRef<HTMLDivElement>(null);
   const slug = location?.slug ?? null;
@@ -187,7 +194,7 @@ export function LocationPanel({
 
   return (
     <Sheet
-      open={!!location}
+      open={!!location && !devPanelOpen}
       modal={false}
       onOpenChange={(open) => {
         if (!open) onClose();
@@ -241,6 +248,7 @@ export function LocationPanel({
                 sortBy={sortBy}
                 scrollRootRef={scrollRootRef}
                 countryWide={countryWide}
+                onDeveloperSelect={onDeveloperSelect}
               />
             </ScrollArea>
 

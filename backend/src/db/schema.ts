@@ -54,6 +54,10 @@ export const developers = pgTable('developers', {
     .notNull()
     .default([]),
   profileUrl: text('profile_url').notNull(),
+  portfolioUrl: text('portfolio_url'),
+  description: text('description'),
+  role: text('role'),
+  claimedAt: timestamp('claimed_at', { withTimezone: true }),
   lastSeenAt: timestamp('last_seen_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

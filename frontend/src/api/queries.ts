@@ -1,5 +1,23 @@
-import { infiniteQueryOptions, queryOptions, useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { fetchCountryDevelopers, fetchLocationDevelopers, fetchMapData, fetchSearch, fetchStats } from './client'
+import {
+  infiniteQueryOptions,
+  queryOptions,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
+import {
+  fetchCountryDevelopers,
+  fetchDeveloper,
+  fetchLocationDevelopers,
+  fetchMapData,
+  fetchMe,
+  fetchSearch,
+  fetchStats,
+  logout,
+  updateMyProfile,
+} from './client'
+import type { UpdateProfileInput } from '../types/api'
 import { fetchGithubStars } from '../lib/github'
 import type { DeveloperSortKey } from '../types/api'
 
@@ -7,6 +25,8 @@ export const queryKeys = {
   map: ['map'] as const,
   stats: ['stats'] as const,
   githubStars: ['github', 'stars'] as const,
+  me: ['auth', 'me'] as const,
+  developer: (login: string) => ['developers', login] as const,
   search: (query: string, sort: DeveloperSortKey) =>
     ['search', query, sort] as const,
   countryDevelopers: (sort: DeveloperSortKey) =>
@@ -103,5 +123,52 @@ export function useSearch(query: string | null, sort: DeveloperSortKey) {
     queryFn: () => fetchSearch(query!, sort),
     enabled: !!query,
     staleTime: 5 * 60 * 1000,
+  })
+}
+
+export const meQueryOptions = queryOptions({
+  queryKey: queryKeys.me,
+  queryFn: fetchMe,
+  retry: false,
+  staleTime: 5 * 60 * 1000,
+})
+
+export function useMe() {
+  return useQuery(meQueryOptions)
+}
+
+export function useDeveloper(login: string | null) {
+  return useQuery({
+    queryKey: queryKeys.developer(login ?? ''),
+    queryFn: () => fetchDeveloper(login!),
+    enabled: !!login,
+    staleTime: 60 * 1000,
+  })
+}
+
+export function useUpdateProfileMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: UpdateProfileInput) => updateMyProfile(input),
+    onSuccess: (developer) => {
+      queryClient.setQueryData(
+        queryKeys.developer(developer.login),
+        developer,
+      )
+      void queryClient.invalidateQueries({ queryKey: queryKeys.me })
+    },
+  })
+}
+
+export function useLogoutMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: logout,
+    onSuccess: () => {
+      queryClient.setQueryData(queryKeys.me, null)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.me })
+    },
   })
 }
