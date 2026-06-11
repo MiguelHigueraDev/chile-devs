@@ -18,34 +18,34 @@ export function StatsHeader({
   const { data: stats } = useStats()
 
   return (
-    <header className="border-border/60 bg-background/80 z-10 flex shrink-0 flex-col gap-2 border-b px-3 py-2 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:px-4">
-      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-        <div className="min-w-0">
-          <h1 className="text-sm leading-tight font-semibold tracking-tight sm:text-base">
+    <header className="border-border/60 bg-background/80 z-10 flex shrink-0 flex-col gap-3 border-b px-3 py-3 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <h1 className="text-sm leading-none font-semibold tracking-tight sm:text-base">
             Chile Devs Map
           </h1>
-          <p className="text-muted-foreground hidden text-xs leading-tight sm:block">
-            GitHub contributions from developers across Chile
-          </p>
+          {stats && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 shrink-0 px-2.5 text-xs"
+              onClick={() => onViewAllDevelopers(createAllChileLocation(stats))}
+            >
+              View all
+            </Button>
+          )}
         </div>
-        {stats && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-7 shrink-0 px-2.5 text-xs"
-            onClick={() => onViewAllDevelopers(createAllChileLocation(stats))}
-          >
-            View all
-          </Button>
-        )}
+        <p className="text-muted-foreground mt-1 hidden text-xs leading-none sm:block">
+          GitHub contributions from developers across Chile
+        </p>
       </div>
 
       <SearchBar
         key={searchQuery || "empty"}
         query={searchQuery}
         onSearch={onSearch}
-        className="w-full sm:max-w-md sm:justify-end"
+        className="w-full sm:max-w-md sm:shrink-0"
       />
     </header>
   )
