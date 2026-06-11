@@ -18,5 +18,9 @@ export function formatNumber(value: number): string {
 }
 
 export function formatDateTime(iso: string): string {
-  return dateTimeFormat.format(new Date(iso));
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return dateTimeFormat.format(date);
 }
