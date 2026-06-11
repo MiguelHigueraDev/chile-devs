@@ -32,7 +32,7 @@ export function SearchBar({ onSearch, className }: SearchBarProps) {
           value={value}
           onChange={(event) => setValue(event.target.value)}
           placeholder='Try "Top TypeScript developers in Biobío"'
-          className="border-input bg-background placeholder:text-muted-foreground focus-visible:ring-ring h-8 w-full rounded-md border pr-3 pl-8 text-xs focus-visible:ring-2 focus-visible:outline-none sm:text-sm"
+          className="border-input bg-background placeholder:text-muted-foreground focus-visible:ring-ring h-8 w-full rounded-md border pr-3 pl-8 text-base focus-visible:ring-2 focus-visible:outline-none sm:text-sm"
           aria-label="Search developers"
         />
       </div>
