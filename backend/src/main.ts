@@ -1,4 +1,5 @@
 import fastifyCookie from '@fastify/cookie';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import {
   FastifyAdapter,
@@ -14,8 +15,16 @@ async function bootstrap() {
 
   await app.register(fastifyCookie);
 
+  const frontendUrl =
+    app.get(ConfigService).get<string>('FRONTEND_URL') ??
+    'http://localhost:5173';
+  const corsOrigins = frontendUrl
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
   app.enableCors({
-    origin: ['http://localhost:5173', 'https://chile-devs.vercel.app'],
+    origin: corsOrigins,
     credentials: true,
   });
 
