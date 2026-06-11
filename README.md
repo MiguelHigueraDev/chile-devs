@@ -54,15 +54,6 @@ Developers can sign in with GitHub to claim their profile and add a portfolio UR
 
 In production, set `GITHUB_OAUTH_CALLBACK_URL` and `FRONTEND_URL` to your deployed API and frontend URLs. If the frontend and API are on different origins, run the API with `NODE_ENV=production` so session cookies use `SameSite=None; Secure`.
 
-If you already synced developers before profile claiming shipped, convert stored GitHub GraphQL node IDs to numeric database IDs (required for secure OAuth matching):
-
-```bash
-cd backend
-pnpm db:migrate-github-ids
-```
-
-Then sign out and sign back in so your session uses the numeric GitHub user ID.
-
 The API runs at `http://localhost:3000`. On first start with a valid `GITHUB_TOKEN` and an empty database, a sync runs automatically. Syncs also run every 3 hours.
 
 ### 3. Frontend

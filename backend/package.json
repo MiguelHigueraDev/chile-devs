@@ -22,8 +22,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:baseline": "tsx scripts/baseline-migrations.ts",
-    "db:seed": "tsx src/db/seed.ts",
-    "db:migrate-github-ids": "tsx scripts/migrate-github-ids.ts"
+    "db:seed": "tsx src/db/seed.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.80",
