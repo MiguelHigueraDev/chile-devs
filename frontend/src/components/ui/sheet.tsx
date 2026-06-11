@@ -6,8 +6,17 @@ import { Dialog as SheetPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
 
-function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
-  return <SheetPrimitive.Root data-slot="sheet" {...props} />
+const SheetModalContext = React.createContext(true)
+
+function Sheet({
+  modal = true,
+  ...props
+}: React.ComponentProps<typeof SheetPrimitive.Root>) {
+  return (
+    <SheetModalContext.Provider value={modal}>
+      <SheetPrimitive.Root data-slot="sheet" modal={modal} {...props} />
+    </SheetModalContext.Provider>
+  )
 }
 
 function SheetTrigger({
@@ -56,11 +65,13 @@ function SheetContent({
   showCloseButton?: boolean
   overlayClassName?: string
 }) {
+  const modal = React.useContext(SheetModalContext)
+
   return (
     <SheetPortal>
-      <SheetClose asChild>
-        <SheetOverlay className={overlayClassName} />
-      </SheetClose>
+      <SheetOverlay
+        className={cn(!modal && "pointer-events-none", overlayClassName)}
+      />
       <SheetPrimitive.Content
         data-slot="sheet-content"
         className={cn(
