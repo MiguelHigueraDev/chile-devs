@@ -1,6 +1,5 @@
 import { useSearch } from "../api/queries";
-import { useDeveloperSortPreference } from "../lib/developer-sort-preference";
-import type { SearchInterpretation } from "../types/api";
+import type { DeveloperSortKey, SearchInterpretation } from "../types/api";
 import { DeveloperList } from "./DeveloperList";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -15,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 type SearchResultsPanelProps = {
   query: string | null;
+  sortBy: DeveloperSortKey;
   onClose: () => void;
 };
 
@@ -69,9 +69,9 @@ function formatInterpretationChips(
 
 export function SearchResultsPanel({
   query,
+  sortBy,
   onClose,
 }: SearchResultsPanelProps) {
-  const [sortBy] = useDeveloperSortPreference();
   const { data, error, isPending } = useSearch(query, sortBy);
 
   return (

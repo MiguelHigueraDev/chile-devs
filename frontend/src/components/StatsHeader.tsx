@@ -5,11 +5,13 @@ import { SearchBar } from './SearchBar'
 import { Button } from '@/components/ui/button'
 
 type StatsHeaderProps = {
+  searchQuery: string
   onViewAllDevelopers: (location: MapLocation) => void
   onSearch: (query: string) => void
 }
 
 export function StatsHeader({
+  searchQuery,
   onViewAllDevelopers,
   onSearch,
 }: StatsHeaderProps) {
@@ -39,7 +41,12 @@ export function StatsHeader({
         )}
       </div>
 
-      <SearchBar onSearch={onSearch} className="w-full sm:max-w-md sm:justify-end" />
+      <SearchBar
+        key={searchQuery || "empty"}
+        query={searchQuery}
+        onSearch={onSearch}
+        className="w-full sm:max-w-md sm:justify-end"
+      />
     </header>
   )
 }
