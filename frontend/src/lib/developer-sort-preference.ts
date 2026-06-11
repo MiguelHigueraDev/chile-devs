@@ -1,14 +1,8 @@
 import { useCallback, useState } from 'react';
-import { parseSortParam, APP_URL_PARAMS } from './app-url-state';
+import { parseSortParam, APP_URL_PARAMS, VALID_SORTS } from './app-url-state';
 import type { DeveloperSortKey } from '../types/api';
 
 const STORAGE_KEY = 'chile-devs:developer-sort';
-
-const VALID_SORTS = new Set<DeveloperSortKey>([
-  'contributions',
-  'followers',
-  'stars',
-]);
 
 export function getDeveloperSortPreference(): DeveloperSortKey {
   try {

@@ -7,7 +7,7 @@ export const APP_URL_PARAMS = {
   sort: 'sort',
 } as const;
 
-const VALID_SORTS = new Set<DeveloperSortKey>([
+export const VALID_SORTS = new Set<DeveloperSortKey>([
   'contributions',
   'followers',
   'stars',
