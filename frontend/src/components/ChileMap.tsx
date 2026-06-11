@@ -2,7 +2,7 @@ import type { FeatureCollection } from 'geojson'
 import maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { useEffect, useRef, useState } from 'react'
-import { fetchMapData } from '../api/client'
+import { useMapData } from '../api/queries'
 import type { MapLocation } from '../types/api'
 import {
   CLUSTER_RADIUS,
@@ -89,21 +89,14 @@ export function ChileMap({ onLocationSelect }: ChileMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const onLocationSelectRef = useRef(onLocationSelect)
-  const [locations, setLocations] = useState<MapLocation[]>([])
+  const { data: locations = [], error, isPending } = useMapData()
   const [mapReady, setMapReady] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [tooltip, setTooltip] = useState<MapTooltip | null>(null)
   const [chooser, setChooser] = useState<ClusterChooser | null>(null)
 
   useEffect(() => {
     onLocationSelectRef.current = onLocationSelect
   }, [onLocationSelect])
-
-  useEffect(() => {
-    fetchMapData()
-      .then(setLocations)
-      .catch((err: Error) => setError(err.message))
-  }, [])
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return
@@ -336,7 +329,7 @@ export function ChileMap({ onLocationSelect }: ChileMapProps) {
       {error && (
         <Card className="absolute top-4 left-1/2 z-10 -translate-x-1/2 border-destructive/30 bg-destructive/90 py-3 shadow-lg">
           <CardContent className="px-4 py-0 text-sm text-white">
-            {error}
+            {error.message}
           </CardContent>
         </Card>
       )}
@@ -400,7 +393,7 @@ export function ChileMap({ onLocationSelect }: ChileMapProps) {
 
       <MapLegend />
 
-      {locations.length === 0 && !error && (
+      {!isPending && locations.length === 0 && !error && (
         <Card className="pointer-events-none absolute bottom-6 left-1/2 z-10 max-w-sm -translate-x-1/2 border-border/60 bg-card/90 py-4 shadow-lg backdrop-blur-sm">
           <CardContent className="space-y-1 px-5 py-0 text-center">
             <p className="text-sm font-medium">No developer data yet</p>

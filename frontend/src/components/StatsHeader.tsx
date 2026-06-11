@@ -1,6 +1,4 @@
-import { useEffect, useState } from 'react'
-import { fetchStats } from '../api/client'
-import type { StatsResponse } from '../types/api'
+import { useStats } from '../api/queries'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -12,14 +10,7 @@ const METRICS = [
 ]
 
 export function StatsHeader() {
-  const [stats, setStats] = useState<StatsResponse | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetchStats()
-      .then(setStats)
-      .catch((err: Error) => setError(err.message))
-  }, [])
+  const { data: stats, error, isPending } = useStats()
 
   return (
     <header className="border-border/60 bg-background/80 z-10 flex shrink-0 flex-col items-start justify-between gap-4 border-b px-4 py-4 backdrop-blur-md sm:flex-row sm:items-center sm:gap-6 sm:px-6">
@@ -34,10 +25,10 @@ export function StatsHeader() {
 
       <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto sm:gap-6">
         {error && (
-          <span className="text-destructive text-sm">{error}</span>
+          <span className="text-destructive text-sm">{error.message}</span>
         )}
 
-        {!stats && !error && (
+        {isPending && !error && (
           <div className="flex items-center gap-4">
             {METRICS.map((metric) => (
               <div key={metric.key} className="flex flex-col items-end gap-1">

@@ -1,6 +1,6 @@
 import { ExternalLink } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchLocationDevelopers } from "../api/client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocationDevelopers } from "../api/queries";
 import type {
   DeveloperSortKey,
   DeveloperSummary,
@@ -61,81 +61,30 @@ function LocationDevelopersList({
   sortBy,
   scrollRootRef,
 }: LocationDevelopersListProps) {
-  const [developers, setDevelopers] = useState<DeveloperSummary[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(true);
-  const [totalCount, setTotalCount] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    data,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isPending,
+  } = useLocationDevelopers(slug, sortBy);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const isFetchingRef = useRef(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    isFetchingRef.current = true;
+  const developers = useMemo(() => {
+    if (!data) return [];
+    const seen = new Set<string>();
+    return data.pages.flatMap((page) =>
+      page.developers.filter((dev) => {
+        if (seen.has(dev.login)) return false;
+        seen.add(dev.login);
+        return true;
+      }),
+    );
+  }, [data]);
 
-    fetchLocationDevelopers(slug, { sort: sortBy })
-      .then((data) => {
-        if (cancelled) return;
-        setDevelopers(data.developers);
-        setNextCursor(data.nextCursor);
-        setHasMore(data.hasMore);
-        if (data.devCount != null) {
-          setTotalCount(data.devCount);
-        }
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(
-          err instanceof Error ? err.message : "Failed to load developers",
-        );
-      })
-      .finally(() => {
-        if (cancelled) return;
-        isFetchingRef.current = false;
-        setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [slug, sortBy]);
-
-  const loadMore = useCallback(
-    async (cursor: string) => {
-      if (isFetchingRef.current) return;
-      isFetchingRef.current = true;
-      setLoadingMore(true);
-
-      try {
-        const data = await fetchLocationDevelopers(slug, {
-          cursor,
-          sort: sortBy,
-        });
-        setDevelopers((prev) => {
-          const existing = new Set(prev.map((dev) => dev.login));
-          const newDevs = data.developers.filter(
-            (dev) => !existing.has(dev.login),
-          );
-          return [...prev, ...newDevs];
-        });
-        setNextCursor(data.nextCursor);
-        setHasMore(data.hasMore);
-        if (data.devCount != null) {
-          setTotalCount(data.devCount);
-        }
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Failed to load developers",
-        );
-      } finally {
-        isFetchingRef.current = false;
-        setLoadingMore(false);
-      }
-    },
-    [slug, sortBy],
-  );
+  const totalCount = data?.pages.find((page) => page.devCount != null)?.devCount ?? null;
+  const hasMore = hasNextPage ?? false;
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -145,10 +94,9 @@ function LocationDevelopersList({
     if (
       !sentinel ||
       !scrollRoot ||
-      loading ||
-      loadingMore ||
-      !hasMore ||
-      !nextCursor
+      isPending ||
+      isFetchingNextPage ||
+      !hasMore
     ) {
       return;
     }
@@ -156,7 +104,7 @@ function LocationDevelopersList({
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) {
-          void loadMore(nextCursor);
+          void fetchNextPage();
         }
       },
       { root: scrollRoot, rootMargin: "100px" },
@@ -164,9 +112,15 @@ function LocationDevelopersList({
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, loading, loadingMore, loadMore, nextCursor, scrollRootRef]);
+  }, [
+    fetchNextPage,
+    hasMore,
+    isFetchingNextPage,
+    isPending,
+    scrollRootRef,
+  ]);
 
-  if (loading) {
+  if (isPending) {
     return (
       <div className="space-y-3 py-2">
         {Array.from({ length: 5 }).map((_, index) => (
@@ -183,8 +137,8 @@ function LocationDevelopersList({
     );
   }
 
-  if (error) {
-    return <p className="text-destructive py-4 text-sm">{error}</p>;
+  if (error && developers.length === 0) {
+    return <p className="text-destructive py-4 text-sm">{error.message}</p>;
   }
 
   if (developers.length === 0) {
@@ -231,7 +185,7 @@ function LocationDevelopersList({
         ))}
       </ul>
       <div ref={sentinelRef} className="h-px" aria-hidden />
-      {loadingMore && (
+      {isFetchingNextPage && (
         <div className="space-y-3 py-2">
           {Array.from({ length: 2 }).map((_, index) => (
             <div key={index} className="flex items-center gap-3">
@@ -244,6 +198,9 @@ function LocationDevelopersList({
             </div>
           ))}
         </div>
+      )}
+      {error && (
+        <p className="text-destructive pt-2 text-sm">{error.message}</p>
       )}
       <p className="text-muted-foreground pt-2 text-xs">
         {hasMore
