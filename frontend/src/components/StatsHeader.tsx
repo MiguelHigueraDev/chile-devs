@@ -1,5 +1,6 @@
 import { useStats } from '../api/queries'
 import { createAllChileLocation } from '../lib/all-chile-location'
+import { formatNumber } from '../lib/utils'
 import type { MapLocation } from '../types/api'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -69,7 +70,7 @@ export function StatsHeader({ onViewAllDevelopers }: StatsHeaderProps) {
               )}
               <div className="flex flex-col items-end gap-0">
                 <span className="text-sm font-semibold tabular-nums">
-                  {stats[metric.key].toLocaleString()}
+                  {formatNumber(stats[metric.key])}
                 </span>
                 <span className="text-muted-foreground text-[9px] tracking-wider uppercase">
                   {metric.label}

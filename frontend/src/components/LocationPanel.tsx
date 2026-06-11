@@ -2,6 +2,7 @@ import { ExternalLink } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useCountryDevelopers, useLocationDevelopers } from "../api/queries";
 import { isAllChileLocation } from "../lib/all-chile-location";
+import { formatNumber } from "../lib/utils";
 import type {
   DeveloperSortKey,
   DeveloperSummary,
@@ -217,7 +218,7 @@ function LocationDevelopersList({
                 )}
               </div>
               <span className="text-foreground shrink-0 text-sm font-semibold tabular-nums">
-                {getDeveloperMetric(dev, sortBy).toLocaleString()}
+                {formatNumber(getDeveloperMetric(dev, sortBy))}
               </span>
             </li>
           );
@@ -244,10 +245,10 @@ function LocationDevelopersList({
       )}
       <p className="text-muted-foreground px-4 pt-2 text-xs">
         {hasMore
-          ? `Showing ${developers.length.toLocaleString()}${totalCount != null ? ` of ${totalCount.toLocaleString()}` : ""} developers by ${sortLabel}`
+          ? `Showing ${formatNumber(developers.length)}${totalCount != null ? ` of ${formatNumber(totalCount)}` : ""} developers by ${sortLabel}`
           : totalCount != null
-            ? `All ${totalCount.toLocaleString()} developers loaded`
-            : `Showing ${developers.length.toLocaleString()} developers by ${sortLabel}`}
+            ? `All ${formatNumber(totalCount)} developers loaded`
+            : `Showing ${formatNumber(developers.length)} developers by ${sortLabel}`}
       </p>
     </>
   );
@@ -288,10 +289,10 @@ export function LocationPanel({ location, onClose }: LocationPanelProps) {
               </SheetDescription>
               <div className="flex flex-wrap gap-2 pt-2">
                 <Badge variant="secondary">
-                  {location.devCount.toLocaleString()} developers
+                  {formatNumber(location.devCount)} developers
                 </Badge>
                 <Badge variant="outline">
-                  {location.totalContributions.toLocaleString()} contributions
+                  {formatNumber(location.totalContributions)} contributions
                 </Badge>
               </div>
               <div

@@ -10,6 +10,7 @@ import {
   MAP_STYLE,
   ZOOM_SCALED_RADIUS,
 } from '@/lib/map-styles'
+import { formatNumber } from '@/lib/utils'
 import { Card, CardContent } from '@/components/ui/card'
 import { MapLegend } from './MapLegend'
 
@@ -366,7 +367,7 @@ export function ChileMap({ onLocationSelect }: ChileMapProps) {
                     </span>
                   </span>
                   <span className="text-muted-foreground shrink-0 text-xs tabular-nums">
-                    {loc.devCount.toLocaleString()} devs
+                    {formatNumber(loc.devCount)} devs
                   </span>
                 </button>
               </li>
@@ -385,7 +386,7 @@ export function ChileMap({ onLocationSelect }: ChileMapProps) {
         >
           <p className="font-medium">{tooltip.name}</p>
           <p className="text-muted-foreground">
-            {tooltip.devCount.toLocaleString()} developers
+            {formatNumber(tooltip.devCount)} developers
             {tooltip.isCluster ? ' total' : ''}
           </p>
         </div>
