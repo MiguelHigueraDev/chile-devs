@@ -89,7 +89,7 @@ export function ChileMap({ onLocationSelect }: ChileMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const onLocationSelectRef = useRef(onLocationSelect)
-  const { data: locations = [], error } = useMapData()
+  const { data: locations = [], error, isPending } = useMapData()
   const [mapReady, setMapReady] = useState(false)
   const [tooltip, setTooltip] = useState<MapTooltip | null>(null)
   const [chooser, setChooser] = useState<ClusterChooser | null>(null)
@@ -393,7 +393,7 @@ export function ChileMap({ onLocationSelect }: ChileMapProps) {
 
       <MapLegend />
 
-      {locations.length === 0 && !error && (
+      {!isPending && locations.length === 0 && !error && (
         <Card className="pointer-events-none absolute bottom-6 left-1/2 z-10 max-w-sm -translate-x-1/2 border-border/60 bg-card/90 py-4 shadow-lg backdrop-blur-sm">
           <CardContent className="space-y-1 px-5 py-0 text-center">
             <p className="text-sm font-medium">No developer data yet</p>

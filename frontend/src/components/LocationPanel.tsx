@@ -137,7 +137,7 @@ function LocationDevelopersList({
     );
   }
 
-  if (error) {
+  if (error && developers.length === 0) {
     return <p className="text-destructive py-4 text-sm">{error.message}</p>;
   }
 
@@ -198,6 +198,9 @@ function LocationDevelopersList({
             </div>
           ))}
         </div>
+      )}
+      {error && (
+        <p className="text-destructive pt-2 text-sm">{error.message}</p>
       )}
       <p className="text-muted-foreground pt-2 text-xs">
         {hasMore
