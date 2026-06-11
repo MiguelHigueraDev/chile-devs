@@ -133,7 +133,7 @@ function LocationDevelopersList({
       <div className="space-y-3 px-4 py-2">
         {Array.from({ length: 5 }).map((_, index) => (
           <div key={index} className="flex items-center gap-3">
-            <Skeleton className="h-4 w-5" />
+            <Skeleton className="h-4 w-7" />
             <Skeleton className="size-8 rounded-full" />
             <div className="flex-1 space-y-1.5">
               <Skeleton className="h-3 w-24" />
@@ -228,7 +228,7 @@ function LocationDevelopersList({
         <div className="space-y-3 px-4 py-2">
           {Array.from({ length: 2 }).map((_, index) => (
             <div key={index} className="flex items-center gap-3">
-              <Skeleton className="h-4 w-5" />
+              <Skeleton className="h-4 w-7" />
               <Skeleton className="size-8 rounded-full" />
               <div className="flex-1 space-y-1.5">
                 <Skeleton className="h-3 w-24" />
