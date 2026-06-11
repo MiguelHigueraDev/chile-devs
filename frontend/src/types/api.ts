@@ -52,6 +52,10 @@ export type StatsResponse = {
   totalContributions: number;
   countryLevelDevs: number;
   locationsWithDevs: number;
+  lastUpdate: {
+    at: string;
+    location: string | null;
+  } | null;
 };
 
 export type SearchInterpretation = {

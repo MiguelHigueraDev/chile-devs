@@ -22,6 +22,13 @@
       "when": 1781156000000,
       "tag": "0002_developer_languages",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1781157000000,
+      "tag": "0003_sync_last_location",
+      "breakpoints": true
     }
   ]
 }
