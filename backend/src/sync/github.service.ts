@@ -216,7 +216,16 @@ export class GithubService {
       return enrichment;
     }
 
-    const cached = await this.enrichmentCache.getMany(logins);
+    let cached = new Map<string, GitHubEnrichment>();
+    try {
+      cached = await this.enrichmentCache.getMany(logins);
+    } catch (error) {
+      this.logger.warn(
+        `Enrichment cache read failed, continuing without cache: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
     const misses: string[] = [];
 
     for (const login of logins) {
@@ -276,7 +285,17 @@ export class GithubService {
       });
     }
 
-    await this.enrichmentCache.setMany(newlyFetched);
+    if (newlyFetched.size > 0) {
+      try {
+        await this.enrichmentCache.setMany(newlyFetched);
+      } catch (error) {
+        this.logger.warn(
+          `Enrichment cache write failed, continuing with fresh data: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
 
     return enrichment;
   }
