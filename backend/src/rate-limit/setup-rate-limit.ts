@@ -17,17 +17,24 @@ export async function setupRateLimit(
   const fastify = app.getHttpAdapter().getInstance();
 
   fastify.addHook('onRequest', async (request, reply) => {
-    const { banned, retryAfterSeconds } = await banService.isBanned(request.ip);
-    if (!banned) {
+    try {
+      const { banned, retryAfterSeconds } = await banService.isBanned(
+        request.ip,
+      );
+      if (!banned) {
+        return;
+      }
+
+      reply.header('Retry-After', String(retryAfterSeconds ?? 1));
+      return reply.code(403).send({
+        statusCode: 403,
+        error: 'Forbidden',
+        message: 'Too many requests. You are temporarily banned.',
+      });
+    } catch (error) {
+      logger.error(`Failed to check ban status for ${request.ip}`, error);
       return;
     }
-
-    reply.header('Retry-After', String(retryAfterSeconds ?? 1));
-    return reply.code(403).send({
-      statusCode: 403,
-      error: 'Forbidden',
-      message: 'Too many requests. You are temporarily banned.',
-    });
   });
 
   await app.register(rateLimit, {

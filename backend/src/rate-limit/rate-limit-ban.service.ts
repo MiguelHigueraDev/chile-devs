@@ -1,5 +1,13 @@
 import Redis from 'ioredis';
 
+const INCR_WITH_FIRST_TTL_SCRIPT = `
+  local current = redis.call('INCR', KEYS[1])
+  if current == 1 then
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
+  end
+  return current
+`;
+
 const VIOLATION_WINDOW_SECONDS = 24 * 60 * 60;
 const BAN_DURATION_SECONDS = 8 * 60 * 60;
 const BAN_THRESHOLD = 2;
@@ -54,11 +62,14 @@ export class RateLimitBanService {
 
   async recordViolation(key: string): Promise<ViolationResult> {
     const violationKey = this.violationKey(key);
-    const violations = await this.redis.incr(violationKey);
-
-    if (violations === 1) {
-      await this.redis.expire(violationKey, VIOLATION_WINDOW_SECONDS);
-    }
+    const violations = Number(
+      await this.redis.eval(
+        INCR_WITH_FIRST_TTL_SCRIPT,
+        1,
+        violationKey,
+        VIOLATION_WINDOW_SECONDS,
+      ),
+    );
 
     if (violations < BAN_THRESHOLD) {
       return { violations, banned: false };

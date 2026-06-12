@@ -26,6 +26,16 @@ function getApiBase(): string {
 
 const API_BASE = getApiBase();
 
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 type FetchJsonOptions = {
   method?: string;
   body?: unknown;
@@ -76,7 +86,7 @@ async function fetchJson<T>(
     } catch {
       // keep default message
     }
-    throw new Error(message);
+    throw new ApiError(response.status, message);
   }
   return response.json() as Promise<T>;
 }
@@ -211,7 +221,7 @@ export async function logout(): Promise<{ ok: boolean }> {
       auth: true,
     });
   } catch (error) {
-    if (error instanceof Error && error.message.includes('API error 401')) {
+    if (error instanceof ApiError && error.status === 401) {
       return { ok: true };
     }
     throw error;

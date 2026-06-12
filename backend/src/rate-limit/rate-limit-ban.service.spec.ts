@@ -24,14 +24,18 @@ function createRedisMock(): {
       }
       return Promise.resolve(state.ttls.get(key) ?? -1);
     },
-    incr: (key: string) => {
+    eval: (
+      _script: string,
+      _numKeys: number,
+      key: string,
+      ttlSeconds: number,
+    ) => {
       const next = (state.counters.get(key) ?? 0) + 1;
       state.counters.set(key, next);
+      if (next === 1) {
+        state.ttls.set(key, ttlSeconds);
+      }
       return Promise.resolve(next);
-    },
-    expire: (key: string, seconds: number) => {
-      state.ttls.set(key, seconds);
-      return Promise.resolve(1);
     },
     set: (
       key: string,
