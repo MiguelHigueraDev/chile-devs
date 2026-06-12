@@ -11,6 +11,10 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { count, eq, inArray, sql } from 'drizzle-orm';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
 import {
+  buildClearStaleRankingsSql,
+  buildRankingUpdateSql,
+} from '../db/ranking-sql';
+import {
   developerLanguages,
   developers,
   locations,
@@ -514,33 +518,9 @@ export class SyncService implements OnModuleInit {
     };
   }
 
-  // Chile-relative standing and integer ranks computed in one pass over developers.
-  // rank_score ASC → best devs have the lowest score.
-  // PERCENT_RANK × 100 → 0 for #1, ~100 for last place (percentileCl).
-  // ROW_NUMBER → integer position 1, 2, 3… within location and country.
   private async refreshRankings(): Promise<void> {
-    await this.db.execute(sql`
-      UPDATE developers AS d
-      SET
-        percentile_cl = ranked.pct,
-        rank_location = ranked.rank_location,
-        rank_country = ranked.rank_country
-      FROM (
-        SELECT
-          github_id,
-          PERCENT_RANK() OVER (ORDER BY rank_score ASC) * 100 AS pct,
-          ROW_NUMBER() OVER (
-            PARTITION BY location_id
-            ORDER BY rank_score ASC, total_stars DESC, followers DESC, contributions DESC, github_id ASC
-          ) AS rank_location,
-          ROW_NUMBER() OVER (
-            ORDER BY rank_score ASC, total_stars DESC, followers DESC, contributions DESC, github_id ASC
-          ) AS rank_country
-        FROM developers
-        WHERE rank_score IS NOT NULL
-      ) AS ranked
-      WHERE d.github_id = ranked.github_id
-    `);
+    await this.db.execute(buildClearStaleRankingsSql());
+    await this.db.execute(buildRankingUpdateSql());
   }
 
   private async upsertDeveloper(
