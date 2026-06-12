@@ -1,6 +1,13 @@
 export type ContentSecurityPolicyOptions = {
   backendUrl?: string;
+  /** frame-ancestors only applies to HTTP headers, not <meta> tags. */
+  includeFrameAncestors?: boolean;
 };
+
+const CARTO_BASEMAP_ORIGINS = [
+  "https://basemaps.cartocdn.com",
+  "https://*.basemaps.cartocdn.com",
+] as const;
 
 function extraConnectOrigins(backendUrl?: string): string[] {
   if (!backendUrl?.trim()) {
@@ -22,27 +29,34 @@ function extraConnectOrigins(backendUrl?: string): string[] {
 export function buildContentSecurityPolicy(
   options: ContentSecurityPolicyOptions = {},
 ): string {
+  const { includeFrameAncestors = true } = options;
+  const cartoOrigins = CARTO_BASEMAP_ORIGINS.join(" ");
   const connectSrc = [
     "'self'",
     "https://api.github.com",
-    "https://*.basemaps.cartocdn.com",
+    ...CARTO_BASEMAP_ORIGINS,
     "https://vitals.vercel-insights.com",
     ...extraConnectOrigins(options.backendUrl),
   ];
 
-  return [
+  const directives = [
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://avatars.githubusercontent.com https://github.com https://*.basemaps.cartocdn.com",
-    "font-src 'self' data: https://*.basemaps.cartocdn.com",
+    `img-src 'self' data: blob: https://avatars.githubusercontent.com https://github.com ${cartoOrigins}`,
+    `font-src 'self' data: ${cartoOrigins}`,
     `connect-src ${connectSrc.join(" ")}`,
     "worker-src blob:",
     "child-src blob:",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
-    "frame-ancestors 'none'",
     "upgrade-insecure-requests",
-  ].join("; ");
+  ];
+
+  if (includeFrameAncestors) {
+    directives.push("frame-ancestors 'none'");
+  }
+
+  return directives.join("; ");
 }

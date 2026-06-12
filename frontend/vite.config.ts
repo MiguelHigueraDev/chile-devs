@@ -18,7 +18,10 @@ const SITE_META = {
 
 function siteMetaPlugin(siteUrl: string, backendUrl?: string): Plugin {
   const normalizedSiteUrl = siteUrl.replace(/\/$/, "");
-  const contentSecurityPolicy = buildContentSecurityPolicy({ backendUrl });
+  const contentSecurityPolicy = buildContentSecurityPolicy({
+    backendUrl,
+    includeFrameAncestors: false,
+  });
 
   const injectSiteMeta = (contents: string) =>
     contents
@@ -55,7 +58,10 @@ function siteMetaPlugin(siteUrl: string, backendUrl?: string): Plugin {
       });
 
       server.middlewares.use((_req, res, next) => {
-        res.setHeader("Content-Security-Policy", contentSecurityPolicy);
+        res.setHeader(
+          "Content-Security-Policy",
+          buildContentSecurityPolicy({ backendUrl }),
+        );
         next();
       });
     },
