@@ -1,4 +1,5 @@
-import type { DeveloperSummary } from '../types/api';
+import type { DeveloperSummary, MapLocation } from '../types/api';
+import { formatNumber } from './utils';
 
 /**
  * Rank display helpers.
@@ -46,6 +47,26 @@ export function formatTopPercentChile(percentileCl: number | null): string | nul
   }
 
   return `Top ${Math.ceil(percentileCl)}% in Chile`;
+}
+
+export function formatLocationRank(
+  rankLocation: number | null,
+  locationName: string,
+  locationKind: MapLocation['kind'],
+): string | null {
+  if (rankLocation == null || locationKind === 'country') {
+    return null;
+  }
+
+  return `#${formatNumber(rankLocation)} in ${locationName}`;
+}
+
+export function formatCountryRank(rankCountry: number | null): string | null {
+  if (rankCountry == null) {
+    return null;
+  }
+
+  return `#${formatNumber(rankCountry)} in Chile`;
 }
 
 export const RANK_LEVEL_RING_COLORS: Record<string, string> = {

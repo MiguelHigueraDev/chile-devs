@@ -38,6 +38,7 @@ export type DeveloperSummary = {
 
 export type DeveloperDetail = DeveloperSummary & {
   locationName: string;
+  locationKind: MapLocation['kind'];
   portfolioUrl: string | null;
   description: string | null;
   role: string | null;

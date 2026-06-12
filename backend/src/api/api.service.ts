@@ -396,6 +396,7 @@ export class ApiService {
     role: string | null;
     claimedAt: Date | null;
     locationName: string;
+    locationKind: 'country' | 'region' | 'city';
   }) {
     return {
       login: row.login,
@@ -413,6 +414,7 @@ export class ApiService {
       profileUrl: row.profileUrl,
       rawLocation: row.rawLocation,
       locationName: row.locationName,
+      locationKind: row.locationKind,
       portfolioUrl: row.portfolioUrl,
       description: row.description,
       role: row.role,
@@ -442,6 +444,7 @@ export class ApiService {
         role: developers.role,
         claimedAt: developers.claimedAt,
         locationName: locations.name,
+        locationKind: locations.kind,
       })
       .from(developers)
       .innerJoin(locations, eq(developers.locationId, locations.id))
@@ -518,6 +521,7 @@ export class ApiService {
         role: developers.role,
         claimedAt: developers.claimedAt,
         locationName: locations.name,
+        locationKind: locations.kind,
       })
       .from(developers)
       .innerJoin(locations, eq(developers.locationId, locations.id))
