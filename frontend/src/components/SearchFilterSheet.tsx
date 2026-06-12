@@ -12,6 +12,7 @@ import { useSearchFacets } from "../api/queries";
 import { useStackedSheetDismissGuard } from "../lib/stacked-sheet-dismiss";
 import { RANK_SORT_LABEL } from "../lib/rank";
 import {
+  DEFAULT_DEVELOPER_SORT,
   DEFAULT_SEARCH_PARAMS,
   type SearchParams,
   type SearchSortKey,
@@ -43,10 +44,10 @@ type SearchFilterSheetProps = {
 };
 
 const BASE_SORT_OPTIONS: Array<{ value: SearchSortKey; label: string }> = [
-  { value: "contributions", label: "Contributions" },
-  { value: "followers", label: "Followers" },
-  { value: "stars", label: "Stars" },
   { value: "rank", label: RANK_SORT_LABEL },
+  { value: "stars", label: "Stars" },
+  { value: "followers", label: "Followers" },
+  { value: "contributions", label: "Contributions" },
   { value: "languageShare", label: "Language share" },
 ];
 
@@ -619,7 +620,7 @@ export function SearchFilterSheet({
 
     const sort =
       languages.length === 0 && draft.sort === "languageShare"
-        ? "contributions"
+        ? DEFAULT_DEVELOPER_SORT
         : draft.sort;
 
     onChange({

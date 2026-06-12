@@ -6,7 +6,7 @@ import type {
   SearchSortKey,
   StatsResponse,
 } from '../types/api';
-import { DEFAULT_SEARCH_PARAMS } from '../types/api';
+import { DEFAULT_DEVELOPER_SORT, DEFAULT_SEARCH_PARAMS } from '../types/api';
 
 export const APP_URL_PARAMS = {
   location: 'location',
@@ -65,7 +65,7 @@ function parseSearchSortParam(value: string | null): SearchSortKey {
   if (value && VALID_SEARCH_SORTS.has(value as SearchSortKey)) {
     return value as SearchSortKey;
   }
-  return 'contributions';
+  return DEFAULT_DEVELOPER_SORT;
 }
 
 function hasSearchParams(params: URLSearchParams): boolean {
@@ -176,7 +176,7 @@ export function buildAppUrlSearchParams(state: AppUrlState): URLSearchParams {
   if (
     state.locationSlug &&
     state.sort &&
-    state.sort !== 'contributions'
+    state.sort !== DEFAULT_DEVELOPER_SORT
   ) {
     params.set(APP_URL_PARAMS.sort, state.sort);
   }

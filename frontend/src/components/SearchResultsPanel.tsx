@@ -72,7 +72,7 @@ function formatInterpretationChips(
   chips.push(sortLabels[interpretation.sort]);
 
   if (chips.length === 0) {
-    chips.push("All Chile", "by contributions");
+    chips.push("All Chile", `by ${RANK_SORT_SUMMARY_LABEL}`);
   }
 
   return chips;

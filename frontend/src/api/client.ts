@@ -15,6 +15,7 @@ import type {
   StatsResponse,
   UpdateProfileInput,
 } from '../types/api';
+import { DEFAULT_DEVELOPER_SORT } from '../types/api';
 
 function getApiBase(): string {
   const backendUrl = import.meta.env.VITE_BACKEND_URL;
@@ -108,7 +109,7 @@ export type FetchLocationDevelopersOptions = {
 function buildDeveloperQueryParams(
   options: FetchLocationDevelopersOptions = {},
 ): URLSearchParams {
-  const { cursor, limit = 10, sort = 'contributions' } = options;
+  const { cursor, limit = 10, sort = DEFAULT_DEVELOPER_SORT } = options;
   const params = new URLSearchParams({ limit: String(limit), sort });
   if (cursor) {
     params.set('cursor', cursor);

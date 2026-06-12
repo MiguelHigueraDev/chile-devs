@@ -37,6 +37,8 @@ export const DEVELOPER_SORT_KEYS = [
 
 export type DeveloperSortKey = (typeof DEVELOPER_SORT_KEYS)[number];
 
+export const DEFAULT_DEVELOPER_SORT: DeveloperSortKey = 'rank';
+
 const SORT_COLUMNS: Record<DeveloperSortKey, AnyColumn> = {
   contributions: developers.contributions,
   followers: developers.followers,
@@ -125,13 +127,15 @@ function buildDeveloperCursorFilter(
 }
 
 export function parseDeveloperSort(sort?: string): DeveloperSortKey {
-  if (!sort || sort === 'contributions') {
-    return 'contributions';
-  }
-  if (sort === 'followers' || sort === 'stars' || sort === 'rank') {
+  if (
+    sort === 'contributions' ||
+    sort === 'followers' ||
+    sort === 'stars' ||
+    sort === 'rank'
+  ) {
     return sort;
   }
-  return 'contributions';
+  return DEFAULT_DEVELOPER_SORT;
 }
 
 @Injectable()
@@ -228,8 +232,18 @@ export class ApiService {
       .from(developers)
       .where(whereClause)
       .orderBy(
-        sortAscending ? asc(sortColumn) : desc(sortColumn),
-        asc(developers.githubId),
+        ...(sort === 'rank'
+          ? [
+              asc(developers.rankScore),
+              desc(developers.totalStars),
+              desc(developers.followers),
+              desc(developers.contributions),
+              asc(developers.githubId),
+            ]
+          : [
+              sortAscending ? asc(sortColumn) : desc(sortColumn),
+              asc(developers.githubId),
+            ]),
       )
       .limit(pageSize + 1);
 
@@ -271,7 +285,7 @@ export class ApiService {
     slug: string,
     limit = MAX_DEVELOPERS_PAGE_SIZE,
     cursor?: string,
-    sort: DeveloperSortKey = 'contributions',
+    sort: DeveloperSortKey = DEFAULT_DEVELOPER_SORT,
   ) {
     const [location] = await this.db
       .select()
@@ -329,7 +343,7 @@ export class ApiService {
   async getCountryDevelopers(
     limit = MAX_DEVELOPERS_PAGE_SIZE,
     cursor?: string,
-    sort: DeveloperSortKey = 'contributions',
+    sort: DeveloperSortKey = DEFAULT_DEVELOPER_SORT,
   ) {
     const page = await this.paginateDevelopers(limit, cursor, sort);
 

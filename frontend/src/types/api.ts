@@ -10,6 +10,8 @@ export type MapLocation = {
 
 export type DeveloperSortKey = 'contributions' | 'followers' | 'stars' | 'rank';
 
+export const DEFAULT_DEVELOPER_SORT: DeveloperSortKey = 'rank';
+
 export type SearchSortKey = DeveloperSortKey | 'languageShare';
 
 export type TopLanguage = {
@@ -114,6 +116,6 @@ export const DEFAULT_SEARCH_PARAMS: SearchParams = {
   zone: null,
   username: null,
   displayName: null,
-  sort: 'contributions',
+  sort: DEFAULT_DEVELOPER_SORT,
   shareLanguage: null,
 };

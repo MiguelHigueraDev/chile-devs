@@ -6,6 +6,7 @@ import {
   VALID_SORTS,
 } from './app-url-state';
 import type { DeveloperSortKey } from '../types/api';
+import { DEFAULT_DEVELOPER_SORT } from '../types/api';
 
 const STORAGE_KEY = 'chile-devs:developer-sort';
 
@@ -26,7 +27,7 @@ export function getDeveloperSortPreference(): DeveloperSortKey {
   } catch {
     // ignore read errors (e.g. private browsing)
   }
-  return 'contributions';
+  return DEFAULT_DEVELOPER_SORT;
 }
 
 export function setDeveloperSortPreference(sort: DeveloperSortKey): void {

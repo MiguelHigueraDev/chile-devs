@@ -209,8 +209,15 @@ export class SearchService {
       .from(developers)
       .where(whereClause)
       .orderBy(
-        parsed.sort === 'rank' ? asc(sortColumn) : desc(sortColumn),
-        asc(developers.login),
+        ...(parsed.sort === 'rank'
+          ? [
+              asc(developers.rankScore),
+              desc(developers.totalStars),
+              desc(developers.followers),
+              desc(developers.contributions),
+              asc(developers.login),
+            ]
+          : [desc(sortColumn), asc(developers.login)]),
       )
       .limit(MAX_SEARCH_RESULTS);
 

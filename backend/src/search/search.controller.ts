@@ -60,12 +60,13 @@ export class SearchController {
         : null;
 
     const sortValue =
+      input.sort === 'contributions' ||
       input.sort === 'followers' ||
       input.sort === 'stars' ||
       input.sort === 'rank' ||
       input.sort === 'languageShare'
         ? input.sort
-        : 'contributions';
+        : 'rank';
 
     const candidate: ParsedQuery = {
       languages: parseCsvParam(input.languages),

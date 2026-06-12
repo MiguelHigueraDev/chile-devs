@@ -37,10 +37,10 @@ type LocationDevelopersListProps = {
 };
 
 const SORT_OPTIONS: Array<{ value: DeveloperSortKey; label: string }> = [
-  { value: "contributions", label: "Contributions (last year)" },
-  { value: "followers", label: "Followers" },
-  { value: "stars", label: "Stars" },
   { value: "rank", label: RANK_SORT_LABEL },
+  { value: "stars", label: "Stars" },
+  { value: "followers", label: "Followers" },
+  { value: "contributions", label: "Contributions (last year)" },
 ];
 
 function LocationDevelopersList({
