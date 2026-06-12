@@ -34,7 +34,7 @@ export const LOCATION_SEEDS: LocationSeed[] = [
     kind: 'city',
     lat: '-18.4783',
     lng: '-70.3126',
-    searchTerms: ['Arica', 'Arica, Chile', 'Arica Chile'],
+    searchTerms: ['Arica'],
   },
   {
     slug: 'tarapaca',

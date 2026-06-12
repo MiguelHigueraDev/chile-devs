@@ -1,4 +1,6 @@
 import fastifyCookie from '@fastify/cookie';
+import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import {
@@ -8,11 +10,35 @@ import {
 import { AppModule } from './app.module';
 import { parseFrontendUrlConfig } from './lib/frontend-url';
 
+const PERMISSIONS_POLICY =
+  'camera=(), microphone=(), geolocation=(), payment=(), usb=()';
+
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter(),
+    new FastifyAdapter({ trustProxy: true }),
   );
+
+  await app.register(helmet, {
+    global: true,
+    frameguard: { action: 'deny' },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+    hsts: {
+      maxAge: 63_072_000,
+      includeSubDomains: true,
+    },
+  });
+
+  await app.register(rateLimit, {
+    max: 100,
+    timeWindow: '1 minute',
+  });
+
+  const fastify = app.getHttpAdapter().getInstance();
+  fastify.addHook('onSend', (_request, reply, _payload, done) => {
+    reply.header('Permissions-Policy', PERMISSIONS_POLICY);
+    done();
+  });
 
   await app.register(fastifyCookie);
 
