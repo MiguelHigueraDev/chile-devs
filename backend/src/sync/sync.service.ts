@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
   OnModuleInit,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
@@ -185,17 +186,32 @@ export class SyncService implements OnModuleInit {
                 hit.rawLocation,
                 allLocations,
               );
-              const stats = enrichment.get(hit.login) ?? {
-                contributions: 0,
-                commits: 0,
-                prs: 0,
-                issues: 0,
-                reviews: 0,
-                totalStars: 0,
-                topLanguages: [],
-              };
               const isNew = !existingById.has(hit.githubId);
 
+              if (!enrichment.has(hit.login)) {
+                const existing = existingById.get(hit.githubId);
+                if (!existing) {
+                  this.logger.warn(
+                    `Enrichment missing for @${hit.login}, skipping new developer insert`,
+                  );
+                  continue;
+                }
+
+                this.logger.warn(
+                  `Enrichment missing for @${hit.login}, preserving stored metrics`,
+                );
+                await this.upsertDeveloperLightweight(
+                  hit,
+                  this.toEnrichment(existing),
+                  classified.id,
+                );
+                lastLocationId = classified.id;
+                usersUpserted += 1;
+                usersUpdated += 1;
+                continue;
+              }
+
+              const stats = enrichment.get(hit.login)!;
               await this.upsertDeveloper(hit, stats, classified.id);
 
               lastLocationId = classified.id;
@@ -324,19 +340,25 @@ export class SyncService implements OnModuleInit {
     const existing = await this.loadExistingDevelopers([user.githubId]);
     const isNew = !existing.has(user.githubId);
 
-    await this.upsertDeveloper(
-      user,
-      {
-        contributions: user.contributions,
-        commits: user.commits,
-        prs: user.prs,
-        issues: user.issues,
-        reviews: user.reviews,
-        totalStars: user.totalStars,
-        topLanguages: user.topLanguages,
-      },
-      classified.id,
-    );
+    if (!user.enrichment) {
+      const stored = existing.get(user.githubId);
+      if (!stored) {
+        throw new ServiceUnavailableException(
+          `Could not enrich GitHub user @${user.login}; try again later.`,
+        );
+      }
+
+      this.logger.warn(
+        `Enrichment missing for @${user.login}, preserving stored metrics`,
+      );
+      await this.upsertDeveloperLightweight(
+        user,
+        this.toEnrichment(stored),
+        classified.id,
+      );
+    } else {
+      await this.upsertDeveloper(user, user.enrichment, classified.id);
+    }
 
     await this.refreshChilePercentiles();
 
@@ -454,6 +476,18 @@ export class SyncService implements OnModuleInit {
         },
       ]),
     );
+  }
+
+  private toEnrichment(existing: ExistingDeveloper): GitHubEnrichment {
+    return {
+      contributions: existing.contributions,
+      commits: existing.commits,
+      prs: existing.prs,
+      issues: existing.issues,
+      reviews: existing.reviews,
+      totalStars: existing.totalStars,
+      topLanguages: existing.topLanguages,
+    };
   }
 
   // Turns raw GitHub stats into rankScore (0–100, lower is better) and rankLevel (S–C).

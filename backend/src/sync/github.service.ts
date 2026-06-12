@@ -139,7 +139,9 @@ export type GitHubEnrichment = {
   topLanguages: TopLanguage[];
 };
 
-export type GitHubUserResult = GitHubSearchHit & GitHubEnrichment;
+export type GitHubUserResult = GitHubSearchHit & {
+  enrichment: GitHubEnrichment | null;
+};
 
 @Injectable()
 export class GithubService {
@@ -170,17 +172,14 @@ export class GithubService {
     }
 
     const enrichment = await this.enrichUsers([node.login]);
-    const stats = enrichment.get(node.login) ?? {
-      contributions: 0,
-      commits: 0,
-      prs: 0,
-      issues: 0,
-      reviews: 0,
-      totalStars: 0,
-      topLanguages: [],
-    };
+    const hit = this.toSearchHit(node);
 
-    return { ...this.toSearchHit(node), ...stats };
+    if (!enrichment.has(node.login)) {
+      this.logger.warn(`Enrichment missing for @${node.login}`);
+      return { ...hit, enrichment: null };
+    }
+
+    return { ...hit, enrichment: enrichment.get(node.login)! };
   }
 
   async searchUsersByLocation(
@@ -231,6 +230,11 @@ export class GithubService {
 
       batch.forEach((login, index) => {
         const user = response.data?.[`u${index}`];
+        if (!user) {
+          this.logger.warn(`Enrichment data missing for @${login}`);
+          return;
+        }
+
         const stats: GitHubEnrichment = {
           contributions:
             user?.contributionsCollection?.contributionCalendar
