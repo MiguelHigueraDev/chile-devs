@@ -23,6 +23,10 @@
         {
           "key": "Strict-Transport-Security",
           "value": "max-age=63072000; includeSubDomains"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://avatars.githubusercontent.com https://github.com https://*.basemaps.cartocdn.com; font-src 'self' data: https://*.basemaps.cartocdn.com; connect-src 'self' https://api.github.com https://*.basemaps.cartocdn.com https://vitals.vercel-insights.com https:; worker-src blob:; child-src blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
         }
       ]
     }

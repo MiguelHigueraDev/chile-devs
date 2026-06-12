@@ -1,5 +1,6 @@
 import { ExternalLink } from "lucide-react";
 import { formatNumber } from "../lib/utils";
+import { toSafeHttpsUrl } from "../lib/safe-url";
 import type { DeveloperSortKey, DeveloperSummary } from "../types/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TopLanguagesBar } from "./TopLanguagesBar";
@@ -87,6 +88,8 @@ export function DeveloperList({
         const podiumStyle =
           rank <= 3 ? PODIUM_ROW_STYLES[rank as 1 | 2 | 3] : undefined;
         const metric = getDeveloperMetric(dev, sortBy, shareLanguage);
+        const profileUrl = toSafeHttpsUrl(dev.profileUrl);
+        const avatarUrl = toSafeHttpsUrl(dev.avatarUrl);
 
         return (
           <li
@@ -136,7 +139,9 @@ export function DeveloperList({
               {rank}
             </span>
             <Avatar className="size-8">
-              <AvatarImage src={dev.avatarUrl} alt={dev.login} />
+              {avatarUrl ? (
+                <AvatarImage src={avatarUrl} alt={dev.login} />
+              ) : null}
               <AvatarFallback>
                 {dev.login.slice(0, 2).toUpperCase()}
               </AvatarFallback>
@@ -149,16 +154,18 @@ export function DeveloperList({
                 {sortBy !== "rank" && hasRankData(dev) && (
                   <RankBadge developer={dev} size="xs" />
                 )}
-                <a
-                  href={dev.profileUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={`Open ${dev.login} on GitHub`}
-                  className="text-muted-foreground hover:text-foreground inline-flex transition-colors"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <ExternalLink className="size-3" />
-                </a>
+                {profileUrl ? (
+                  <a
+                    href={profileUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`Open ${dev.login} on GitHub`}
+                    className="text-muted-foreground hover:text-foreground inline-flex transition-colors"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <ExternalLink className="size-3" />
+                  </a>
+                ) : null}
               </div>
               {dev.name && (
                 <p className="text-muted-foreground truncate text-xs">

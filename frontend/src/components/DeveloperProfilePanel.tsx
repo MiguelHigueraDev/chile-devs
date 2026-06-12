@@ -7,6 +7,7 @@ import {
 } from "../api/queries";
 import { getGitHubAuthUrl } from "../api/client";
 import { formatNumber } from "../lib/utils";
+import { toSafeHttpsUrl } from "../lib/safe-url";
 import type { DeveloperDetail } from "../types/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -84,12 +85,17 @@ function ProfileView({
   onEdit: () => void;
 }) {
   const [portfolioWarningOpen, setPortfolioWarningOpen] = useState(false);
+  const profileUrl = toSafeHttpsUrl(developer.profileUrl);
+  const avatarUrl = toSafeHttpsUrl(developer.avatarUrl);
+  const portfolioUrl = toSafeHttpsUrl(developer.portfolioUrl);
 
   return (
     <div className="space-y-5 px-4 py-4">
       <div className="flex items-start gap-4">
         <Avatar className="size-16">
-          <AvatarImage src={developer.avatarUrl} alt={developer.login} />
+          {avatarUrl ? (
+            <AvatarImage src={avatarUrl} alt={developer.login} />
+          ) : null}
           <AvatarFallback>
             {developer.login.slice(0, 2).toUpperCase()}
           </AvatarFallback>
@@ -151,18 +157,20 @@ function ProfileView({
       )}
 
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" size="sm" asChild>
-          <a
-            href={developer.profileUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1.5"
-          >
-            GitHub profile
-            <ExternalLink className="size-3 opacity-60" />
-          </a>
-        </Button>
-        {developer.portfolioUrl && (
+        {profileUrl ? (
+          <Button variant="outline" size="sm" asChild>
+            <a
+              href={profileUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5"
+            >
+              GitHub profile
+              <ExternalLink className="size-3 opacity-60" />
+            </a>
+          </Button>
+        ) : null}
+        {portfolioUrl ? (
           <Button
             type="button"
             variant="outline"
@@ -174,17 +182,17 @@ function ProfileView({
             Portfolio
             <ExternalLink className="size-3 opacity-60" />
           </Button>
-        )}
+        ) : null}
       </div>
 
-      {developer.portfolioUrl && (
+      {portfolioUrl ? (
         <ExternalLinkWarningDialog
           open={portfolioWarningOpen}
           onOpenChange={setPortfolioWarningOpen}
-          url={developer.portfolioUrl}
+          url={portfolioUrl}
           developerLogin={developer.login}
         />
-      )}
+      ) : null}
 
       {isOwner && (
         <Button type="button" variant="secondary" size="sm" onClick={onEdit}>

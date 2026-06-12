@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from 'fs'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv, type Plugin } from 'vite'
+import { buildContentSecurityPolicy } from './lib/content-security-policy'
 
 const SEO_FILES = ['robots.txt', 'sitemap.xml'] as const
 
@@ -15,8 +16,9 @@ const SITE_META = {
   twitterCard: 'summary_large_image',
 } as const
 
-function siteMetaPlugin(siteUrl: string): Plugin {
+function siteMetaPlugin(siteUrl: string, backendUrl?: string): Plugin {
   const normalizedSiteUrl = siteUrl.replace(/\/$/, '')
+  const contentSecurityPolicy = buildContentSecurityPolicy({ backendUrl })
 
   const injectSiteMeta = (contents: string) =>
     contents
@@ -26,6 +28,7 @@ function siteMetaPlugin(siteUrl: string): Plugin {
       .replaceAll('%SITE_TAGLINE%', SITE_META.tagline)
       .replaceAll('%SITE_LOCALE%', SITE_META.locale)
       .replaceAll('%TWITTER_CARD%', SITE_META.twitterCard)
+      .replaceAll('%CONTENT_SECURITY_POLICY%', contentSecurityPolicy)
 
   const readSeoTemplate = (fileName: (typeof SEO_FILES)[number]) =>
     readFileSync(path.resolve(__dirname, 'seo', fileName), 'utf8')
@@ -50,6 +53,11 @@ function siteMetaPlugin(siteUrl: string): Plugin {
         )
         res.end(body)
       })
+
+      server.middlewares.use((_req, res, next) => {
+        res.setHeader('Content-Security-Policy', contentSecurityPolicy)
+        next()
+      })
     },
     closeBundle() {
       const distDir = path.resolve(__dirname, 'dist')
@@ -68,9 +76,14 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const backendUrl = env.VITE_BACKEND_URL ?? 'http://localhost:3000'
   const siteUrl = env.VITE_SITE_URL ?? 'http://localhost:5173'
+  const configuredBackendUrl = env.VITE_BACKEND_URL?.trim() || undefined
 
   return {
-    plugins: [react(), tailwindcss(), siteMetaPlugin(siteUrl)],
+    plugins: [
+      react(),
+      tailwindcss(),
+      siteMetaPlugin(siteUrl, configuredBackendUrl),
+    ],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),

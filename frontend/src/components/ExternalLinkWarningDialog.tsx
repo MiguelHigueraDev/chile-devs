@@ -1,4 +1,5 @@
 import { AlertTriangle, ExternalLink } from "lucide-react";
+import { toSafeHttpsUrl } from "../lib/safe-url";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,7 +32,8 @@ export function ExternalLinkWarningDialog({
   url,
   developerLogin,
 }: ExternalLinkWarningDialogProps) {
-  const displayUrl = formatDisplayUrl(url);
+  const safeUrl = toSafeHttpsUrl(url);
+  const displayUrl = safeUrl ? formatDisplayUrl(safeUrl) : "Invalid URL";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -74,9 +76,14 @@ export function ExternalLinkWarningDialog({
           <Button
             type="button"
             onClick={() => {
-              window.open(url, "_blank", "noopener,noreferrer");
+              if (!safeUrl) {
+                onOpenChange(false);
+                return;
+              }
+              window.open(safeUrl, "_blank", "noopener,noreferrer");
               onOpenChange(false);
             }}
+            disabled={!safeUrl}
           >
             Continue
             <ExternalLink className="size-3.5" />
