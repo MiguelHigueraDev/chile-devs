@@ -30,7 +30,7 @@ function App() {
   const { data: locations = [] } = useMapData();
   const { data: stats } = useStats();
   const [sortBy, setSortBy] = useDeveloperSortPreference();
-  const initialUrlState = readAppUrlState();
+  const [initialUrlState] = useState(() => readAppUrlState());
   const [locationSlug, setLocationSlug] = useState<string | null>(
     () => initialUrlState.locationSlug,
   );

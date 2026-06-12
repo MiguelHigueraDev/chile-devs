@@ -18,7 +18,11 @@ import {
   logout,
   updateMyProfile,
 } from './client'
-import type { SearchParams, UpdateProfileInput } from '../types/api'
+import {
+  DEFAULT_SEARCH_PARAMS,
+  type SearchParams,
+  type UpdateProfileInput,
+} from '../types/api'
 import { fetchGithubStars } from '../lib/github'
 import type { DeveloperSortKey } from '../types/api'
 
@@ -129,18 +133,10 @@ export function useLocationDevelopers(
 }
 
 export function useSearch(params: SearchParams | null, enabled = true) {
+  const effectiveParams = params ?? DEFAULT_SEARCH_PARAMS
   return useQuery({
-    queryKey: queryKeys.search(params ?? {
-      languages: [],
-      languageMode: 'any',
-      locationSlugs: [],
-      zone: null,
-      username: null,
-      displayName: null,
-      sort: 'contributions',
-      shareLanguage: null,
-    }),
-    queryFn: () => fetchSearch(params!),
+    queryKey: queryKeys.search(effectiveParams),
+    queryFn: () => fetchSearch(effectiveParams),
     enabled: enabled && params != null,
     staleTime: 5 * 60 * 1000,
   })

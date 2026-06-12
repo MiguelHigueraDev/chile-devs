@@ -1,11 +1,13 @@
 import { z } from 'zod';
 import type { GeoZone } from './geo.data';
 
+export const MAX_SEARCH_FILTER_ITEMS = 20;
+
 export const parsedQuerySchema = z
   .object({
-    languages: z.array(z.string()),
+    languages: z.array(z.string()).max(MAX_SEARCH_FILTER_ITEMS),
     languageMode: z.enum(['any', 'all']),
-    locationSlugs: z.array(z.string()),
+    locationSlugs: z.array(z.string()).max(MAX_SEARCH_FILTER_ITEMS),
     zone: z.enum(['north', 'central', 'south']).nullable(),
     username: z.string().nullable(),
     displayName: z.string().nullable(),
