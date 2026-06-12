@@ -194,14 +194,15 @@ export function LocationPanel({
 
   return (
     <Sheet
-      open={!!location && !devPanelOpen}
+      open={!!location}
       modal={false}
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (!open && !devPanelOpen) onClose();
       }}
     >
       <SheetContent
         side="right"
+        inert={devPanelOpen ? true : undefined}
         className="border-border/60 bg-background/98 flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
       >
         {location && (

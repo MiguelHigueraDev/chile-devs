@@ -302,7 +302,7 @@ export function DeveloperProfilePanel({
     >
       <SheetContent
         side="right"
-        className="border-border/60 bg-background/98 flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
+        className="border-border/60 bg-background/98 z-60 flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
       >
         {login && (
           <>

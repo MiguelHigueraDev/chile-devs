@@ -83,14 +83,15 @@ export function SearchResultsPanel({
 
   return (
     <Sheet
-      open={!!query && !devPanelOpen}
+      open={!!query}
       modal={false}
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (!open && !devPanelOpen) onClose();
       }}
     >
       <SheetContent
         side="right"
+        inert={devPanelOpen ? true : undefined}
         className="border-border/60 bg-background/98 flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
       >
         {query && (
