@@ -43,7 +43,7 @@ function getDeveloperMetric(
     return dev.totalStars;
   }
   if (sortBy === "rank") {
-    return dev.rankScore ?? 0;
+    return dev.rankScore ?? 100;
   }
   if (sortBy === "languageShare" && shareLanguage) {
     const match = dev.topLanguages.find(
@@ -62,8 +62,8 @@ function formatMetricValue(
   if (sortBy === "languageShare") {
     return `${value}%`;
   }
-  if (sortBy === "rank" && developer?.rankLevel) {
-    return developer.rankLevel;
+  if (sortBy === "rank") {
+    return developer?.rankLevel ?? "—";
   }
   return formatNumber(value);
 }
