@@ -63,9 +63,13 @@ export const developers = pgTable(
       .default([]),
     // rankScore: 0–100, lower is better. rankLevel: S (best) through C (worst).
     // percentileCl: local standing among indexed Chilean devs (0 = #1, 100 = last).
+    // rankLocation: integer position within the developer's own location (1 = best).
+    // rankCountry: integer position among all indexed Chilean devs (1 = best).
     rankScore: doublePrecision('rank_score'),
     rankLevel: text('rank_level'),
     percentileCl: doublePrecision('percentile_cl'),
+    rankLocation: integer('rank_location'),
+    rankCountry: integer('rank_country'),
     profileUrl: text('profile_url').notNull(),
     portfolioUrl: text('portfolio_url'),
     description: text('description'),
@@ -75,7 +79,10 @@ export const developers = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (table) => [index('idx_developers_rank_score').on(table.rankScore)],
+  (table) => [
+    index('idx_developers_rank_score').on(table.rankScore),
+    index('idx_developers_location_rank').on(table.locationId, table.rankScore),
+  ],
 );
 
 export const developerLanguages = pgTable(

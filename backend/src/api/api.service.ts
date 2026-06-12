@@ -226,6 +226,8 @@ export class ApiService {
         rankLevel: developers.rankLevel,
         rankScore: developers.rankScore,
         percentileCl: developers.percentileCl,
+        rankLocation: developers.rankLocation,
+        rankCountry: developers.rankCountry,
         profileUrl: developers.profileUrl,
         rawLocation: developers.rawLocation,
       })
@@ -385,6 +387,8 @@ export class ApiService {
     rankLevel: string | null;
     rankScore: number | null;
     percentileCl: number | null;
+    rankLocation: number | null;
+    rankCountry: number | null;
     profileUrl: string;
     rawLocation: string | null;
     portfolioUrl: string | null;
@@ -392,6 +396,7 @@ export class ApiService {
     role: string | null;
     claimedAt: Date | null;
     locationName: string;
+    locationKind: 'country' | 'region' | 'city';
   }) {
     return {
       login: row.login,
@@ -404,9 +409,12 @@ export class ApiService {
       rankLevel: row.rankLevel,
       rankScore: row.rankScore,
       percentileCl: row.percentileCl,
+      rankLocation: row.rankLocation,
+      rankCountry: row.rankCountry,
       profileUrl: row.profileUrl,
       rawLocation: row.rawLocation,
       locationName: row.locationName,
+      locationKind: row.locationKind,
       portfolioUrl: row.portfolioUrl,
       description: row.description,
       role: row.role,
@@ -427,6 +435,8 @@ export class ApiService {
         rankLevel: developers.rankLevel,
         rankScore: developers.rankScore,
         percentileCl: developers.percentileCl,
+        rankLocation: developers.rankLocation,
+        rankCountry: developers.rankCountry,
         profileUrl: developers.profileUrl,
         rawLocation: developers.rawLocation,
         portfolioUrl: developers.portfolioUrl,
@@ -434,6 +444,7 @@ export class ApiService {
         role: developers.role,
         claimedAt: developers.claimedAt,
         locationName: locations.name,
+        locationKind: locations.kind,
       })
       .from(developers)
       .innerJoin(locations, eq(developers.locationId, locations.id))
@@ -501,6 +512,8 @@ export class ApiService {
         rankLevel: developers.rankLevel,
         rankScore: developers.rankScore,
         percentileCl: developers.percentileCl,
+        rankLocation: developers.rankLocation,
+        rankCountry: developers.rankCountry,
         profileUrl: developers.profileUrl,
         rawLocation: developers.rawLocation,
         portfolioUrl: developers.portfolioUrl,
@@ -508,6 +521,7 @@ export class ApiService {
         role: developers.role,
         claimedAt: developers.claimedAt,
         locationName: locations.name,
+        locationKind: locations.kind,
       })
       .from(developers)
       .innerJoin(locations, eq(developers.locationId, locations.id))

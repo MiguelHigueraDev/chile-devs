@@ -28,7 +28,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ExternalLinkWarningDialog } from "./ExternalLinkWarningDialog";
 import { TopLanguagesBar } from "./TopLanguagesBar";
 import { RankBadge } from "./RankBadge";
-import { hasRankData, RANK_SECTION_LABEL } from "../lib/rank";
+import { hasRankData, RANK_SECTION_LABEL, formatCountryRank, formatLocationRank } from "../lib/rank";
 
 type DeveloperProfilePanelProps = {
   login: string | null;
@@ -88,6 +88,12 @@ function ProfileView({
   const profileUrl = toSafeHttpsUrl(developer.profileUrl);
   const avatarUrl = toSafeHttpsUrl(developer.avatarUrl);
   const portfolioUrl = toSafeHttpsUrl(developer.portfolioUrl);
+  const locationRank = formatLocationRank(
+    developer.rankLocation,
+    developer.locationName,
+    developer.locationKind,
+  );
+  const countryRank = formatCountryRank(developer.rankCountry);
 
   return (
     <div className="space-y-5 px-4 py-4">
@@ -144,6 +150,20 @@ function ProfileView({
             size="lg"
             centered
           />
+          {(locationRank || countryRank) && (
+            <div className="space-y-1">
+              {locationRank && (
+                <p className="text-muted-foreground text-sm tabular-nums">
+                  {locationRank}
+                </p>
+              )}
+              {countryRank && (
+                <p className="text-muted-foreground text-sm tabular-nums">
+                  {countryRank}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 

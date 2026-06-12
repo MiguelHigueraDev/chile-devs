@@ -30,12 +30,15 @@ export type DeveloperSummary = {
   rankLevel: string | null;
   rankScore: number | null;
   percentileCl: number | null;
+  rankLocation: number | null;
+  rankCountry: number | null;
   profileUrl: string;
   rawLocation: string | null;
 };
 
 export type DeveloperDetail = DeveloperSummary & {
   locationName: string;
+  locationKind: MapLocation['kind'];
   portfolioUrl: string | null;
   description: string | null;
   role: string | null;

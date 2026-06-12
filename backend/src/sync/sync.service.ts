@@ -11,6 +11,10 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { count, eq, inArray, sql } from 'drizzle-orm';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
 import {
+  buildClearStaleRankingsSql,
+  buildRankingUpdateSql,
+} from '../db/ranking-sql';
+import {
   developerLanguages,
   developers,
   locations,
@@ -266,7 +270,7 @@ export class SyncService implements OnModuleInit {
         }
       }
 
-      await this.refreshChilePercentiles();
+      await this.refreshRankings();
 
       await this.db
         .update(syncRuns)
@@ -362,7 +366,7 @@ export class SyncService implements OnModuleInit {
       await this.upsertDeveloper(user, user.enrichment, classified.id);
     }
 
-    await this.refreshChilePercentiles();
+    await this.refreshRankings();
 
     if (isNew) {
       this.logger.log(
@@ -514,23 +518,9 @@ export class SyncService implements OnModuleInit {
     };
   }
 
-  // Chile-relative standing: where does this developer sit among everyone in our DB?
-  // rank_score ASC → best local devs have the lowest score.
-  // PERCENT_RANK × 100 → 0 for #1, ~100 for last place.
-  // The UI shows this as "Top X% in Chile" (see frontend formatTopPercentChile).
-  private async refreshChilePercentiles(): Promise<void> {
-    await this.db.execute(sql`
-      UPDATE developers AS d
-      SET percentile_cl = ranked.pct
-      FROM (
-        SELECT
-          github_id,
-          PERCENT_RANK() OVER (ORDER BY rank_score ASC) * 100 AS pct
-        FROM developers
-        WHERE rank_score IS NOT NULL
-      ) AS ranked
-      WHERE d.github_id = ranked.github_id
-    `);
+  private async refreshRankings(): Promise<void> {
+    await this.db.execute(buildClearStaleRankingsSql());
+    await this.db.execute(buildRankingUpdateSql());
   }
 
   private async upsertDeveloper(
