@@ -50,6 +50,13 @@
       "when": 1781195000000,
       "tag": "0006_developers_login_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781196000000,
+      "tag": "0007_sync_progress",
+      "breakpoints": true
     }
   ]
 }

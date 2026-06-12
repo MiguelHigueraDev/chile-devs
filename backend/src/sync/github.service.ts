@@ -25,7 +25,7 @@ type SearchResponse = {
     };
     rateLimit: RateLimit;
   };
-  errors?: Array<{ message: string }>;
+  errors?: Array<{ message: string; type?: string }>;
 };
 
 type RateLimit = {
@@ -33,17 +33,17 @@ type RateLimit = {
   resetAt: string;
 };
 
-type ContributionsUser = {
+type EnrichmentUser = {
   contributionsCollection: {
     contributionCalendar: {
       totalContributions: number;
     };
   } | null;
-} | null;
-
-type StarsUser = {
-  repositories: {
+  starRepos: {
     nodes: Array<{ stargazerCount: number } | null>;
+  } | null;
+  langRepos: {
+    nodes: Array<LanguageRepo>;
   } | null;
 } | null;
 
@@ -53,18 +53,14 @@ type LanguageRepo = {
   } | null;
 } | null;
 
-type LanguagesUser = {
-  repositories: {
-    nodes: Array<LanguageRepo>;
-  } | null;
-} | null;
-
 const SEARCH_PAGE_SIZE = 50;
-const CONTRIBUTIONS_BATCH_SIZE = 10;
-const STARS_BATCH_SIZE = 5;
-const LANGUAGES_BATCH_SIZE = 5;
+const SEARCH_MAX_PAGES = 20;
+const SLICE_THRESHOLD = 950;
+const ENRICHMENT_BATCH_SIZE = 5;
 const LANGUAGES_REPO_LIMIT = 30;
 const TOP_LANGUAGES_COUNT = 5;
+const GITHUB_SEARCH_START = new Date('2008-01-01');
+const MAX_GRAPHQL_RETRIES = 3;
 
 const USER_QUERY = `
   query FetchUser($login: String!) {
@@ -115,23 +111,29 @@ const SEARCH_QUERY = `
   }
 `;
 
-export type GitHubUserResult = {
+export type GitHubSearchHit = {
   githubId: string;
   login: string;
   name: string | null;
   avatarUrl: string;
   rawLocation: string | null;
   followers: number;
+  profileUrl: string;
+};
+
+export type GitHubEnrichment = {
   contributions: number;
   totalStars: number;
   topLanguages: TopLanguage[];
-  profileUrl: string;
 };
+
+export type GitHubUserResult = GitHubSearchHit & GitHubEnrichment;
 
 @Injectable()
 export class GithubService {
   private readonly logger = new Logger(GithubService.name);
   private readonly token: string;
+  private rateLimitState: RateLimit | null = null;
 
   constructor(private readonly config: ConfigService) {
     this.token = this.config.getOrThrow<string>('GITHUB_TOKEN');
@@ -155,226 +157,208 @@ export class GithubService {
       return null;
     }
 
-    const rateLimit = response.data?.rateLimit;
-    const [contributions, totalStars, topLanguages] = await Promise.all([
-      this.fetchContributionsBatch([node.login], rateLimit),
-      this.fetchStarsBatch([node.login], rateLimit),
-      this.fetchLanguagesBatch([node.login], rateLimit),
-    ]);
+    const enrichment = await this.enrichUsers([node.login]);
+    const stats = enrichment.get(node.login) ?? {
+      contributions: 0,
+      totalStars: 0,
+      topLanguages: [],
+    };
 
-    return this.toUserResult(
-      node,
-      contributions.get(node.login) ?? 0,
-      totalStars.get(node.login) ?? 0,
-      topLanguages.get(node.login) ?? [],
-    );
+    return { ...this.toSearchHit(node), ...stats };
   }
 
   async searchUsersByLocation(
     locationTerm: string,
-    onPage?: (users: GitHubUserResult[]) => Promise<void>,
-  ): Promise<GitHubUserResult[]> {
-    const query = `location:"${locationTerm.replace(/"/g, '\\"')}"`;
-    const allUsers: GitHubUserResult[] = [];
-    let cursor: string | null = null;
-    let page = 0;
-    const maxPages = 10; // GitHub caps at ~1000 results
+    onPage?: (users: GitHubSearchHit[]) => Promise<void>,
+  ): Promise<GitHubSearchHit[]> {
+    const allUsers: GitHubSearchHit[] = [];
 
-    while (page < maxPages) {
-      const response: SearchResponse = await this.graphql<SearchResponse>(
-        SEARCH_QUERY,
-        { query, cursor },
-      );
-
-      if (response.errors?.length) {
-        throw new Error(this.formatGraphqlErrors(response.errors));
-      }
-
-      const search = response.data?.search;
-      const rateLimit = response.data?.rateLimit;
-
-      if (!search) {
-        break;
-      }
-
-      const baseUsers = search.nodes.filter((node) => node?.login);
-      const contributions = await this.fetchContributionsBatch(
-        baseUsers.map((u) => u.login),
-        rateLimit,
-      );
-      const totalStars = await this.fetchStarsBatch(
-        baseUsers.map((u) => u.login),
-        rateLimit,
-      );
-      const topLanguages = await this.fetchLanguagesBatch(
-        baseUsers.map((u) => u.login),
-        rateLimit,
-      );
-
-      const users = baseUsers.map((node) =>
-        this.toUserResult(
-          node,
-          contributions.get(node.login) ?? 0,
-          totalStars.get(node.login) ?? 0,
-          topLanguages.get(node.login) ?? [],
-        ),
-      );
-
+    const collectPage = async (users: GitHubSearchHit[]) => {
       if (onPage) {
         await onPage(users);
       } else {
         allUsers.push(...users);
       }
+    };
 
-      if (rateLimit && rateLimit.remaining < 50) {
-        await this.waitForRateLimit(rateLimit.resetAt);
-      }
-
-      if (!search.pageInfo.hasNextPage || !search.pageInfo.endCursor) {
-        break;
-      }
-
-      cursor = search.pageInfo.endCursor;
-      page += 1;
-      await this.sleep(300);
-    }
+    await this.searchDateRange(
+      locationTerm,
+      GITHUB_SEARCH_START,
+      new Date(),
+      collectPage,
+    );
 
     return allUsers;
   }
 
-  private async fetchContributionsBatch(
-    logins: string[],
-    priorRateLimit?: RateLimit,
-  ): Promise<Map<string, number>> {
-    const contributions = new Map<string, number>();
+  async enrichUsers(logins: string[]): Promise<Map<string, GitHubEnrichment>> {
+    const enrichment = new Map<string, GitHubEnrichment>();
+    if (logins.length === 0) {
+      return enrichment;
+    }
 
-    for (let i = 0; i < logins.length; i += CONTRIBUTIONS_BATCH_SIZE) {
-      const batch = logins.slice(i, i + CONTRIBUTIONS_BATCH_SIZE);
-      const query = this.buildContributionsQuery(batch);
+    for (let i = 0; i < logins.length; i += ENRICHMENT_BATCH_SIZE) {
+      const batch = logins.slice(i, i + ENRICHMENT_BATCH_SIZE);
+      const query = this.buildEnrichmentQuery(batch);
 
       const response = await this.graphql<{
-        data?: Record<string, ContributionsUser> & { rateLimit?: RateLimit };
+        data?: Record<string, EnrichmentUser> & { rateLimit?: RateLimit };
         errors?: Array<{ message: string }>;
       }>(query, {});
 
       if (response.errors?.length) {
         this.logger.warn(
-          `Contributions batch failed for ${batch.join(', ')}: ${this.formatGraphqlErrors(response.errors)}`,
+          `Enrichment batch failed for ${batch.join(', ')}: ${this.formatGraphqlErrors(response.errors)}`,
         );
         continue;
       }
 
       batch.forEach((login, index) => {
         const user = response.data?.[`u${index}`];
-        contributions.set(
-          login,
-          user?.contributionsCollection?.contributionCalendar
-            .totalContributions ?? 0,
-        );
+        enrichment.set(login, {
+          contributions:
+            user?.contributionsCollection?.contributionCalendar
+              .totalContributions ?? 0,
+          totalStars: this.sumPublicRepoStars(user?.starRepos?.nodes),
+          topLanguages: this.aggregateTopLanguages(user?.langRepos?.nodes),
+        });
       });
-
-      const rateLimit = response.data?.rateLimit ?? priorRateLimit;
-      if (rateLimit && rateLimit.remaining < 50) {
-        await this.waitForRateLimit(rateLimit.resetAt);
-      }
-
-      if (i + CONTRIBUTIONS_BATCH_SIZE < logins.length) {
-        await this.sleep(200);
-      }
     }
 
-    return contributions;
+    return enrichment;
   }
 
-  private async fetchStarsBatch(
-    logins: string[],
-    priorRateLimit?: RateLimit,
-  ): Promise<Map<string, number>> {
-    const stars = new Map<string, number>();
+  private async searchDateRange(
+    locationTerm: string,
+    start: Date,
+    end: Date,
+    onPage: (users: GitHubSearchHit[]) => Promise<void>,
+  ): Promise<void> {
+    const query = this.buildLocationQuery(locationTerm, start, end);
+    const probe = await this.fetchSearchPage(query, null);
 
-    for (let i = 0; i < logins.length; i += STARS_BATCH_SIZE) {
-      const batch = logins.slice(i, i + STARS_BATCH_SIZE);
-      const query = this.buildStarsQuery(batch);
+    if (
+      probe.userCount > SLICE_THRESHOLD &&
+      this.canSplitDateRange(start, end)
+    ) {
+      const mid = this.midpointDate(start, end);
+      const nextDay = this.addDays(mid, 1);
 
-      const response = await this.graphql<{
-        data?: Record<string, StarsUser> & { rateLimit?: RateLimit };
-        errors?: Array<{ message: string }>;
-      }>(query, {});
+      this.logger.debug(
+        `Splitting "${locationTerm}" (${probe.userCount} users) ${this.formatDate(start)}..${this.formatDate(end)}`,
+      );
 
-      if (response.errors?.length) {
-        this.logger.warn(
-          `Stars batch failed for ${batch.join(', ')}: ${this.formatGraphqlErrors(response.errors)}`,
-        );
-        continue;
+      await this.searchDateRange(locationTerm, start, mid, onPage);
+      if (nextDay <= end) {
+        await this.searchDateRange(locationTerm, nextDay, end, onPage);
       }
-
-      batch.forEach((login, index) => {
-        const user = response.data?.[`u${index}`];
-        stars.set(login, this.sumPublicRepoStars(user?.repositories?.nodes));
-      });
-
-      const rateLimit = response.data?.rateLimit ?? priorRateLimit;
-      if (rateLimit && rateLimit.remaining < 50) {
-        await this.waitForRateLimit(rateLimit.resetAt);
-      }
-
-      if (i + STARS_BATCH_SIZE < logins.length) {
-        await this.sleep(200);
-      }
+      return;
     }
 
-    return stars;
+    await this.paginateSearch(query, onPage);
   }
 
-  private async fetchLanguagesBatch(
-    logins: string[],
-    priorRateLimit?: RateLimit,
-  ): Promise<Map<string, TopLanguage[]>> {
-    const languages = new Map<string, TopLanguage[]>();
+  private async paginateSearch(
+    query: string,
+    onPage: (users: GitHubSearchHit[]) => Promise<void>,
+  ): Promise<void> {
+    let cursor: string | null = null;
+    let page = 0;
 
-    for (let i = 0; i < logins.length; i += LANGUAGES_BATCH_SIZE) {
-      const batch = logins.slice(i, i + LANGUAGES_BATCH_SIZE);
-      const query = this.buildLanguagesQuery(batch);
+    while (page < SEARCH_MAX_PAGES) {
+      const result = await this.fetchSearchPage(query, cursor);
+      const hits = result.nodes
+        .filter((node) => node?.login)
+        .map((node) => this.toSearchHit(node));
 
-      const response = await this.graphql<{
-        data?: Record<string, LanguagesUser> & { rateLimit?: RateLimit };
-        errors?: Array<{ message: string }>;
-      }>(query, {});
-
-      if (response.errors?.length) {
-        this.logger.warn(
-          `Languages batch failed for ${batch.join(', ')}: ${this.formatGraphqlErrors(response.errors)}`,
-        );
-        continue;
+      if (hits.length > 0) {
+        await onPage(hits);
       }
 
-      batch.forEach((login, index) => {
-        const user = response.data?.[`u${index}`];
-        languages.set(
-          login,
-          this.aggregateTopLanguages(user?.repositories?.nodes),
-        );
-      });
-
-      const rateLimit = response.data?.rateLimit ?? priorRateLimit;
-      if (rateLimit && rateLimit.remaining < 50) {
-        await this.waitForRateLimit(rateLimit.resetAt);
+      if (!result.hasNextPage || !result.endCursor) {
+        break;
       }
 
-      if (i + LANGUAGES_BATCH_SIZE < logins.length) {
-        await this.sleep(200);
-      }
+      cursor = result.endCursor;
+      page += 1;
+    }
+  }
+
+  private async fetchSearchPage(
+    query: string,
+    cursor: string | null,
+  ): Promise<{
+    userCount: number;
+    nodes: GitHubSearchUser[];
+    hasNextPage: boolean;
+    endCursor: string | null;
+  }> {
+    const response: SearchResponse = await this.graphql<SearchResponse>(
+      SEARCH_QUERY,
+      { query, cursor },
+    );
+
+    if (response.errors?.length) {
+      throw new Error(this.formatGraphqlErrors(response.errors));
     }
 
-    return languages;
+    const search = response.data?.search;
+    if (!search) {
+      return {
+        userCount: 0,
+        nodes: [],
+        hasNextPage: false,
+        endCursor: null,
+      };
+    }
+
+    return {
+      userCount: search.userCount,
+      nodes: search.nodes,
+      hasNextPage: search.pageInfo.hasNextPage,
+      endCursor: search.pageInfo.endCursor,
+    };
   }
 
-  private buildLanguagesQuery(logins: string[]): string {
+  private buildLocationQuery(
+    locationTerm: string,
+    start: Date,
+    end: Date,
+  ): string {
+    const escaped = locationTerm.replace(/"/g, '\\"');
+    const base = `location:"${escaped}"`;
+    const startStr = this.formatDate(start);
+    const endStr = this.formatDate(end);
+
+    if (startStr === endStr) {
+      return `${base} created:${startStr}`;
+    }
+
+    return `${base} created:${startStr}..${endStr}`;
+  }
+
+  private buildEnrichmentQuery(logins: string[]): string {
     const userFields = logins
       .map(
         (login, index) => `
       u${index}: user(login: ${JSON.stringify(login)}) {
-        repositories(
+        contributionsCollection {
+          contributionCalendar {
+            totalContributions
+          }
+        }
+        starRepos: repositories(
+          ownerAffiliations: OWNER
+          isFork: false
+          privacy: PUBLIC
+          first: 100
+          orderBy: {field: STARGAZERS, direction: DESC}
+        ) {
+          nodes {
+            stargazerCount
+          }
+        }
+        langRepos: repositories(
           ownerAffiliations: OWNER
           isFork: false
           privacy: PUBLIC
@@ -397,7 +381,7 @@ export class GithubService {
       .join('\n');
 
     return `
-      query BatchLanguages {
+      query BatchEnrich {
         ${userFields}
         rateLimit {
           remaining
@@ -440,37 +424,6 @@ export class GithubService {
       }));
   }
 
-  private buildStarsQuery(logins: string[]): string {
-    const userFields = logins
-      .map(
-        (login, index) => `
-      u${index}: user(login: ${JSON.stringify(login)}) {
-        repositories(
-          ownerAffiliations: OWNER
-          isFork: false
-          privacy: PUBLIC
-          first: 100
-          orderBy: {field: STARGAZERS, direction: DESC}
-        ) {
-          nodes {
-            stargazerCount
-          }
-        }
-      }`,
-      )
-      .join('\n');
-
-    return `
-      query BatchStars {
-        ${userFields}
-        rateLimit {
-          remaining
-          resetAt
-        }
-      }
-    `;
-  }
-
   private sumPublicRepoStars(
     nodes: Array<{ stargazerCount: number } | null> | undefined,
   ): number {
@@ -479,31 +432,6 @@ export class GithubService {
     }
 
     return nodes.reduce((sum, repo) => sum + (repo?.stargazerCount ?? 0), 0);
-  }
-
-  private buildContributionsQuery(logins: string[]): string {
-    const userFields = logins
-      .map(
-        (login, index) => `
-      u${index}: user(login: ${JSON.stringify(login)}) {
-        contributionsCollection {
-          contributionCalendar {
-            totalContributions
-          }
-        }
-      }`,
-      )
-      .join('\n');
-
-    return `
-      query BatchContributions {
-        ${userFields}
-        rateLimit {
-          remaining
-          resetAt
-        }
-      }
-    `;
   }
 
   classifyLocation(
@@ -578,12 +506,7 @@ export class GithubService {
       .trim();
   }
 
-  private toUserResult(
-    node: GitHubSearchUser,
-    contributions: number,
-    totalStars: number,
-    topLanguages: TopLanguage[],
-  ): GitHubUserResult {
+  private toSearchHit(node: GitHubSearchUser): GitHubSearchHit {
     return {
       githubId: String(node.databaseId),
       login: node.login,
@@ -591,11 +514,27 @@ export class GithubService {
       avatarUrl: node.avatarUrl,
       rawLocation: node.location,
       followers: node.followers.totalCount,
-      contributions,
-      totalStars,
-      topLanguages,
       profileUrl: node.url,
     };
+  }
+
+  private canSplitDateRange(start: Date, end: Date): boolean {
+    return this.formatDate(start) !== this.formatDate(end);
+  }
+
+  private midpointDate(start: Date, end: Date): Date {
+    const midpointMs = Math.floor((start.getTime() + end.getTime()) / 2);
+    return new Date(midpointMs);
+  }
+
+  private addDays(date: Date, days: number): Date {
+    const result = new Date(date);
+    result.setUTCDate(result.getUTCDate() + days);
+    return result;
+  }
+
+  private formatDate(date: Date): string {
+    return date.toISOString().slice(0, 10);
   }
 
   private formatGraphqlErrors(errors: Array<{ message: string }>): string {
@@ -603,10 +542,37 @@ export class GithubService {
     return unique.join('; ');
   }
 
+  private async paceBeforeRequest(): Promise<void> {
+    const state = this.rateLimitState;
+    if (!state) {
+      return;
+    }
+
+    if (state.remaining < 50) {
+      await this.waitForRateLimit(state.resetAt);
+      return;
+    }
+
+    if (state.remaining < 200) {
+      await this.sleep(300);
+    } else if (state.remaining < 500) {
+      await this.sleep(100);
+    }
+  }
+
+  private updateRateLimit(rateLimit?: RateLimit): void {
+    if (rateLimit) {
+      this.rateLimitState = rateLimit;
+    }
+  }
+
   private async graphql<T>(
     query: string,
     variables: Record<string, unknown>,
+    attempt = 0,
   ): Promise<T> {
+    await this.paceBeforeRequest();
+
     const response = await fetch('https://api.github.com/graphql', {
       method: 'POST',
       headers: {
@@ -618,12 +584,31 @@ export class GithubService {
     });
 
     if (response.status === 403 || response.status === 429) {
+      const retryAfter = response.headers.get('retry-after');
+      if (retryAfter) {
+        const waitMs = Number(retryAfter) * 1000 + 1000;
+        this.logger.warn(
+          `Secondary rate limit hit, waiting ${Math.ceil(waitMs / 1000)}s...`,
+        );
+        await this.sleep(waitMs);
+        return this.graphql(query, variables, attempt);
+      }
+
       const resetHeader = response.headers.get('x-ratelimit-reset');
       if (resetHeader) {
         const resetAt = new Date(Number(resetHeader) * 1000).toISOString();
         await this.waitForRateLimit(resetAt);
-        return this.graphql(query, variables);
+        return this.graphql(query, variables, attempt);
       }
+    }
+
+    if (response.status >= 500 && attempt < MAX_GRAPHQL_RETRIES) {
+      const backoffMs = Math.min(1000 * 2 ** attempt, 10_000);
+      this.logger.warn(
+        `GitHub API ${response.status}, retrying in ${backoffMs}ms (attempt ${attempt + 1}/${MAX_GRAPHQL_RETRIES})`,
+      );
+      await this.sleep(backoffMs);
+      return this.graphql(query, variables, attempt + 1);
     }
 
     if (!response.ok) {
@@ -631,7 +616,28 @@ export class GithubService {
       throw new Error(`GitHub API error ${response.status}: ${text}`);
     }
 
-    return response.json() as Promise<T>;
+    const body = (await response.json()) as T & {
+      data?: { rateLimit?: RateLimit };
+      errors?: Array<{ message: string; type?: string }>;
+    };
+
+    if (body.data?.rateLimit) {
+      this.updateRateLimit(body.data.rateLimit);
+    }
+
+    if (
+      body.errors?.some((error) => error.type === 'RATE_LIMITED') &&
+      attempt < MAX_GRAPHQL_RETRIES
+    ) {
+      const backoffMs = 5000 * (attempt + 1);
+      this.logger.warn(
+        `GraphQL RATE_LIMITED, retrying in ${backoffMs}ms (attempt ${attempt + 1}/${MAX_GRAPHQL_RETRIES})`,
+      );
+      await this.sleep(backoffMs);
+      return this.graphql(query, variables, attempt + 1);
+    }
+
+    return body;
   }
 
   private async waitForRateLimit(resetAt: string): Promise<void> {

@@ -87,6 +87,12 @@ export const syncRuns = pgTable('sync_runs', {
     .defaultNow(),
   finishedAt: timestamp('finished_at', { withTimezone: true }),
   usersUpserted: integer('users_upserted').notNull().default(0),
+  usersDiscovered: integer('users_discovered').notNull().default(0),
+  usersUpdated: integer('users_updated').notNull().default(0),
+  completedTerms: jsonb('completed_terms')
+    .$type<string[]>()
+    .notNull()
+    .default([]),
   status: syncStatusEnum('status').notNull().default('running'),
   errorMessage: text('error_message'),
   lastLocationId: integer('last_location_id').references(() => locations.id, {
