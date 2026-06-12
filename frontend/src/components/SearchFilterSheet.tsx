@@ -836,7 +836,7 @@ export function SearchFilterSheet({
                     onChange={(event) =>
                       onChange({
                         ...draft,
-                        displayName: event.target.value.trim() || null,
+                        displayName: event.target.value || null,
                       })
                     }
                     placeholder="Juan Perez"
