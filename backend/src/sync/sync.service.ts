@@ -91,6 +91,13 @@ export class SyncService implements OnModuleInit {
     }
 
     this.isRunning = true;
+
+    // Load resume state before inserting the new run, otherwise the helper
+    // would read the freshly created 'running' row instead of the last failed run.
+    const completedTerms = new Set<string>(
+      await this.loadResumableCompletedTerms(),
+    );
+
     const [run] = await this.db
       .insert(syncRuns)
       .values({ status: 'running' })
@@ -102,9 +109,6 @@ export class SyncService implements OnModuleInit {
     let lastLocationId: number | null = null;
 
     const processedThisRun = new Set<string>();
-    const completedTerms = new Set<string>(
-      await this.loadResumableCompletedTerms(),
-    );
     const enrichmentTtlMs = this.getEnrichmentTtlMs();
 
     try {
