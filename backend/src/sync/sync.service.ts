@@ -218,17 +218,17 @@ export class SyncService implements OnModuleInit {
               usersUpdated += 1;
             }
           });
+
+          completedTerms.add(term);
+          await this.db
+            .update(syncRuns)
+            .set({ completedTerms: [...completedTerms] })
+            .where(eq(syncRuns.id, run.id));
         } catch (error) {
           const message =
             error instanceof Error ? error.message : 'Unknown search error';
           this.logger.warn(`Skipping term "${term}": ${message}`);
         }
-
-        completedTerms.add(term);
-        await this.db
-          .update(syncRuns)
-          .set({ completedTerms: [...completedTerms] })
-          .where(eq(syncRuns.id, run.id));
       }
 
       await this.db
