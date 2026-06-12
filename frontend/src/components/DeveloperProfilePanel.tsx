@@ -147,23 +147,11 @@ function ProfileView({
           <RankBadge
             developer={developer}
             showPercentile
+            locationRank={locationRank}
+            countryRank={countryRank}
             size="lg"
             centered
           />
-          {(locationRank || countryRank) && (
-            <div className="space-y-1">
-              {locationRank && (
-                <p className="text-muted-foreground text-sm tabular-nums">
-                  {locationRank}
-                </p>
-              )}
-              {countryRank && (
-                <p className="text-muted-foreground text-sm tabular-nums">
-                  {countryRank}
-                </p>
-              )}
-            </div>
-          )}
         </div>
       )}
 

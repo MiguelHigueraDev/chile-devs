@@ -17,10 +17,15 @@ type RankBadgeProps = {
     'rankLevel' | 'rankScore' | 'percentileCl'
   >;
   showPercentile?: boolean;
+  locationRank?: string | null;
+  countryRank?: string | null;
   size?: 'xs' | 'sm' | 'md' | 'lg';
   centered?: boolean;
   className?: string;
 };
+
+const rankPillClassName =
+  'inline-flex items-center gap-1 text-xs font-medium tabular-nums';
 
 const SIZE_CONFIG = {
   xs: {
@@ -45,9 +50,19 @@ const SIZE_CONFIG = {
   },
 } as const;
 
+function RankPill({ children }: { children: React.ReactNode }) {
+  return (
+    <Badge variant="secondary" className={rankPillClassName}>
+      {children}
+    </Badge>
+  );
+}
+
 export function RankBadge({
   developer,
   showPercentile = false,
+  locationRank = null,
+  countryRank = null,
   size = 'md',
   centered = false,
   className,
@@ -123,10 +138,7 @@ export function RankBadge({
         </span>
       </div>
       {topPercent && (
-        <Badge
-          variant="secondary"
-          className="inline-flex items-center gap-1 text-xs font-medium tabular-nums"
-        >
+        <RankPill>
           {showEliteStar && (
             <Star
               className="size-3 shrink-0 fill-amber-400 text-amber-400"
@@ -134,8 +146,10 @@ export function RankBadge({
             />
           )}
           {topPercent}
-        </Badge>
+        </RankPill>
       )}
+      {locationRank && <RankPill>{locationRank}</RankPill>}
+      {countryRank && <RankPill>{countryRank}</RankPill>}
     </div>
   );
 }
