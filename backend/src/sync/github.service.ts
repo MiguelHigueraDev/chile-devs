@@ -66,6 +66,26 @@ const LANGUAGES_BATCH_SIZE = 5;
 const LANGUAGES_REPO_LIMIT = 30;
 const TOP_LANGUAGES_COUNT = 5;
 
+const USER_QUERY = `
+  query FetchUser($login: String!) {
+    user(login: $login) {
+      databaseId
+      login
+      name
+      avatarUrl
+      location
+      url
+      followers {
+        totalCount
+      }
+    }
+    rateLimit {
+      remaining
+      resetAt
+    }
+  }
+`;
+
 const SEARCH_QUERY = `
   query SearchUsers($query: String!, $cursor: String) {
     search(type: USER, query: $query, first: ${SEARCH_PAGE_SIZE}, after: $cursor) {
@@ -115,6 +135,39 @@ export class GithubService {
 
   constructor(private readonly config: ConfigService) {
     this.token = this.config.getOrThrow<string>('GITHUB_TOKEN');
+  }
+
+  async fetchUserByLogin(login: string): Promise<GitHubUserResult | null> {
+    const response = await this.graphql<{
+      data?: {
+        user: GitHubSearchUser | null;
+        rateLimit?: RateLimit;
+      };
+      errors?: Array<{ message: string }>;
+    }>(USER_QUERY, { login });
+
+    if (response.errors?.length) {
+      throw new Error(this.formatGraphqlErrors(response.errors));
+    }
+
+    const node = response.data?.user;
+    if (!node?.login) {
+      return null;
+    }
+
+    const rateLimit = response.data?.rateLimit;
+    const [contributions, totalStars, topLanguages] = await Promise.all([
+      this.fetchContributionsBatch([node.login], rateLimit),
+      this.fetchStarsBatch([node.login], rateLimit),
+      this.fetchLanguagesBatch([node.login], rateLimit),
+    ]);
+
+    return this.toUserResult(
+      node,
+      contributions.get(node.login) ?? 0,
+      totalStars.get(node.login) ?? 0,
+      topLanguages.get(node.login) ?? [],
+    );
   }
 
   async searchUsersByLocation(

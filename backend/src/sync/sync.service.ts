@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { count, eq, sql } from 'drizzle-orm';
@@ -152,6 +158,45 @@ export class SyncService implements OnModuleInit {
     } finally {
       this.isRunning = false;
     }
+  }
+
+  async syncUser(
+    login: string,
+  ): Promise<{ login: string; status: string; locationId: number }> {
+    const token = this.config.get<string>('GITHUB_TOKEN', '');
+    if (!token || token.includes('your_personal_access_token')) {
+      throw new Error(
+        'GITHUB_TOKEN is not configured. Set it in backend/.env before syncing.',
+      );
+    }
+
+    const normalizedLogin = login.trim();
+    this.logger.log(`Syncing user "${normalizedLogin}"...`);
+
+    const user = await this.github.fetchUserByLogin(normalizedLogin);
+    if (!user) {
+      throw new NotFoundException(
+        `GitHub user "${normalizedLogin}" not found`,
+      );
+    }
+
+    const allLocations = await this.db.select().from(locations);
+    const classified = this.github.classifyLocation(
+      user.rawLocation,
+      allLocations,
+    );
+
+    await this.upsertDeveloper(user, classified.id);
+
+    this.logger.log(
+      `Synced user "${user.login}" (location: ${classified.slug}).`,
+    );
+
+    return {
+      login: user.login,
+      status: 'completed',
+      locationId: classified.id,
+    };
   }
 
   async getLastSyncRun() {
