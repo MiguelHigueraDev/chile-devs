@@ -9,9 +9,11 @@ import { generateObject, generateText } from 'ai';
 import { LOCATION_CATALOG, LOCATION_SLUGS } from './geo.data';
 import { parsedQuerySchema, type ParsedQuery } from './search.types';
 
-const GEMMA_MODEL = 'gemma-4-26b-a4b-it';
+const QUERY_PARSER_MODEL = 'gemini-2.5-flash-lite';
 const CACHE_MAX_ENTRIES = 200;
 const LLM_REQUESTS_PER_MINUTE = 14;
+const QUOTA_EXCEEDED_MESSAGE =
+  'Search quota exceeded. Please try again in a minute.';
 
 const SYSTEM_PROMPT = `You translate natural-language developer search queries into structured JSON filters for a Chilean GitHub developer directory.
 
@@ -77,9 +79,7 @@ export class QueryParserService {
     }
 
     if (this.requestTimestamps.length >= LLM_REQUESTS_PER_MINUTE) {
-      throw new ServiceUnavailableException(
-        'Search is temporarily rate-limited. Please try again in a minute.',
-      );
+      throw new ServiceUnavailableException(QUOTA_EXCEEDED_MESSAGE);
     }
 
     this.requestTimestamps.push(now);
@@ -96,7 +96,7 @@ export class QueryParserService {
   }
 
   private async parseWithLlm(rawQuery: string): Promise<ParsedQuery> {
-    const model = google(GEMMA_MODEL);
+    const model = google(QUERY_PARSER_MODEL);
 
     try {
       const { object } = await generateObject({
@@ -109,6 +109,10 @@ export class QueryParserService {
 
       return this.normalizeParsedQuery(object);
     } catch (error) {
+      if (this.isQuotaOrRateLimitError(error)) {
+        throw new ServiceUnavailableException(QUOTA_EXCEEDED_MESSAGE);
+      }
+
       this.logger.warn(
         `generateObject failed, falling back to generateText: ${
           error instanceof Error ? error.message : 'unknown error'
@@ -116,12 +120,23 @@ export class QueryParserService {
       );
     }
 
-    const { text } = await generateText({
-      model,
-      system: `${SYSTEM_PROMPT}\n\nRespond with JSON only. No markdown.`,
-      prompt: rawQuery,
-      temperature: 0.2,
-    });
+    let text: string;
+    try {
+      ({ text } = await generateText({
+        model,
+        system: `${SYSTEM_PROMPT}\n\nRespond with JSON only. No markdown.`,
+        prompt: rawQuery,
+        temperature: 0.2,
+      }));
+    } catch (error) {
+      if (this.isQuotaOrRateLimitError(error)) {
+        throw new ServiceUnavailableException(QUOTA_EXCEEDED_MESSAGE);
+      }
+
+      throw new ServiceUnavailableException(
+        'Could not understand the search query. Try rephrasing it.',
+      );
+    }
 
     const jsonText = text
       .trim()
@@ -232,6 +247,26 @@ export class QueryParserService {
   private isLikelyLanguageName(term: string): boolean {
     const normalized = term.trim().toLowerCase();
     return COMMON_LANGUAGE_NAMES.has(normalized);
+  }
+
+  private isQuotaOrRateLimitError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    const message = error.message.toLowerCase();
+    if (
+      message.includes('quota') ||
+      message.includes('rate limit') ||
+      message.includes('rate-limit') ||
+      message.includes('resource exhausted') ||
+      message.includes('too many requests')
+    ) {
+      return true;
+    }
+
+    const statusCode = (error as { statusCode?: number }).statusCode;
+    return statusCode === 429 || statusCode === 503;
   }
 }
 

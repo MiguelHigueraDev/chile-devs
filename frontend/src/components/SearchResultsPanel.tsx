@@ -27,10 +27,7 @@ function formatInterpretationChips(
 
   if (interpretation.languages.length > 0) {
     const joined = interpretation.languages
-      .map(
-        (language) =>
-          language.charAt(0).toUpperCase() + language.slice(1),
-      )
+      .map((language) => language.charAt(0).toUpperCase() + language.slice(1))
       .join(interpretation.languageMode === "all" ? " + " : " / ");
     chips.push(joined);
   }
@@ -46,9 +43,7 @@ function formatInterpretationChips(
 
   if (interpretation.locationSlugs.length > 0) {
     chips.push(
-      ...interpretation.locationSlugs.map((slug) =>
-        slug.replace(/-/g, " "),
-      ),
+      ...interpretation.locationSlugs.map((slug) => slug.replace(/-/g, " ")),
     );
   }
 
@@ -136,9 +131,13 @@ export function SearchResultsPanel({
               )}
 
               {error && !isPending && (
-                <p className="text-destructive px-4 py-4 text-sm">
-                  {error.message}
-                </p>
+                <div className="space-y-2 px-4 py-4 text-sm">
+                  <p className="text-destructive">{error.message}</p>
+                  <p className="text-muted-foreground">
+                    This may be because the current search quota has been
+                    exceeded. Please try again tomorrow.
+                  </p>
+                </div>
               )}
 
               {data && !isPending && (
