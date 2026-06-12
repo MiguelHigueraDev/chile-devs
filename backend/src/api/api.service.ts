@@ -13,12 +13,14 @@ import {
   desc,
   eq,
   gt,
+  isNull,
   lt,
   ne,
   or,
   sql,
   sum,
   type AnyColumn,
+  type SQL,
 } from 'drizzle-orm';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
 import { developers, locations, syncRuns } from '../db/schema';
@@ -30,6 +32,7 @@ export const DEVELOPER_SORT_KEYS = [
   'contributions',
   'followers',
   'stars',
+  'rank',
 ] as const;
 
 export type DeveloperSortKey = (typeof DEVELOPER_SORT_KEYS)[number];
@@ -38,23 +41,27 @@ const SORT_COLUMNS: Record<DeveloperSortKey, AnyColumn> = {
   contributions: developers.contributions,
   followers: developers.followers,
   stars: developers.totalStars,
+  rank: developers.rankScore,
 };
 
 type DeveloperCursor = {
   sort: DeveloperSortKey;
-  value: number;
+  value: number | null;
   githubId: string;
 };
 
-function encodeCursor(
+export function encodeCursor(
   sort: DeveloperSortKey,
-  value: number,
+  value: number | null,
   githubId: string,
 ): string {
-  return Buffer.from(`${sort}:${value}:${githubId}`).toString('base64url');
+  const encodedValue = value === null ? 'null' : String(value);
+  return Buffer.from(`${sort}:${encodedValue}:${githubId}`).toString(
+    'base64url',
+  );
 }
 
-function decodeCursor(
+export function decodeCursor(
   cursor: string,
   expectedSort: DeveloperSortKey,
 ): DeveloperCursor | null {
@@ -67,13 +74,15 @@ function decodeCursor(
     }
 
     const sort = decoded.slice(0, firstSep) as DeveloperSortKey;
-    const value = Number(decoded.slice(firstSep + 1, lastSep));
+    const valueRaw = decoded.slice(firstSep + 1, lastSep);
+    const value = valueRaw === 'null' ? null : Number(valueRaw);
     const githubId = decoded.slice(lastSep + 1);
     if (
       sort !== expectedSort ||
-      !Number.isFinite(value) ||
       !githubId ||
-      !DEVELOPER_SORT_KEYS.includes(sort)
+      !DEVELOPER_SORT_KEYS.includes(sort) ||
+      (value !== null && !Number.isFinite(value)) ||
+      (value === null && sort !== 'rank')
     ) {
       return null;
     }
@@ -84,11 +93,42 @@ function decodeCursor(
   }
 }
 
+function buildDeveloperCursorFilter(
+  sort: DeveloperSortKey,
+  sortColumn: AnyColumn,
+  decodedCursor: DeveloperCursor,
+): SQL {
+  const sortAscending = sort === 'rank';
+  const { value, githubId } = decodedCursor;
+
+  if (sort === 'rank' && sortAscending) {
+    if (value === null) {
+      return and(isNull(sortColumn), gt(developers.githubId, githubId))!;
+    }
+    return or(
+      gt(sortColumn, value),
+      and(eq(sortColumn, value), gt(developers.githubId, githubId)),
+      isNull(sortColumn),
+    )!;
+  }
+
+  const numericValue = value as number;
+  return sortAscending
+    ? or(
+        gt(sortColumn, numericValue),
+        and(eq(sortColumn, numericValue), gt(developers.githubId, githubId)),
+      )!
+    : or(
+        lt(sortColumn, numericValue),
+        and(eq(sortColumn, numericValue), gt(developers.githubId, githubId)),
+      )!;
+}
+
 export function parseDeveloperSort(sort?: string): DeveloperSortKey {
   if (!sort || sort === 'contributions') {
     return 'contributions';
   }
-  if (sort === 'followers' || sort === 'stars') {
+  if (sort === 'followers' || sort === 'stars' || sort === 'rank') {
     return sort;
   }
   return 'contributions';
@@ -152,17 +192,13 @@ export class ApiService {
       }
     }
     const sortColumn = SORT_COLUMNS[sort];
+    // rankScore is lower-is-better (S grade ≈ low score), unlike contributions/followers/stars.
+    const sortAscending = sort === 'rank';
 
     const locationFilter =
       locationId != null ? eq(developers.locationId, locationId) : undefined;
     const cursorFilter = decodedCursor
-      ? or(
-          lt(sortColumn, decodedCursor.value),
-          and(
-            eq(sortColumn, decodedCursor.value),
-            gt(developers.githubId, decodedCursor.githubId),
-          ),
-        )
+      ? buildDeveloperCursorFilter(sort, sortColumn, decodedCursor)
       : undefined;
 
     const filters = [locationFilter, cursorFilter].filter(Boolean);
@@ -183,12 +219,18 @@ export class ApiService {
         followers: developers.followers,
         totalStars: developers.totalStars,
         topLanguages: developers.topLanguages,
+        rankLevel: developers.rankLevel,
+        rankScore: developers.rankScore,
+        percentileCl: developers.percentileCl,
         profileUrl: developers.profileUrl,
         rawLocation: developers.rawLocation,
       })
       .from(developers)
       .where(whereClause)
-      .orderBy(desc(sortColumn), asc(developers.githubId))
+      .orderBy(
+        sortAscending ? asc(sortColumn) : desc(sortColumn),
+        asc(developers.githubId),
+      )
       .limit(pageSize + 1);
 
     const hasMore = devs.length > pageSize;
@@ -199,10 +241,16 @@ export class ApiService {
         ? lastDev?.contributions
         : sort === 'followers'
           ? lastDev?.followers
-          : lastDev?.totalStars;
+          : sort === 'stars'
+            ? lastDev?.totalStars
+            : lastDev?.rankScore;
     const nextCursor =
-      hasMore && lastDev && lastDevSortValue != null
-        ? encodeCursor(sort, lastDevSortValue, lastDev.githubId)
+      hasMore && lastDev && (lastDevSortValue != null || sort === 'rank')
+        ? encodeCursor(
+            sort,
+            sort === 'rank' ? (lastDev.rankScore ?? null) : lastDevSortValue!,
+            lastDev.githubId,
+          )
         : null;
 
     const developersResponse = pageDevs.map(
@@ -320,6 +368,9 @@ export class ApiService {
     followers: number;
     totalStars: number;
     topLanguages: (typeof developers.$inferSelect)['topLanguages'];
+    rankLevel: string | null;
+    rankScore: number | null;
+    percentileCl: number | null;
     profileUrl: string;
     rawLocation: string | null;
     portfolioUrl: string | null;
@@ -336,6 +387,9 @@ export class ApiService {
       followers: row.followers,
       totalStars: row.totalStars,
       topLanguages: row.topLanguages,
+      rankLevel: row.rankLevel,
+      rankScore: row.rankScore,
+      percentileCl: row.percentileCl,
       profileUrl: row.profileUrl,
       rawLocation: row.rawLocation,
       locationName: row.locationName,
@@ -356,6 +410,9 @@ export class ApiService {
         followers: developers.followers,
         totalStars: developers.totalStars,
         topLanguages: developers.topLanguages,
+        rankLevel: developers.rankLevel,
+        rankScore: developers.rankScore,
+        percentileCl: developers.percentileCl,
         profileUrl: developers.profileUrl,
         rawLocation: developers.rawLocation,
         portfolioUrl: developers.portfolioUrl,
@@ -427,6 +484,9 @@ export class ApiService {
         followers: developers.followers,
         totalStars: developers.totalStars,
         topLanguages: developers.topLanguages,
+        rankLevel: developers.rankLevel,
+        rankScore: developers.rankScore,
+        percentileCl: developers.percentileCl,
         profileUrl: developers.profileUrl,
         rawLocation: developers.rawLocation,
         portfolioUrl: developers.portfolioUrl,

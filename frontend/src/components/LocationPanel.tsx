@@ -3,6 +3,7 @@ import { useCountryDevelopers, useLocationDevelopers } from "../api/queries";
 import { isAllChileLocation } from "../lib/all-chile-location";
 import { useStackedSheetDismissGuard } from "../lib/stacked-sheet-dismiss";
 import { formatNumber } from "../lib/utils";
+import { RANK_CALCULATING_MESSAGE, RANK_SORT_LABEL } from "../lib/rank";
 import type { DeveloperSortKey, MapLocation } from "../types/api";
 import { DeveloperList } from "./DeveloperList";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +40,7 @@ const SORT_OPTIONS: Array<{ value: DeveloperSortKey; label: string }> = [
   { value: "contributions", label: "Contributions (last year)" },
   { value: "followers", label: "Followers" },
   { value: "stars", label: "Stars" },
+  { value: "rank", label: RANK_SORT_LABEL },
 ];
 
 function LocationDevelopersList({
@@ -244,6 +246,11 @@ export function LocationPanel({
                   </Button>
                 ))}
               </div>
+              {sortBy === "rank" && (
+                <p className="bg-destructive/90 mt-2 rounded-md px-3 py-2 text-xs leading-snug text-white">
+                  {RANK_CALCULATING_MESSAGE}
+                </p>
+              )}
             </SheetHeader>
 
             <ScrollArea ref={scrollRootRef} className="min-h-0 flex-1">

@@ -9,7 +9,13 @@ export const parsedQuerySchema = z
     zone: z.enum(['north', 'central', 'south']).nullable(),
     username: z.string().nullable(),
     displayName: z.string().nullable(),
-    sort: z.enum(['contributions', 'followers', 'stars', 'languageShare']),
+    sort: z.enum([
+      'contributions',
+      'followers',
+      'stars',
+      'rank',
+      'languageShare',
+    ]),
     shareLanguage: z.string().nullable(),
   })
   .refine(

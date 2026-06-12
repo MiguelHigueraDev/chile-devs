@@ -26,6 +26,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { ExternalLinkWarningDialog } from "./ExternalLinkWarningDialog";
 import { TopLanguagesBar } from "./TopLanguagesBar";
+import { RankBadge } from "./RankBadge";
+import { hasRankData, RANK_SECTION_LABEL } from "../lib/rank";
 
 type DeveloperProfilePanelProps = {
   login: string | null;
@@ -124,6 +126,20 @@ function ProfileView({
       )}
 
       <ProfileStats developer={developer} />
+
+      {hasRankData(developer) && (
+        <div className="space-y-3 text-center">
+          <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+            {RANK_SECTION_LABEL}
+          </p>
+          <RankBadge
+            developer={developer}
+            showPercentile
+            size="lg"
+            centered
+          />
+        </div>
+      )}
 
       {developer.topLanguages.length > 0 && (
         <div className="space-y-2">

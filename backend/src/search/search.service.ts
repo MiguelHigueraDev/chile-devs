@@ -38,6 +38,9 @@ type DeveloperRow = {
   followers: number;
   totalStars: number;
   topLanguages: TopLanguage[];
+  rankLevel: string | null;
+  rankScore: number | null;
+  percentileCl: number | null;
   profileUrl: string;
   rawLocation: string | null;
 };
@@ -50,6 +53,9 @@ const developerSelect = {
   followers: developers.followers,
   totalStars: developers.totalStars,
   topLanguages: developers.topLanguages,
+  rankLevel: developers.rankLevel,
+  rankScore: developers.rankScore,
+  percentileCl: developers.percentileCl,
   profileUrl: developers.profileUrl,
   rawLocation: developers.rawLocation,
 } as const;
@@ -106,8 +112,15 @@ export class SearchService {
     if (parsed.sort === 'languageShare') {
       return 'languageShare';
     }
-    if (parsed.sort === 'followers' || parsed.sort === 'stars') {
+    if (
+      parsed.sort === 'followers' ||
+      parsed.sort === 'stars' ||
+      parsed.sort === 'rank'
+    ) {
       return parsed.sort;
+    }
+    if (preferredSort === 'rank') {
+      return 'rank';
     }
     return preferredSort;
   }
@@ -179,13 +192,18 @@ export class SearchService {
         ? developers.followers
         : parsed.sort === 'stars'
           ? developers.totalStars
-          : developers.contributions;
+          : parsed.sort === 'rank'
+            ? developers.rankScore
+            : developers.contributions;
 
     const rows = await this.db
       .select(developerSelect)
       .from(developers)
       .where(whereClause)
-      .orderBy(desc(sortColumn), asc(developers.login))
+      .orderBy(
+        parsed.sort === 'rank' ? asc(sortColumn) : desc(sortColumn),
+        asc(developers.login),
+      )
       .limit(MAX_SEARCH_RESULTS);
 
     return rows;

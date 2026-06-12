@@ -12,6 +12,7 @@ export const VALID_SORTS = new Set<DeveloperSortKey>([
   'contributions',
   'followers',
   'stars',
+  'rank',
 ]);
 
 export type AppUrlState = {

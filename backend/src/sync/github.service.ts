@@ -38,6 +38,14 @@ type EnrichmentUser = {
     contributionCalendar: {
       totalContributions: number;
     };
+    totalCommitContributions: number;
+    totalPullRequestReviewContributions: number;
+  } | null;
+  pullRequests: {
+    totalCount: number;
+  } | null;
+  issues: {
+    totalCount: number;
   } | null;
   starRepos: {
     nodes: Array<{ stargazerCount: number } | null>;
@@ -123,11 +131,17 @@ export type GitHubSearchHit = {
 
 export type GitHubEnrichment = {
   contributions: number;
+  commits: number;
+  prs: number;
+  issues: number;
+  reviews: number;
   totalStars: number;
   topLanguages: TopLanguage[];
 };
 
-export type GitHubUserResult = GitHubSearchHit & GitHubEnrichment;
+export type GitHubUserResult = GitHubSearchHit & {
+  enrichment: GitHubEnrichment | null;
+};
 
 @Injectable()
 export class GithubService {
@@ -158,13 +172,14 @@ export class GithubService {
     }
 
     const enrichment = await this.enrichUsers([node.login]);
-    const stats = enrichment.get(node.login) ?? {
-      contributions: 0,
-      totalStars: 0,
-      topLanguages: [],
-    };
+    const hit = this.toSearchHit(node);
 
-    return { ...this.toSearchHit(node), ...stats };
+    if (!enrichment.has(node.login)) {
+      this.logger.warn(`Enrichment missing for @${node.login}`);
+      return { ...hit, enrichment: null };
+    }
+
+    return { ...hit, enrichment: enrichment.get(node.login)! };
   }
 
   async searchUsersByLocation(
@@ -215,16 +230,28 @@ export class GithubService {
 
       batch.forEach((login, index) => {
         const user = response.data?.[`u${index}`];
+        if (!user) {
+          this.logger.warn(`Enrichment data missing for @${login}`);
+          return;
+        }
+
         const stats: GitHubEnrichment = {
           contributions:
             user?.contributionsCollection?.contributionCalendar
               .totalContributions ?? 0,
+          commits:
+            user?.contributionsCollection?.totalCommitContributions ?? 0,
+          prs: user?.pullRequests?.totalCount ?? 0,
+          issues: user?.issues?.totalCount ?? 0,
+          reviews:
+            user?.contributionsCollection
+              ?.totalPullRequestReviewContributions ?? 0,
           totalStars: this.sumPublicRepoStars(user?.starRepos?.nodes),
           topLanguages: this.aggregateTopLanguages(user?.langRepos?.nodes),
         };
         enrichment.set(login, stats);
         this.logger.log(
-          `Enriched @${login}: ${stats.contributions} contributions, ${stats.totalStars} stars, languages=[${stats.topLanguages.map((l) => l.name).join(', ')}]`,
+          `Enriched @${login}: ${stats.commits} commits, ${stats.prs} PRs, ${stats.reviews} reviews, ${stats.contributions} contributions, ${stats.totalStars} stars, languages=[${stats.topLanguages.map((l) => l.name).join(', ')}]`,
         );
       });
     }
@@ -350,6 +377,14 @@ export class GithubService {
           contributionCalendar {
             totalContributions
           }
+          totalCommitContributions
+          totalPullRequestReviewContributions
+        }
+        pullRequests {
+          totalCount
+        }
+        issues {
+          totalCount
         }
         starRepos: repositories(
           ownerAffiliations: OWNER
