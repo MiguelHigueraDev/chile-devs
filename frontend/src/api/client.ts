@@ -1,4 +1,3 @@
-import { getDeveloperSortPreference } from '../lib/developer-sort-preference';
 import {
   clearAuthToken,
   getAuthToken,
@@ -10,6 +9,8 @@ import type {
   LocationDevelopersResponse,
   MapLocation,
   MeResponse,
+  SearchFacets,
+  SearchParams,
   SearchResponse,
   StatsResponse,
   UpdateProfileInput,
@@ -122,12 +123,49 @@ export function fetchLocationDevelopers(
   );
 }
 
-export function fetchSearch(
-  query: string,
-  sort: DeveloperSortKey = getDeveloperSortPreference(),
-): Promise<SearchResponse> {
-  const params = new URLSearchParams({ q: query, sort });
-  return fetchJson<SearchResponse>(`/search?${params.toString()}`);
+export function buildSearchQueryParams(params: SearchParams): URLSearchParams {
+  const searchParams = new URLSearchParams();
+
+  if (params.languages.length > 0) {
+    searchParams.set('languages', params.languages.join(','));
+  }
+
+  if (params.languageMode === 'all') {
+    searchParams.set('langMode', 'all');
+  }
+
+  if (params.locationSlugs.length > 0) {
+    searchParams.set('locations', params.locationSlugs.join(','));
+  }
+
+  if (params.zone) {
+    searchParams.set('zone', params.zone);
+  }
+
+  if (params.username) {
+    searchParams.set('username', params.username);
+  }
+
+  if (params.displayName) {
+    searchParams.set('name', params.displayName);
+  }
+
+  searchParams.set('sort', params.sort);
+
+  if (params.shareLanguage) {
+    searchParams.set('shareLang', params.shareLanguage);
+  }
+
+  return searchParams;
+}
+
+export function fetchSearch(params: SearchParams): Promise<SearchResponse> {
+  const query = buildSearchQueryParams(params).toString();
+  return fetchJson<SearchResponse>(`/search${query ? `?${query}` : ''}`);
+}
+
+export function fetchSearchFacets(): Promise<SearchFacets> {
+  return fetchJson<SearchFacets>('/search/facets');
 }
 
 export function fetchDeveloper(login: string): Promise<DeveloperDetail> {

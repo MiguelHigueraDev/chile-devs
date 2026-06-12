@@ -3,10 +3,13 @@ import { useMapData, useStats } from "./api/queries";
 import { ChileMap } from "./components/ChileMap";
 import { DeveloperProfilePanel } from "./components/DeveloperProfilePanel";
 import { LocationPanel } from "./components/LocationPanel";
+import { SearchFilterSheet } from "./components/SearchFilterSheet";
 import { SearchResultsPanel } from "./components/SearchResultsPanel";
 import { StatsFooter } from "./components/StatsFooter";
 import { StatsHeader } from "./components/StatsHeader";
 import {
+  countActiveSearchFilters,
+  isDefaultSearchParams,
   readAppUrlState,
   resolveLocationFromSlug,
   syncAppUrlState,
@@ -15,8 +18,11 @@ import {
   setDeveloperSortPreference,
   useDeveloperSortPreference,
 } from "./lib/developer-sort-preference";
-import { useSearchHistory } from "./lib/search-history";
-import type { MapLocation } from "./types/api";
+import {
+  DEFAULT_SEARCH_PARAMS,
+  type MapLocation,
+  type SearchParams,
+} from "./types/api";
 import { cn } from "@/lib/utils";
 
 function App() {
@@ -24,26 +30,42 @@ function App() {
   const { data: locations = [] } = useMapData();
   const { data: stats } = useStats();
   const [sortBy, setSortBy] = useDeveloperSortPreference();
-  const {
-    entries: recentSearches,
-    add: addRecentSearch,
-    remove: removeRecentSearch,
-    clear: clearRecentSearches,
-  } = useSearchHistory();
-  const [locationSlug, setLocationSlug] = useState<string | null>(() => {
-    const urlState = readAppUrlState();
-    return urlState.searchQuery ? null : urlState.locationSlug;
-  });
-  const [searchInput, setSearchInput] = useState(
-    () => readAppUrlState().searchQuery ?? "",
+  const initialUrlState = readAppUrlState();
+  const [locationSlug, setLocationSlug] = useState<string | null>(
+    () => initialUrlState.locationSlug,
   );
-  const [activeSearchQuery, setActiveSearchQuery] = useState<string | null>(
-    () => readAppUrlState().searchQuery,
+  const [draftFilters, setDraftFilters] = useState<SearchParams>(
+    () => initialUrlState.searchParams ?? DEFAULT_SEARCH_PARAMS,
+  );
+  const [committedFilters, setCommittedFilters] = useState<SearchParams | null>(
+    () => initialUrlState.searchParams,
+  );
+  const [filterSheetOpen, setFilterSheetOpen] = useState(
+    () => initialUrlState.searchParams != null,
+  );
+  const [resultsOpen, setResultsOpen] = useState(
+    () => initialUrlState.searchParams != null,
   );
   const [devLogin, setDevLogin] = useState<string | null>(
-    () => readAppUrlState().devLogin,
+    () => initialUrlState.devLogin,
   );
   const [profileEditMode, setProfileEditMode] = useState(false);
+
+  const urlSearchParams = useMemo(() => {
+    if (locationSlug) {
+      return null;
+    }
+
+    const source = filterSheetOpen
+      ? draftFilters
+      : committedFilters;
+
+    if (source == null || isDefaultSearchParams(source)) {
+      return null;
+    }
+
+    return source;
+  }, [committedFilters, draftFilters, filterSheetOpen, locationSlug]);
 
   const selectedLocation = useMemo(
     () =>
@@ -53,6 +75,14 @@ function App() {
     [locationSlug, locations, stats],
   );
 
+  const activeFilterCount = useMemo(() => {
+    const source = filterSheetOpen ? draftFilters : committedFilters;
+    if (source == null || isDefaultSearchParams(source)) {
+      return 0;
+    }
+    return countActiveSearchFilters(source);
+  }, [committedFilters, draftFilters, filterSheetOpen]);
+
   const applyUrlState = useCallback(
     (urlState = readAppUrlState()) => {
       if (urlState.sort) {
@@ -60,16 +90,20 @@ function App() {
         setSortBy(urlState.sort);
       }
 
-      if (urlState.searchQuery) {
+      if (urlState.searchParams) {
         setLocationSlug(null);
-        setSearchInput(urlState.searchQuery);
-        setActiveSearchQuery(urlState.searchQuery);
+        setDraftFilters(urlState.searchParams);
+        setCommittedFilters(urlState.searchParams);
+        setFilterSheetOpen(true);
+        setResultsOpen(true);
         setDevLogin(urlState.devLogin);
         return;
       }
 
-      setActiveSearchQuery(null);
-      setSearchInput("");
+      setDraftFilters(DEFAULT_SEARCH_PARAMS);
+      setCommittedFilters(null);
+      setFilterSheetOpen(false);
+      setResultsOpen(false);
       setLocationSlug(urlState.locationSlug);
       setDevLogin(urlState.devLogin);
     },
@@ -79,19 +113,20 @@ function App() {
   useEffect(() => {
     const nextState = {
       locationSlug,
-      searchQuery: activeSearchQuery,
+      searchParams: urlSearchParams,
       sort: locationSlug ? sortBy : null,
       devLogin,
     };
     const prevState = urlSyncRef.current;
+    const enteredOrLeftSearch =
+      (prevState?.searchParams == null) !== (nextState.searchParams == null);
     const panelChanged =
-      prevState?.locationSlug !== nextState.locationSlug ||
-      prevState?.searchQuery !== nextState.searchQuery;
+      prevState?.locationSlug !== nextState.locationSlug || enteredOrLeftSearch;
     const isInitialSync = prevState == null;
 
     syncAppUrlState(nextState, isInitialSync || !panelChanged);
     urlSyncRef.current = nextState;
-  }, [locationSlug, activeSearchQuery, sortBy, devLogin]);
+  }, [locationSlug, urlSearchParams, sortBy, devLogin]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -102,12 +137,42 @@ function App() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, [applyUrlState]);
 
-  const panelOpen = selectedLocation || activeSearchQuery || devLogin;
+  const panelOpen =
+    selectedLocation || filterSheetOpen || resultsOpen || devLogin;
 
   const handleLocationSelect = useCallback((location: MapLocation) => {
-    setActiveSearchQuery(null);
-    setSearchInput("");
+    setDraftFilters(DEFAULT_SEARCH_PARAMS);
+    setCommittedFilters(null);
+    setFilterSheetOpen(false);
+    setResultsOpen(false);
     setLocationSlug(location.slug);
+  }, []);
+
+  const handleOpenFilters = useCallback(() => {
+    setLocationSlug(null);
+    setDraftFilters(committedFilters ?? DEFAULT_SEARCH_PARAMS);
+    setFilterSheetOpen(true);
+  }, [committedFilters]);
+
+  const handleCommitSearch = useCallback((params: SearchParams) => {
+    setLocationSlug(null);
+    setDraftFilters(params);
+    setCommittedFilters(
+      isDefaultSearchParams(params) ? DEFAULT_SEARCH_PARAMS : params,
+    );
+    setFilterSheetOpen(true);
+    setResultsOpen(true);
+  }, []);
+
+  const handleCloseFilters = useCallback(() => {
+    setFilterSheetOpen(false);
+    setDraftFilters(DEFAULT_SEARCH_PARAMS);
+    setCommittedFilters(null);
+    setResultsOpen(false);
+  }, []);
+
+  const handleCloseResults = useCallback(() => {
+    setResultsOpen(false);
   }, []);
 
   return (
@@ -120,15 +185,9 @@ function App() {
         )}
       >
         <StatsHeader
-          searchQuery={searchInput}
-          onSearchQueryChange={setSearchInput}
           onViewAllDevelopers={handleLocationSelect}
-          onSearch={(query) => {
-            setLocationSlug(null);
-            setSearchInput(query);
-            setActiveSearchQuery(query);
-            addRecentSearch(query);
-          }}
+          onOpenFilters={handleOpenFilters}
+          activeFilterCount={activeFilterCount}
           onOpenMyProfile={(login) => {
             setDevLogin(login);
             setProfileEditMode(false);
@@ -137,9 +196,6 @@ function App() {
             setDevLogin(login);
             setProfileEditMode(true);
           }}
-          recentSearches={recentSearches}
-          onRemoveRecentSearch={removeRecentSearch}
-          onClearRecentSearches={clearRecentSearches}
         />
         <div className="flex min-h-0 flex-1 flex-col gap-1 px-3 py-2 sm:px-4">
           <div className="border-border relative min-h-0 flex-1 overflow-hidden rounded-lg border">
@@ -156,10 +212,29 @@ function App() {
         onDeveloperSelect={setDevLogin}
         devPanelOpen={!!devLogin}
       />
+      <SearchFilterSheet
+        open={filterSheetOpen}
+        params={draftFilters}
+        onChange={setDraftFilters}
+        resultsOpen={resultsOpen}
+        devPanelOpen={!!devLogin}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseFilters();
+          } else {
+            setFilterSheetOpen(true);
+          }
+        }}
+        onApply={handleCommitSearch}
+      />
       <SearchResultsPanel
-        query={activeSearchQuery}
-        sortBy={sortBy}
-        onClose={() => setActiveSearchQuery(null)}
+        open={resultsOpen}
+        params={committedFilters}
+        onClose={handleCloseResults}
+        onEditFilters={() => {
+          setResultsOpen(false);
+          setFilterSheetOpen(true);
+        }}
         onDeveloperSelect={setDevLogin}
         devPanelOpen={!!devLogin}
       />

@@ -1,9 +1,11 @@
+import { ArrowLeft } from "lucide-react";
 import { useSearch } from "../api/queries";
 import { useStackedSheetDismissGuard } from "../lib/stacked-sheet-dismiss";
 import { RANK_CALCULATING_MESSAGE, RANK_SORT_SUMMARY_LABEL } from "../lib/rank";
-import type { DeveloperSortKey, SearchInterpretation } from "../types/api";
+import type { SearchInterpretation, SearchParams } from "../types/api";
 import { DeveloperList } from "./DeveloperList";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Sheet,
@@ -15,9 +17,10 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 type SearchResultsPanelProps = {
-  query: string | null;
-  sortBy: DeveloperSortKey;
+  open: boolean;
+  params: SearchParams | null;
   onClose: () => void;
+  onEditFilters: () => void;
   onDeveloperSelect?: (login: string) => void;
   devPanelOpen?: boolean;
 };
@@ -76,19 +79,20 @@ function formatInterpretationChips(
 }
 
 export function SearchResultsPanel({
-  query,
-  sortBy,
+  open,
+  params,
   onClose,
+  onEditFilters,
   onDeveloperSelect,
   devPanelOpen = false,
 }: SearchResultsPanelProps) {
-  const { data, error, isPending } = useSearch(query, sortBy);
+  const { data, error, isPending } = useSearch(params, open && !!params);
   const { handleOpenChange, blockOutsideDismiss } =
     useStackedSheetDismissGuard(devPanelOpen);
 
   return (
     <Sheet
-      open={!!query}
+      open={open && !!params}
       modal={false}
       onOpenChange={(open) => handleOpenChange(open, onClose)}
     >
@@ -100,13 +104,28 @@ export function SearchResultsPanel({
         onFocusOutside={blockOutsideDismiss}
         className="border-border/60 bg-background/98 flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
       >
-        {query && (
+        {params && (
           <>
             <SheetHeader className="shrink-0 border-b pb-4">
-              <SheetTitle className="text-lg">Search results</SheetTitle>
-              <SheetDescription className="line-clamp-2">
-                {query}
-              </SheetDescription>
+              <div className="flex items-start gap-2 pr-8">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="mt-0.5 shrink-0"
+                  aria-label="Edit filters"
+                  onClick={onEditFilters}
+                >
+                  <ArrowLeft className="size-4" />
+                </Button>
+                <div className="min-w-0 flex-1">
+                  <SheetTitle className="text-lg">Search results</SheetTitle>
+                  <SheetDescription>
+                    Developers matching your filters
+                  </SheetDescription>
+                </div>
+              </div>
+
               {data?.interpretation && (
                 <div className="flex flex-wrap gap-1.5 pt-2">
                   {formatInterpretationChips(data.interpretation).map(
@@ -118,7 +137,8 @@ export function SearchResultsPanel({
                   )}
                 </div>
               )}
-              {sortBy === "rank" && (
+
+              {params.sort === "rank" && (
                 <p className="bg-destructive/90 mt-2 rounded-md px-3 py-2 text-xs leading-snug text-white">
                   {RANK_CALCULATING_MESSAGE}
                 </p>
@@ -145,10 +165,6 @@ export function SearchResultsPanel({
               {error && !isPending && (
                 <div className="space-y-2 px-4 py-4 text-sm">
                   <p className="text-destructive">{error.message}</p>
-                  <p className="text-muted-foreground">
-                    This may be because the current search quota has been
-                    exceeded. Please try again tomorrow.
-                  </p>
                 </div>
               )}
 
