@@ -1,6 +1,6 @@
 import { useSearch } from "../api/queries";
 import { useStackedSheetDismissGuard } from "../lib/stacked-sheet-dismiss";
-import { RANK_SORT_SUMMARY_LABEL } from "../lib/rank";
+import { RANK_CALCULATING_MESSAGE, RANK_SORT_SUMMARY_LABEL } from "../lib/rank";
 import type { DeveloperSortKey, SearchInterpretation } from "../types/api";
 import { DeveloperList } from "./DeveloperList";
 import { Badge } from "@/components/ui/badge";
@@ -117,6 +117,11 @@ export function SearchResultsPanel({
                     ),
                   )}
                 </div>
+              )}
+              {sortBy === "rank" && (
+                <p className="bg-destructive/90 mt-2 rounded-md px-3 py-2 text-xs leading-snug text-white">
+                  {RANK_CALCULATING_MESSAGE}
+                </p>
               )}
             </SheetHeader>
 

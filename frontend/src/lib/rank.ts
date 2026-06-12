@@ -14,6 +14,8 @@ import type { DeveloperSummary } from '../types/api';
 export const RANK_SORT_LABEL = 'Rank (beta)';
 export const RANK_SORT_SUMMARY_LABEL = 'rank (beta)';
 export const RANK_SECTION_LABEL = 'GitHub rank (beta)';
+export const RANK_CALCULATING_MESSAGE =
+  'Rank is still being calculated for all devs. Check again later for final results';
 
 export function hasRankData(
   developer: Pick<DeveloperSummary, 'rankLevel' | 'rankScore'>,
