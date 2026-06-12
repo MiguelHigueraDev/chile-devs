@@ -450,6 +450,10 @@ export class GithubService {
 
     const normalized = this.normalize(rawLocation);
 
+    if (this.isCountryLevel(normalized)) {
+      return country;
+    }
+
     const cities = allLocations.filter((l) => l.kind === 'city');
     const regions = allLocations.filter((l) => l.kind === 'region');
 
@@ -463,10 +467,6 @@ export class GithubService {
       if (this.matchesLocation(normalized, region)) {
         return region;
       }
-    }
-
-    if (this.isCountryLevel(normalized)) {
-      return country;
     }
 
     return country;
@@ -497,9 +497,8 @@ export class GithubService {
     const countryTerms = LOCATION_SEEDS.find(
       (l) => l.slug === 'chile',
     )!.searchTerms.map((t) => this.normalize(t));
-    return countryTerms.some(
-      (term) => normalized === term || normalized.includes(term),
-    );
+    // Exact match only — "Santiago, Chile" must not be treated as country-only.
+    return countryTerms.some((term) => normalized === term);
   }
 
   private normalize(value: string): string {
