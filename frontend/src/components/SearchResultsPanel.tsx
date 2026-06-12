@@ -1,4 +1,5 @@
 import { useSearch } from "../api/queries";
+import { useStackedSheetDismissGuard } from "../lib/stacked-sheet-dismiss";
 import type { DeveloperSortKey, SearchInterpretation } from "../types/api";
 import { DeveloperList } from "./DeveloperList";
 import { Badge } from "@/components/ui/badge";
@@ -80,18 +81,21 @@ export function SearchResultsPanel({
   devPanelOpen = false,
 }: SearchResultsPanelProps) {
   const { data, error, isPending } = useSearch(query, sortBy);
+  const { handleOpenChange, blockOutsideDismiss } =
+    useStackedSheetDismissGuard(devPanelOpen);
 
   return (
     <Sheet
       open={!!query}
       modal={false}
-      onOpenChange={(open) => {
-        if (!open && !devPanelOpen) onClose();
-      }}
+      onOpenChange={(open) => handleOpenChange(open, onClose)}
     >
       <SheetContent
         side="right"
         inert={devPanelOpen ? true : undefined}
+        onPointerDownOutside={blockOutsideDismiss}
+        onInteractOutside={blockOutsideDismiss}
+        onFocusOutside={blockOutsideDismiss}
         className="border-border/60 bg-background/98 flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
       >
         {query && (

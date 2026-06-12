@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useCountryDevelopers, useLocationDevelopers } from "../api/queries";
 import { isAllChileLocation } from "../lib/all-chile-location";
+import { useStackedSheetDismissGuard } from "../lib/stacked-sheet-dismiss";
 import { formatNumber } from "../lib/utils";
 import type { DeveloperSortKey, MapLocation } from "../types/api";
 import { DeveloperList } from "./DeveloperList";
@@ -184,6 +185,8 @@ export function LocationPanel({
   const scrollRootRef = useRef<HTMLDivElement>(null);
   const slug = location?.slug ?? null;
   const countryWide = location ? isAllChileLocation(location) : false;
+  const { handleOpenChange, blockOutsideDismiss } =
+    useStackedSheetDismissGuard(devPanelOpen);
 
   useEffect(() => {
     const viewport = scrollRootRef.current?.querySelector(
@@ -196,13 +199,14 @@ export function LocationPanel({
     <Sheet
       open={!!location}
       modal={false}
-      onOpenChange={(open) => {
-        if (!open && !devPanelOpen) onClose();
-      }}
+      onOpenChange={(open) => handleOpenChange(open, onClose)}
     >
       <SheetContent
         side="right"
         inert={devPanelOpen ? true : undefined}
+        onPointerDownOutside={blockOutsideDismiss}
+        onInteractOutside={blockOutsideDismiss}
+        onFocusOutside={blockOutsideDismiss}
         className="border-border/60 bg-background/98 flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
       >
         {location && (
