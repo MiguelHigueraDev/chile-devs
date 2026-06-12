@@ -34,6 +34,7 @@ Edit `backend/.env` and set at least:
 | Variable | Description |
 | --- | --- |
 | `DATABASE_URL` | PostgreSQL connection string (defaults in `.env.example` match Docker Compose) |
+| `REDIS_URL` | Redis connection string for enrichment cache (defaults in `.env.example` match Docker Compose) |
 | `GITHUB_TOKEN` | GitHub personal access token — required to sync developer data |
 | `GITHUB_OAUTH_CLIENT_ID` | GitHub OAuth App client ID — required for profile claiming |
 | `GITHUB_OAUTH_CLIENT_SECRET` | GitHub OAuth App client secret — required for profile claiming |

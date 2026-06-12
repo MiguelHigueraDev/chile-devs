@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LOCATION_SEEDS } from '../db/locations.data';
+import { EnrichmentCacheService } from './enrichment-cache.service';
 import type { Location, TopLanguage } from '../db/schema';
 
 type GitHubSearchUser = {
@@ -149,7 +150,10 @@ export class GithubService {
   private readonly token: string;
   private rateLimitState: RateLimit | null = null;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly enrichmentCache: EnrichmentCacheService,
+  ) {
     this.token = this.config.getOrThrow<string>('GITHUB_TOKEN');
   }
 
@@ -212,8 +216,23 @@ export class GithubService {
       return enrichment;
     }
 
-    for (let i = 0; i < logins.length; i += ENRICHMENT_BATCH_SIZE) {
-      const batch = logins.slice(i, i + ENRICHMENT_BATCH_SIZE);
+    const cached = await this.enrichmentCache.getMany(logins);
+    const misses: string[] = [];
+
+    for (const login of logins) {
+      const hit = cached.get(login);
+      if (hit) {
+        enrichment.set(login, hit);
+        this.logger.debug(`Enrichment cache hit for @${login}`);
+      } else {
+        misses.push(login);
+      }
+    }
+
+    const newlyFetched = new Map<string, GitHubEnrichment>();
+
+    for (let i = 0; i < misses.length; i += ENRICHMENT_BATCH_SIZE) {
+      const batch = misses.slice(i, i + ENRICHMENT_BATCH_SIZE);
       const query = this.buildEnrichmentQuery(batch);
 
       const response = await this.graphql<{
@@ -250,11 +269,14 @@ export class GithubService {
           topLanguages: this.aggregateTopLanguages(user?.langRepos?.nodes),
         };
         enrichment.set(login, stats);
+        newlyFetched.set(login, stats);
         this.logger.log(
           `Enriched @${login}: ${stats.commits} commits, ${stats.prs} PRs, ${stats.reviews} reviews, ${stats.contributions} contributions, ${stats.totalStars} stars, languages=[${stats.topLanguages.map((l) => l.name).join(', ')}]`,
         );
       });
     }
+
+    await this.enrichmentCache.setMany(newlyFetched);
 
     return enrichment;
   }
