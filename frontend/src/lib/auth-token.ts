@@ -14,20 +14,29 @@ export function clearAuthToken(): void {
 
 export function consumeSessionFromUrlHash(): boolean {
   const hash = window.location.hash;
-  if (!hash.startsWith('#')) {
+  const match = hash.match(/^#session=(.+)$/);
+  if (!match?.[1]) {
     return false;
   }
 
-  const token = new URLSearchParams(hash.slice(1)).get('session');
+  let token: string;
+  try {
+    token = decodeURIComponent(match[1]);
+  } catch {
+    return false;
+  }
+
   if (!token) {
     return false;
   }
 
   setAuthToken(token);
 
-  const url = new URL(window.location.href);
-  url.hash = '';
-  window.history.replaceState({}, '', url);
+  window.history.replaceState(
+    null,
+    '',
+    `${window.location.pathname}${window.location.search}`,
+  );
 
   return true;
 }

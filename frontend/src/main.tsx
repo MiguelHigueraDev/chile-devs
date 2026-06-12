@@ -4,11 +4,11 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
 import { queryKeys } from "./api/queries";
-import { consumeSessionFromUrlHash } from "./lib/auth-token";
+import { consumeSessionFromUrlHash, getAuthToken } from "./lib/auth-token";
 import { queryClient } from "./lib/query-client";
 import { Analytics } from "@vercel/analytics/react";
 
-if (consumeSessionFromUrlHash()) {
+if (consumeSessionFromUrlHash() || getAuthToken()) {
   void queryClient.invalidateQueries({ queryKey: queryKeys.me });
 }
 

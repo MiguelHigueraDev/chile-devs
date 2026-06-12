@@ -4,6 +4,24 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Chile Devs Map</title>
+    <script>
+      (function () {
+        var hash = window.location.hash;
+        if (!hash.startsWith("#session=")) return;
+        var token = decodeURIComponent(hash.slice("#session=".length));
+        if (!token) return;
+        try {
+          localStorage.setItem("chile_devs_session", token);
+        } catch (error) {
+          console.error("Failed to store auth session", error);
+        }
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname + window.location.search,
+        );
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
