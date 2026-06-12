@@ -596,25 +596,28 @@ export class GithubService {
       body: JSON.stringify({ query, variables }),
     });
 
-    if (response.status === 403 || response.status === 429) {
+    if (
+      (response.status === 403 || response.status === 429) &&
+      attempt < MAX_GRAPHQL_RETRIES
+    ) {
       const retryAfter = response.headers.get('retry-after');
       if (retryAfter) {
         const waitMs = Number(retryAfter) * 1000 + 1000;
         this.logger.warn(
-          `Secondary rate limit hit (HTTP ${response.status}), waiting ${Math.ceil(waitMs / 1000)}s before retry`,
+          `Secondary rate limit hit (HTTP ${response.status}), waiting ${Math.ceil(waitMs / 1000)}s before retry (attempt ${attempt + 1}/${MAX_GRAPHQL_RETRIES})`,
         );
         await this.sleep(waitMs);
-        return this.graphql(query, variables, attempt);
+        return this.graphql(query, variables, attempt + 1);
       }
 
       const resetHeader = response.headers.get('x-ratelimit-reset');
       if (resetHeader) {
         const resetAt = new Date(Number(resetHeader) * 1000).toISOString();
         this.logger.warn(
-          `Primary rate limit hit (HTTP ${response.status}), waiting until ${resetAt}`,
+          `Primary rate limit hit (HTTP ${response.status}), waiting until ${resetAt} (attempt ${attempt + 1}/${MAX_GRAPHQL_RETRIES})`,
         );
         await this.waitForRateLimit(resetAt);
-        return this.graphql(query, variables, attempt);
+        return this.graphql(query, variables, attempt + 1);
       }
 
       this.logger.warn(
