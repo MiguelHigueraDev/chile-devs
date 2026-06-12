@@ -81,7 +81,7 @@ export type StatsResponse = {
   } | null;
 };
 
-export type SearchInterpretation = {
+export type SearchParams = {
   languages: string[];
   languageMode: 'any' | 'all';
   locationSlugs: string[];
@@ -90,11 +90,30 @@ export type SearchInterpretation = {
   displayName: string | null;
   sort: SearchSortKey;
   shareLanguage: string | null;
+};
+
+export type SearchInterpretation = SearchParams & {
   resolvedLocationSlugs: string[];
 };
 
 export type SearchResponse = {
-  query: string;
   interpretation: SearchInterpretation;
   developers: DeveloperSummary[];
+};
+
+export type SearchFacets = {
+  languages: Array<{ name: string; count: number }>;
+  locations: Array<{ slug: string; name: string; kind: 'region' | 'city' }>;
+  zones: Array<{ id: 'north' | 'central' | 'south'; label: string }>;
+};
+
+export const DEFAULT_SEARCH_PARAMS: SearchParams = {
+  languages: [],
+  languageMode: 'any',
+  locationSlugs: [],
+  zone: null,
+  username: null,
+  displayName: null,
+  sort: 'contributions',
+  shareLanguage: null,
 };

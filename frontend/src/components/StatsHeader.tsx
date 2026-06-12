@@ -1,36 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
-import { LogIn, LogOut, Pencil, User } from 'lucide-react'
+import { LogIn, LogOut, Pencil, SlidersHorizontal, User } from 'lucide-react'
 import { useMe, useLogoutMutation, useStats } from '../api/queries'
 import { getGitHubAuthUrl } from '../api/client'
 import { getGitHubAvatarUrl } from '../lib/github'
 import { createAllChileLocation } from '../lib/all-chile-location'
 import type { MapLocation } from '../types/api'
-import { SearchBar } from './SearchBar'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 
 type StatsHeaderProps = {
-  searchQuery: string
-  onSearchQueryChange: (query: string) => void
   onViewAllDevelopers: (location: MapLocation) => void
-  onSearch: (query: string) => void
+  onOpenFilters: () => void
+  activeFilterCount?: number
   onOpenMyProfile: (login: string) => void
   onEditMyProfile: (login: string) => void
-  recentSearches?: string[]
-  onRemoveRecentSearch?: (query: string) => void
-  onClearRecentSearches?: () => void
 }
 
 export function StatsHeader({
-  searchQuery,
-  onSearchQueryChange,
   onViewAllDevelopers,
-  onSearch,
+  onOpenFilters,
+  activeFilterCount = 0,
   onOpenMyProfile,
   onEditMyProfile,
-  recentSearches,
-  onRemoveRecentSearch,
-  onClearRecentSearches,
 }: StatsHeaderProps) {
   const { data: stats } = useStats()
   const { data: me } = useMe()
@@ -75,16 +67,22 @@ export function StatsHeader({
         </p>
       </div>
 
-      <div className="flex w-full items-center gap-2 sm:max-w-md sm:shrink-0">
-        <SearchBar
-          query={searchQuery}
-          onQueryChange={onSearchQueryChange}
-          onSearch={onSearch}
-          recentSearches={recentSearches}
-          onRemoveRecentSearch={onRemoveRecentSearch}
-          onClearRecentSearches={onClearRecentSearches}
-          className="min-w-0 flex-1"
-        />
+      <div className="flex w-full items-center gap-2 sm:max-w-md sm:shrink-0 sm:justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-8 min-w-0 flex-1 sm:flex-none"
+          onClick={onOpenFilters}
+        >
+          <SlidersHorizontal className="size-3.5 shrink-0" />
+          <span>Filters</span>
+          {activeFilterCount > 0 && (
+            <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5">
+              {activeFilterCount}
+            </Badge>
+          )}
+        </Button>
 
         {me ? (
           <div className="relative shrink-0" ref={menuRef}>

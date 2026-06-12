@@ -1,8 +1,8 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
-import type { DeveloperSortKey } from '../api/api.service';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   and,
   asc,
+  countDistinct,
   desc,
   eq,
   exists,
@@ -19,13 +19,18 @@ import {
   locations,
   type TopLanguage,
 } from '../db/schema';
-import { resolveLocationSlugs } from './geo.data';
-import { QueryParserService } from './query-parser.service';
 import {
-  MAX_SEARCH_QUERY_LENGTH,
+  LOCATION_CATALOG,
+  LOCATION_SLUGS,
+  resolveLocationSlugs,
+} from './geo.data';
+import {
   MAX_SEARCH_RESULTS,
+  normalizeSearchInput,
   type ParsedQuery,
+  type SearchFacetsResponse,
   type SearchInterpretation,
+  ZONE_LABELS,
 } from './search.types';
 
 const NO_MATCHING_LOCATION_ID = -1;
@@ -62,67 +67,70 @@ const developerSelect = {
 
 @Injectable()
 export class SearchService {
-  constructor(
-    @Inject(DRIZZLE) private readonly db: DrizzleDB,
-    private readonly queryParser: QueryParserService,
-  ) {}
+  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
 
-  async search(
-    rawQuery: string,
-    preferredSort: DeveloperSortKey = 'contributions',
-  ) {
-    const query = rawQuery.trim();
-    if (!query) {
-      throw new BadRequestException('Query parameter "q" is required');
-    }
-    if (query.length > MAX_SEARCH_QUERY_LENGTH) {
-      throw new BadRequestException(
-        `Query must be at most ${MAX_SEARCH_QUERY_LENGTH} characters`,
-      );
-    }
-
-    const parsed = await this.queryParser.parseQuery(query);
-    const effectiveParsed = {
-      ...parsed,
-      sort: this.resolveEffectiveSort(parsed, preferredSort),
-    };
+  async search(parsedInput: ParsedQuery) {
+    const parsed = this.validateAndNormalize(parsedInput);
     const resolvedLocationSlugs = [
       ...resolveLocationSlugs(parsed.locationSlugs, parsed.zone),
     ];
     const interpretation = this.buildInterpretation(
-      effectiveParsed,
+      parsed,
       resolvedLocationSlugs,
     );
     const developersResult = await this.executeSearch(
-      effectiveParsed,
+      parsed,
       resolvedLocationSlugs,
     );
 
     return {
-      query,
       interpretation,
       developers: developersResult,
     };
   }
 
-  private resolveEffectiveSort(
-    parsed: ParsedQuery,
-    preferredSort: DeveloperSortKey,
-  ): ParsedQuery['sort'] {
-    if (parsed.sort === 'languageShare') {
-      return 'languageShare';
-    }
-    if (
-      parsed.sort === 'followers' ||
-      parsed.sort === 'stars' ||
-      parsed.sort === 'rank'
-    ) {
-      return parsed.sort;
-    }
-    if (preferredSort === 'rank') {
-      return 'rank';
-    }
-    return preferredSort;
+  async getFacets(): Promise<SearchFacetsResponse> {
+    const languageRows = await this.db
+      .select({
+        name: developerLanguages.language,
+        count: countDistinct(developerLanguages.developerGithubId),
+      })
+      .from(developerLanguages)
+      .groupBy(developerLanguages.language)
+      .orderBy(desc(countDistinct(developerLanguages.developerGithubId)));
+
+    const validSlugs = new Set(LOCATION_SLUGS);
+
+    return {
+      languages: languageRows.map((row) => ({
+        name: row.name,
+        count: Number(row.count),
+      })),
+      locations: LOCATION_CATALOG.filter(
+        (location) =>
+          location.kind !== 'country' && validSlugs.has(location.slug),
+      ).map((location) => ({
+        slug: location.slug,
+        name: location.name,
+        kind: location.kind as 'region' | 'city',
+      })),
+      zones: (['north', 'central', 'south'] as const).map((zone) => ({
+        id: zone,
+        label: ZONE_LABELS[zone],
+      })),
+    };
+  }
+
+  private validateAndNormalize(parsedInput: ParsedQuery): ParsedQuery {
+    const normalized = normalizeSearchInput(parsedInput);
+    const validSlugs = new Set(LOCATION_SLUGS);
+
+    return {
+      ...normalized,
+      locationSlugs: normalized.locationSlugs.filter((slug) =>
+        validSlugs.has(slug),
+      ),
+    };
   }
 
   private buildInterpretation(
@@ -245,7 +253,7 @@ export class SearchService {
     const matchedLocations = await this.db
       .select({ id: locations.id })
       .from(locations)
-      .where(inArray(locations.slug, resolvedLocationSlugs));
+      .where(inArray(locations.slug, [...resolvedLocationSlugs]));
 
     if (matchedLocations.length === 0) {
       return eq(developers.locationId, NO_MATCHING_LOCATION_ID);

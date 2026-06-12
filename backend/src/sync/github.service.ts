@@ -267,8 +267,7 @@ export class GithubService {
           contributions:
             user?.contributionsCollection?.contributionCalendar
               .totalContributions ?? 0,
-          commits:
-            user?.contributionsCollection?.totalCommitContributions ?? 0,
+          commits: user?.contributionsCollection?.totalCommitContributions ?? 0,
           prs: user?.pullRequests?.totalCount ?? 0,
           issues: user?.issues?.totalCount ?? 0,
           reviews:

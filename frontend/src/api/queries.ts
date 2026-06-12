@@ -13,11 +13,16 @@ import {
   fetchMapData,
   fetchMe,
   fetchSearch,
+  fetchSearchFacets,
   fetchStats,
   logout,
   updateMyProfile,
 } from './client'
-import type { UpdateProfileInput } from '../types/api'
+import {
+  DEFAULT_SEARCH_PARAMS,
+  type SearchParams,
+  type UpdateProfileInput,
+} from '../types/api'
 import { fetchGithubStars } from '../lib/github'
 import type { DeveloperSortKey } from '../types/api'
 
@@ -27,8 +32,8 @@ export const queryKeys = {
   githubStars: ['github', 'stars'] as const,
   me: ['auth', 'me'] as const,
   developer: (login: string) => ['developers', login] as const,
-  search: (query: string, sort: DeveloperSortKey) =>
-    ['search', query, sort] as const,
+  search: (params: SearchParams) => ['search', params] as const,
+  searchFacets: ['search', 'facets'] as const,
   countryDevelopers: (sort: DeveloperSortKey) =>
     ['country', 'developers', sort] as const,
   locationDevelopers: (slug: string, sort: DeveloperSortKey) =>
@@ -49,6 +54,12 @@ export const githubStarsQueryOptions = queryOptions({
   queryKey: queryKeys.githubStars,
   queryFn: fetchGithubStars,
   staleTime: 30 * 60 * 1000,
+})
+
+export const searchFacetsQueryOptions = queryOptions({
+  queryKey: queryKeys.searchFacets,
+  queryFn: fetchSearchFacets,
+  staleTime: 10 * 60 * 1000,
 })
 
 type DevelopersPage = {
@@ -99,6 +110,10 @@ export function useGithubStars() {
   return useQuery(githubStarsQueryOptions)
 }
 
+export function useSearchFacets() {
+  return useQuery(searchFacetsQueryOptions)
+}
+
 export function useCountryDevelopers(sort: DeveloperSortKey, enabled = true) {
   return useInfiniteQuery({
     ...countryDevelopersInfiniteQueryOptions(sort),
@@ -117,11 +132,12 @@ export function useLocationDevelopers(
   })
 }
 
-export function useSearch(query: string | null, sort: DeveloperSortKey) {
+export function useSearch(params: SearchParams | null, enabled = true) {
+  const effectiveParams = params ?? DEFAULT_SEARCH_PARAMS
   return useQuery({
-    queryKey: queryKeys.search(query ?? '', sort),
-    queryFn: () => fetchSearch(query!, sort),
-    enabled: !!query,
+    queryKey: queryKeys.search(effectiveParams),
+    queryFn: () => fetchSearch(effectiveParams),
+    enabled: enabled && params != null,
     staleTime: 5 * 60 * 1000,
   })
 }
