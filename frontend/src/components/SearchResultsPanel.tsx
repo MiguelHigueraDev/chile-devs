@@ -1,5 +1,6 @@
 import { useSearch } from "../api/queries";
 import { useStackedSheetDismissGuard } from "../lib/stacked-sheet-dismiss";
+import { RANK_SORT_SUMMARY_LABEL } from "../lib/rank";
 import type { DeveloperSortKey, SearchInterpretation } from "../types/api";
 import { DeveloperList } from "./DeveloperList";
 import { Badge } from "@/components/ui/badge";
@@ -60,6 +61,7 @@ function formatInterpretationChips(
     contributions: "by contributions",
     followers: "by followers",
     stars: "by stars",
+    rank: `by ${RANK_SORT_SUMMARY_LABEL}`,
     languageShare: interpretation.shareLanguage
       ? `by ${interpretation.shareLanguage} share`
       : "by language share",

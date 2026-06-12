@@ -8,7 +8,7 @@ export type MapLocation = {
   totalContributions: number;
 };
 
-export type DeveloperSortKey = 'contributions' | 'followers' | 'stars';
+export type DeveloperSortKey = 'contributions' | 'followers' | 'stars' | 'rank';
 
 export type SearchSortKey = DeveloperSortKey | 'languageShare';
 
@@ -25,6 +25,9 @@ export type DeveloperSummary = {
   followers: number;
   totalStars: number;
   topLanguages: TopLanguage[];
+  rankLevel: string | null;
+  rankScore: number | null;
+  percentileCl: number | null;
   profileUrl: string;
   rawLocation: string | null;
 };

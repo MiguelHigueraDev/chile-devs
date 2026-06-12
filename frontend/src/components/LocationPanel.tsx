@@ -3,6 +3,7 @@ import { useCountryDevelopers, useLocationDevelopers } from "../api/queries";
 import { isAllChileLocation } from "../lib/all-chile-location";
 import { useStackedSheetDismissGuard } from "../lib/stacked-sheet-dismiss";
 import { formatNumber } from "../lib/utils";
+import { RANK_SORT_LABEL } from "../lib/rank";
 import type { DeveloperSortKey, MapLocation } from "../types/api";
 import { DeveloperList } from "./DeveloperList";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +40,7 @@ const SORT_OPTIONS: Array<{ value: DeveloperSortKey; label: string }> = [
   { value: "contributions", label: "Contributions (last year)" },
   { value: "followers", label: "Followers" },
   { value: "stars", label: "Stars" },
+  { value: "rank", label: RANK_SORT_LABEL },
 ];
 
 function LocationDevelopersList({

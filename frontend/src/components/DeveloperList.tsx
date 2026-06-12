@@ -3,6 +3,8 @@ import { formatNumber } from "../lib/utils";
 import type { DeveloperSortKey, DeveloperSummary } from "../types/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TopLanguagesBar } from "./TopLanguagesBar";
+import { RankBadge } from "./RankBadge";
+import { hasRankData, RANK_SORT_SUMMARY_LABEL } from "../lib/rank";
 import { cn } from "@/lib/utils";
 
 export type DeveloperMetricKey = DeveloperSortKey | "languageShare";
@@ -19,6 +21,7 @@ const SORT_LABELS: Record<DeveloperMetricKey, string> = {
   contributions: "contributions",
   followers: "followers",
   stars: "stars",
+  rank: RANK_SORT_SUMMARY_LABEL,
   languageShare: "language share",
 };
 
@@ -39,6 +42,9 @@ function getDeveloperMetric(
   if (sortBy === "stars") {
     return dev.totalStars;
   }
+  if (sortBy === "rank") {
+    return dev.rankScore ?? 0;
+  }
   if (sortBy === "languageShare" && shareLanguage) {
     const match = dev.topLanguages.find(
       (language) => language.name.toLowerCase() === shareLanguage.toLowerCase(),
@@ -48,9 +54,16 @@ function getDeveloperMetric(
   return dev.contributions;
 }
 
-function formatMetricValue(value: number, sortBy: DeveloperMetricKey): string {
+function formatMetricValue(
+  value: number,
+  sortBy: DeveloperMetricKey,
+  developer?: DeveloperSummary,
+): string {
   if (sortBy === "languageShare") {
     return `${value}%`;
+  }
+  if (sortBy === "rank" && developer?.rankLevel) {
+    return developer.rankLevel;
   }
   return formatNumber(value);
 }
@@ -129,10 +142,13 @@ export function DeveloperList({
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
-              <div className="inline-flex items-center gap-1">
+              <div className="inline-flex flex-wrap items-center gap-1.5">
                 <span className="text-foreground text-sm font-medium">
                   {dev.login}
                 </span>
+                {sortBy !== "rank" && hasRankData(dev) && (
+                  <RankBadge developer={dev} size="xs" />
+                )}
                 <a
                   href={dev.profileUrl}
                   target="_blank"
@@ -156,9 +172,13 @@ export function DeveloperList({
                 />
               )}
             </div>
-            <span className="text-foreground shrink-0 text-sm font-semibold tabular-nums">
-              {formatMetricValue(metric, sortBy)}
-            </span>
+            {sortBy === "rank" && hasRankData(dev) ? (
+              <RankBadge developer={dev} size="sm" className="shrink-0" />
+            ) : (
+              <span className="text-foreground shrink-0 text-sm font-semibold tabular-nums">
+                {formatMetricValue(metric, sortBy, dev)}
+              </span>
+            )}
           </li>
         );
       })}

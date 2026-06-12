@@ -1,4 +1,5 @@
 import {
+  doublePrecision,
   index,
   integer,
   jsonb,
@@ -37,31 +38,45 @@ export const locations = pgTable('locations', {
   searchTerms: text('search_terms').array().notNull(),
 });
 
-export const developers = pgTable('developers', {
-  githubId: text('github_id').primaryKey(),
-  login: text('login').notNull().unique(),
-  name: text('name'),
-  avatarUrl: text('avatar_url').notNull(),
-  rawLocation: text('raw_location'),
-  locationId: integer('location_id')
-    .notNull()
-    .references(() => locations.id),
-  followers: integer('followers').notNull().default(0),
-  contributions: integer('contributions').notNull().default(0),
-  totalStars: integer('total_stars').notNull().default(0),
-  topLanguages: jsonb('top_languages')
-    .$type<TopLanguage[]>()
-    .notNull()
-    .default([]),
-  profileUrl: text('profile_url').notNull(),
-  portfolioUrl: text('portfolio_url'),
-  description: text('description'),
-  role: text('role'),
-  claimedAt: timestamp('claimed_at', { withTimezone: true }),
-  lastSeenAt: timestamp('last_seen_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const developers = pgTable(
+  'developers',
+  {
+    githubId: text('github_id').primaryKey(),
+    login: text('login').notNull().unique(),
+    name: text('name'),
+    avatarUrl: text('avatar_url').notNull(),
+    rawLocation: text('raw_location'),
+    locationId: integer('location_id')
+      .notNull()
+      .references(() => locations.id),
+    followers: integer('followers').notNull().default(0),
+    contributions: integer('contributions').notNull().default(0),
+    // Per-metric inputs for rank (see sync/rank.ts). commits/reviews = last 12 months.
+    commits: integer('commits').notNull().default(0),
+    prs: integer('prs').notNull().default(0),
+    issues: integer('issues').notNull().default(0),
+    reviews: integer('reviews').notNull().default(0),
+    totalStars: integer('total_stars').notNull().default(0),
+    topLanguages: jsonb('top_languages')
+      .$type<TopLanguage[]>()
+      .notNull()
+      .default([]),
+    // rankScore: 0–100, lower is better. rankLevel: S (best) through C (worst).
+    // percentileCl: local standing among indexed Chilean devs (0 = #1, 100 = last).
+    rankScore: doublePrecision('rank_score'),
+    rankLevel: text('rank_level'),
+    percentileCl: doublePrecision('percentile_cl'),
+    profileUrl: text('profile_url').notNull(),
+    portfolioUrl: text('portfolio_url'),
+    description: text('description'),
+    role: text('role'),
+    claimedAt: timestamp('claimed_at', { withTimezone: true }),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index('idx_developers_rank_score').on(table.rankScore)],
+);
 
 export const developerLanguages = pgTable(
   'developer_languages',

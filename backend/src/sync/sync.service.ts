@@ -21,10 +21,15 @@ import {
   type GitHubEnrichment,
   type GitHubSearchHit,
 } from './github.service';
+import { calculateRank } from './rank';
 
 type ExistingDeveloper = {
   githubId: string;
   contributions: number;
+  commits: number;
+  prs: number;
+  issues: number;
+  reviews: number;
   totalStars: number;
   topLanguages: TopLanguage[];
   lastSeenAt: Date;
@@ -182,6 +187,10 @@ export class SyncService implements OnModuleInit {
               );
               const stats = enrichment.get(hit.login) ?? {
                 contributions: 0,
+                commits: 0,
+                prs: 0,
+                issues: 0,
+                reviews: 0,
                 totalStars: 0,
                 topLanguages: [],
               };
@@ -211,6 +220,10 @@ export class SyncService implements OnModuleInit {
                 hit,
                 {
                   contributions: existing.contributions,
+                  commits: existing.commits,
+                  prs: existing.prs,
+                  issues: existing.issues,
+                  reviews: existing.reviews,
                   totalStars: existing.totalStars,
                   topLanguages: existing.topLanguages,
                 },
@@ -234,6 +247,8 @@ export class SyncService implements OnModuleInit {
           this.logger.warn(`Skipping term "${term}": ${message}`);
         }
       }
+
+      await this.refreshChilePercentiles();
 
       await this.db
         .update(syncRuns)
@@ -313,11 +328,17 @@ export class SyncService implements OnModuleInit {
       user,
       {
         contributions: user.contributions,
+        commits: user.commits,
+        prs: user.prs,
+        issues: user.issues,
+        reviews: user.reviews,
         totalStars: user.totalStars,
         topLanguages: user.topLanguages,
       },
       classified.id,
     );
+
+    await this.refreshChilePercentiles();
 
     if (isNew) {
       this.logger.log(
@@ -406,6 +427,10 @@ export class SyncService implements OnModuleInit {
       .select({
         githubId: developers.githubId,
         contributions: developers.contributions,
+        commits: developers.commits,
+        prs: developers.prs,
+        issues: developers.issues,
+        reviews: developers.reviews,
         totalStars: developers.totalStars,
         topLanguages: developers.topLanguages,
         lastSeenAt: developers.lastSeenAt,
@@ -419,6 +444,10 @@ export class SyncService implements OnModuleInit {
         {
           githubId: row.githubId,
           contributions: row.contributions,
+          commits: row.commits,
+          prs: row.prs,
+          issues: row.issues,
+          reviews: row.reviews,
           totalStars: row.totalStars,
           topLanguages: row.topLanguages,
           lastSeenAt: row.lastSeenAt,
@@ -427,11 +456,52 @@ export class SyncService implements OnModuleInit {
     );
   }
 
+  // Turns raw GitHub stats into rankScore (0–100, lower is better) and rankLevel (S–C).
+  private buildRankFields(
+    enrichment: GitHubEnrichment,
+    followers: number,
+  ): Pick<typeof developers.$inferInsert, 'rankScore' | 'rankLevel'> {
+    const rank = calculateRank({
+      commits: enrichment.commits,
+      prs: enrichment.prs,
+      issues: enrichment.issues,
+      reviews: enrichment.reviews,
+      stars: enrichment.totalStars,
+      followers,
+    });
+
+    return {
+      rankScore: rank.score,
+      rankLevel: rank.level,
+    };
+  }
+
+  // Chile-relative standing: where does this developer sit among everyone in our DB?
+  // rank_score ASC → best local devs have the lowest score.
+  // PERCENT_RANK × 100 → 0 for #1, ~100 for last place.
+  // The UI shows this as "Top X% in Chile" (see frontend formatTopPercentChile).
+  private async refreshChilePercentiles(): Promise<void> {
+    await this.db.execute(sql`
+      UPDATE developers AS d
+      SET percentile_cl = ranked.pct
+      FROM (
+        SELECT
+          github_id,
+          PERCENT_RANK() OVER (ORDER BY rank_score ASC) * 100 AS pct
+        FROM developers
+        WHERE rank_score IS NOT NULL
+      ) AS ranked
+      WHERE d.github_id = ranked.github_id
+    `);
+  }
+
   private async upsertDeveloper(
     hit: GitHubSearchHit,
     enrichment: GitHubEnrichment,
     locationId: number,
   ): Promise<void> {
+    const rankFields = this.buildRankFields(enrichment, hit.followers);
+
     await this.db.transaction(async (tx) => {
       await tx
         .insert(developers)
@@ -444,10 +514,15 @@ export class SyncService implements OnModuleInit {
           locationId,
           followers: hit.followers,
           contributions: enrichment.contributions,
+          commits: enrichment.commits,
+          prs: enrichment.prs,
+          issues: enrichment.issues,
+          reviews: enrichment.reviews,
           totalStars: enrichment.totalStars,
           topLanguages: enrichment.topLanguages,
           profileUrl: hit.profileUrl,
           lastSeenAt: new Date(),
+          ...rankFields,
         })
         .onConflictDoUpdate({
           target: developers.githubId,
@@ -459,10 +534,15 @@ export class SyncService implements OnModuleInit {
             locationId,
             followers: hit.followers,
             contributions: enrichment.contributions,
+            commits: enrichment.commits,
+            prs: enrichment.prs,
+            issues: enrichment.issues,
+            reviews: enrichment.reviews,
             totalStars: enrichment.totalStars,
             topLanguages: enrichment.topLanguages,
             profileUrl: hit.profileUrl,
             lastSeenAt: new Date(),
+            ...rankFields,
           },
         });
 
@@ -476,9 +556,11 @@ export class SyncService implements OnModuleInit {
 
   private async upsertDeveloperLightweight(
     hit: GitHubSearchHit,
-    _existingStats: GitHubEnrichment,
+    existingStats: GitHubEnrichment,
     locationId: number,
   ): Promise<void> {
+    const rankFields = this.buildRankFields(existingStats, hit.followers);
+
     await this.db
       .update(developers)
       .set({
@@ -490,6 +572,7 @@ export class SyncService implements OnModuleInit {
         followers: hit.followers,
         profileUrl: hit.profileUrl,
         lastSeenAt: new Date(),
+        ...rankFields,
       })
       .where(eq(developers.githubId, hit.githubId));
   }

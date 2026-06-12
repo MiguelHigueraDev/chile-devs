@@ -57,6 +57,13 @@
       "when": 1781196000000,
       "tag": "0007_sync_progress",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781197000000,
+      "tag": "0008_developer_rank",
+      "breakpoints": true
     }
   ]
 }

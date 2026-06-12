@@ -30,6 +30,7 @@ export const DEVELOPER_SORT_KEYS = [
   'contributions',
   'followers',
   'stars',
+  'rank',
 ] as const;
 
 export type DeveloperSortKey = (typeof DEVELOPER_SORT_KEYS)[number];
@@ -38,6 +39,7 @@ const SORT_COLUMNS: Record<DeveloperSortKey, AnyColumn> = {
   contributions: developers.contributions,
   followers: developers.followers,
   stars: developers.totalStars,
+  rank: developers.rankScore,
 };
 
 type DeveloperCursor = {
@@ -88,7 +90,7 @@ export function parseDeveloperSort(sort?: string): DeveloperSortKey {
   if (!sort || sort === 'contributions') {
     return 'contributions';
   }
-  if (sort === 'followers' || sort === 'stars') {
+  if (sort === 'followers' || sort === 'stars' || sort === 'rank') {
     return sort;
   }
   return 'contributions';
@@ -152,17 +154,27 @@ export class ApiService {
       }
     }
     const sortColumn = SORT_COLUMNS[sort];
+    // rankScore is lower-is-better (S grade ≈ low score), unlike contributions/followers/stars.
+    const sortAscending = sort === 'rank';
 
     const locationFilter =
       locationId != null ? eq(developers.locationId, locationId) : undefined;
     const cursorFilter = decodedCursor
-      ? or(
-          lt(sortColumn, decodedCursor.value),
-          and(
-            eq(sortColumn, decodedCursor.value),
-            gt(developers.githubId, decodedCursor.githubId),
-          ),
-        )
+      ? sortAscending
+        ? or(
+            gt(sortColumn, decodedCursor.value),
+            and(
+              eq(sortColumn, decodedCursor.value),
+              gt(developers.githubId, decodedCursor.githubId),
+            ),
+          )
+        : or(
+            lt(sortColumn, decodedCursor.value),
+            and(
+              eq(sortColumn, decodedCursor.value),
+              gt(developers.githubId, decodedCursor.githubId),
+            ),
+          )
       : undefined;
 
     const filters = [locationFilter, cursorFilter].filter(Boolean);
@@ -183,12 +195,18 @@ export class ApiService {
         followers: developers.followers,
         totalStars: developers.totalStars,
         topLanguages: developers.topLanguages,
+        rankLevel: developers.rankLevel,
+        rankScore: developers.rankScore,
+        percentileCl: developers.percentileCl,
         profileUrl: developers.profileUrl,
         rawLocation: developers.rawLocation,
       })
       .from(developers)
       .where(whereClause)
-      .orderBy(desc(sortColumn), asc(developers.githubId))
+      .orderBy(
+        sortAscending ? asc(sortColumn) : desc(sortColumn),
+        asc(developers.githubId),
+      )
       .limit(pageSize + 1);
 
     const hasMore = devs.length > pageSize;
@@ -199,7 +217,9 @@ export class ApiService {
         ? lastDev?.contributions
         : sort === 'followers'
           ? lastDev?.followers
-          : lastDev?.totalStars;
+          : sort === 'stars'
+            ? lastDev?.totalStars
+            : lastDev?.rankScore;
     const nextCursor =
       hasMore && lastDev && lastDevSortValue != null
         ? encodeCursor(sort, lastDevSortValue, lastDev.githubId)
@@ -320,6 +340,9 @@ export class ApiService {
     followers: number;
     totalStars: number;
     topLanguages: (typeof developers.$inferSelect)['topLanguages'];
+    rankLevel: string | null;
+    rankScore: number | null;
+    percentileCl: number | null;
     profileUrl: string;
     rawLocation: string | null;
     portfolioUrl: string | null;
@@ -336,6 +359,9 @@ export class ApiService {
       followers: row.followers,
       totalStars: row.totalStars,
       topLanguages: row.topLanguages,
+      rankLevel: row.rankLevel,
+      rankScore: row.rankScore,
+      percentileCl: row.percentileCl,
       profileUrl: row.profileUrl,
       rawLocation: row.rawLocation,
       locationName: row.locationName,
@@ -356,6 +382,9 @@ export class ApiService {
         followers: developers.followers,
         totalStars: developers.totalStars,
         topLanguages: developers.topLanguages,
+        rankLevel: developers.rankLevel,
+        rankScore: developers.rankScore,
+        percentileCl: developers.percentileCl,
         profileUrl: developers.profileUrl,
         rawLocation: developers.rawLocation,
         portfolioUrl: developers.portfolioUrl,
@@ -427,6 +456,9 @@ export class ApiService {
         followers: developers.followers,
         totalStars: developers.totalStars,
         topLanguages: developers.topLanguages,
+        rankLevel: developers.rankLevel,
+        rankScore: developers.rankScore,
+        percentileCl: developers.percentileCl,
         profileUrl: developers.profileUrl,
         rawLocation: developers.rawLocation,
         portfolioUrl: developers.portfolioUrl,
