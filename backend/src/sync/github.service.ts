@@ -215,13 +215,17 @@ export class GithubService {
 
       batch.forEach((login, index) => {
         const user = response.data?.[`u${index}`];
-        enrichment.set(login, {
+        const stats: GitHubEnrichment = {
           contributions:
             user?.contributionsCollection?.contributionCalendar
               .totalContributions ?? 0,
           totalStars: this.sumPublicRepoStars(user?.starRepos?.nodes),
           topLanguages: this.aggregateTopLanguages(user?.langRepos?.nodes),
-        });
+        };
+        enrichment.set(login, stats);
+        this.logger.log(
+          `Enriched @${login}: ${stats.contributions} contributions, ${stats.totalStars} stars, languages=[${stats.topLanguages.map((l) => l.name).join(', ')}]`,
+        );
       });
     }
 
@@ -549,13 +553,22 @@ export class GithubService {
     }
 
     if (state.remaining < 50) {
+      this.logger.warn(
+        `Rate limit critical: ${state.remaining} points remaining, pausing until ${state.resetAt}`,
+      );
       await this.waitForRateLimit(state.resetAt);
       return;
     }
 
     if (state.remaining < 200) {
+      this.logger.warn(
+        `Rate limit low: ${state.remaining} points remaining, throttling 300ms`,
+      );
       await this.sleep(300);
     } else if (state.remaining < 500) {
+      this.logger.warn(
+        `Rate limit moderate: ${state.remaining} points remaining, throttling 100ms`,
+      );
       await this.sleep(100);
     }
   }
@@ -588,7 +601,7 @@ export class GithubService {
       if (retryAfter) {
         const waitMs = Number(retryAfter) * 1000 + 1000;
         this.logger.warn(
-          `Secondary rate limit hit, waiting ${Math.ceil(waitMs / 1000)}s...`,
+          `Secondary rate limit hit (HTTP ${response.status}), waiting ${Math.ceil(waitMs / 1000)}s before retry`,
         );
         await this.sleep(waitMs);
         return this.graphql(query, variables, attempt);
@@ -597,9 +610,16 @@ export class GithubService {
       const resetHeader = response.headers.get('x-ratelimit-reset');
       if (resetHeader) {
         const resetAt = new Date(Number(resetHeader) * 1000).toISOString();
+        this.logger.warn(
+          `Primary rate limit hit (HTTP ${response.status}), waiting until ${resetAt}`,
+        );
         await this.waitForRateLimit(resetAt);
         return this.graphql(query, variables, attempt);
       }
+
+      this.logger.warn(
+        `Rate limit response (HTTP ${response.status}) with no Retry-After or x-ratelimit-reset header`,
+      );
     }
 
     if (response.status >= 500 && attempt < MAX_GRAPHQL_RETRIES) {
@@ -643,7 +663,10 @@ export class GithubService {
   private async waitForRateLimit(resetAt: string): Promise<void> {
     const resetTime = new Date(resetAt).getTime();
     const waitMs = Math.max(resetTime - Date.now() + 1000, 1000);
-    this.logger.warn(`Rate limit low, waiting ${Math.ceil(waitMs / 1000)}s...`);
+    const remaining = this.rateLimitState?.remaining;
+    this.logger.warn(
+      `Rate limit exhausted${remaining != null ? ` (${remaining} points left)` : ''}, waiting ${Math.ceil(waitMs / 1000)}s until ${resetAt}`,
+    );
     await this.sleep(waitMs);
   }
 

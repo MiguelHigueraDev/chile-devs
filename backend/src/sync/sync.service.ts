@@ -189,6 +189,9 @@ export class SyncService implements OnModuleInit {
               usersUpserted += 1;
               if (isNew) {
                 usersDiscovered += 1;
+                this.logger.log(
+                  `Inserted new developer: @${hit.login} (location: ${classified.slug}, raw: ${hit.rawLocation ?? 'none'})`,
+                );
               } else {
                 usersUpdated += 1;
               }
@@ -299,6 +302,9 @@ export class SyncService implements OnModuleInit {
       allLocations,
     );
 
+    const existing = await this.loadExistingDevelopers([user.githubId]);
+    const isNew = !existing.has(user.githubId);
+
     await this.upsertDeveloper(
       user,
       {
@@ -309,9 +315,15 @@ export class SyncService implements OnModuleInit {
       classified.id,
     );
 
-    this.logger.log(
-      `Synced user "${user.login}" (location: ${classified.slug}).`,
-    );
+    if (isNew) {
+      this.logger.log(
+        `Inserted new developer: @${user.login} (location: ${classified.slug}, raw: ${user.rawLocation ?? 'none'})`,
+      );
+    } else {
+      this.logger.log(
+        `Updated developer: @${user.login} (location: ${classified.slug}).`,
+      );
+    }
 
     return {
       login: user.login,
