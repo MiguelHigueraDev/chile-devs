@@ -30,6 +30,8 @@ export type DeveloperSummary = {
   rankLevel: string | null;
   rankScore: number | null;
   percentileCl: number | null;
+  rankLocation: number | null;
+  rankCountry: number | null;
   profileUrl: string;
   rawLocation: string | null;
 };

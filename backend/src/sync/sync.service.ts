@@ -266,7 +266,7 @@ export class SyncService implements OnModuleInit {
         }
       }
 
-      await this.refreshChilePercentiles();
+      await this.refreshRankings();
 
       await this.db
         .update(syncRuns)
@@ -362,7 +362,7 @@ export class SyncService implements OnModuleInit {
       await this.upsertDeveloper(user, user.enrichment, classified.id);
     }
 
-    await this.refreshChilePercentiles();
+    await this.refreshRankings();
 
     if (isNew) {
       this.logger.log(
@@ -514,18 +514,28 @@ export class SyncService implements OnModuleInit {
     };
   }
 
-  // Chile-relative standing: where does this developer sit among everyone in our DB?
-  // rank_score ASC → best local devs have the lowest score.
-  // PERCENT_RANK × 100 → 0 for #1, ~100 for last place.
-  // The UI shows this as "Top X% in Chile" (see frontend formatTopPercentChile).
-  private async refreshChilePercentiles(): Promise<void> {
+  // Chile-relative standing and integer ranks computed in one pass over developers.
+  // rank_score ASC → best devs have the lowest score.
+  // PERCENT_RANK × 100 → 0 for #1, ~100 for last place (percentileCl).
+  // ROW_NUMBER → integer position 1, 2, 3… within location and country.
+  private async refreshRankings(): Promise<void> {
     await this.db.execute(sql`
       UPDATE developers AS d
-      SET percentile_cl = ranked.pct
+      SET
+        percentile_cl = ranked.pct,
+        rank_location = ranked.rank_location,
+        rank_country = ranked.rank_country
       FROM (
         SELECT
           github_id,
-          PERCENT_RANK() OVER (ORDER BY rank_score ASC) * 100 AS pct
+          PERCENT_RANK() OVER (ORDER BY rank_score ASC) * 100 AS pct,
+          ROW_NUMBER() OVER (
+            PARTITION BY location_id
+            ORDER BY rank_score ASC, total_stars DESC, followers DESC, contributions DESC, github_id ASC
+          ) AS rank_location,
+          ROW_NUMBER() OVER (
+            ORDER BY rank_score ASC, total_stars DESC, followers DESC, contributions DESC, github_id ASC
+          ) AS rank_country
         FROM developers
         WHERE rank_score IS NOT NULL
       ) AS ranked

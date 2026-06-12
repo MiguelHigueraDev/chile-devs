@@ -46,6 +46,8 @@ type DeveloperRow = {
   rankLevel: string | null;
   rankScore: number | null;
   percentileCl: number | null;
+  rankLocation: number | null;
+  rankCountry: number | null;
   profileUrl: string;
   rawLocation: string | null;
 };
@@ -61,6 +63,8 @@ const developerSelect = {
   rankLevel: developers.rankLevel,
   rankScore: developers.rankScore,
   percentileCl: developers.percentileCl,
+  rankLocation: developers.rankLocation,
+  rankCountry: developers.rankCountry,
   profileUrl: developers.profileUrl,
   rawLocation: developers.rawLocation,
 } as const;

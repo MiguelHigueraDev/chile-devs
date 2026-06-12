@@ -226,6 +226,8 @@ export class ApiService {
         rankLevel: developers.rankLevel,
         rankScore: developers.rankScore,
         percentileCl: developers.percentileCl,
+        rankLocation: developers.rankLocation,
+        rankCountry: developers.rankCountry,
         profileUrl: developers.profileUrl,
         rawLocation: developers.rawLocation,
       })
@@ -385,6 +387,8 @@ export class ApiService {
     rankLevel: string | null;
     rankScore: number | null;
     percentileCl: number | null;
+    rankLocation: number | null;
+    rankCountry: number | null;
     profileUrl: string;
     rawLocation: string | null;
     portfolioUrl: string | null;
@@ -404,6 +408,8 @@ export class ApiService {
       rankLevel: row.rankLevel,
       rankScore: row.rankScore,
       percentileCl: row.percentileCl,
+      rankLocation: row.rankLocation,
+      rankCountry: row.rankCountry,
       profileUrl: row.profileUrl,
       rawLocation: row.rawLocation,
       locationName: row.locationName,
@@ -427,6 +433,8 @@ export class ApiService {
         rankLevel: developers.rankLevel,
         rankScore: developers.rankScore,
         percentileCl: developers.percentileCl,
+        rankLocation: developers.rankLocation,
+        rankCountry: developers.rankCountry,
         profileUrl: developers.profileUrl,
         rawLocation: developers.rawLocation,
         portfolioUrl: developers.portfolioUrl,
@@ -501,6 +509,8 @@ export class ApiService {
         rankLevel: developers.rankLevel,
         rankScore: developers.rankScore,
         percentileCl: developers.percentileCl,
+        rankLocation: developers.rankLocation,
+        rankCountry: developers.rankCountry,
         profileUrl: developers.profileUrl,
         rawLocation: developers.rawLocation,
         portfolioUrl: developers.portfolioUrl,
