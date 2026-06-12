@@ -3,6 +3,7 @@ import { LogIn, LogOut, Pencil, SlidersHorizontal, User } from 'lucide-react'
 import { useMe, useLogoutMutation, useStats } from '../api/queries'
 import { getGitHubAuthUrl } from '../api/client'
 import { getGitHubAvatarUrl } from '../lib/github'
+import { toSafeHttpsUrl } from '../lib/safe-url'
 import { createAllChileLocation } from '../lib/all-chile-location'
 import type { MapLocation } from '../types/api'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -29,6 +30,9 @@ export function StatsHeader({
   const logoutMutation = useLogoutMutation()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const avatarUrl =
+    toSafeHttpsUrl(me?.avatarUrl) ??
+    (me?.login ? getGitHubAvatarUrl(me.login) : null)
 
   useEffect(() => {
     if (!menuOpen) return
@@ -95,10 +99,9 @@ export function StatsHeader({
               onClick={() => setMenuOpen((open) => !open)}
             >
               <Avatar className="size-6">
-                <AvatarImage
-                  src={me.avatarUrl ?? getGitHubAvatarUrl(me.login)}
-                  alt={me.login}
-                />
+                {avatarUrl ? (
+                  <AvatarImage src={avatarUrl} alt={me.login} />
+                ) : null}
                 <AvatarFallback className="text-[10px]">
                   {me.login.slice(0, 2).toUpperCase()}
                 </AvatarFallback>

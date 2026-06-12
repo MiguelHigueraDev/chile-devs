@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Controller,
+  Headers,
   Post,
   Query,
   UnauthorizedException,
@@ -16,14 +17,17 @@ export class SyncController {
   ) {}
 
   @Post()
-  async triggerSync(@Query('token') token?: string) {
-    this.validateSyncToken(token);
+  async triggerSync(@Headers('authorization') authorization?: string) {
+    this.validateSyncToken(this.extractBearerToken(authorization));
     return this.syncService.runSync();
   }
 
   @Post('user')
-  async syncUser(@Query('token') token?: string, @Query('user') user?: string) {
-    this.validateSyncToken(token);
+  async syncUser(
+    @Headers('authorization') authorization?: string,
+    @Query('user') user?: string,
+  ) {
+    this.validateSyncToken(this.extractBearerToken(authorization));
 
     const login = user?.trim();
     if (!login) {
@@ -31,6 +35,15 @@ export class SyncController {
     }
 
     return this.syncService.syncUser(login);
+  }
+
+  private extractBearerToken(authorization?: string): string | undefined {
+    if (!authorization?.toLowerCase().startsWith('bearer ')) {
+      return undefined;
+    }
+
+    const token = authorization.slice(7).trim();
+    return token || undefined;
   }
 
   private validateSyncToken(token?: string): void {

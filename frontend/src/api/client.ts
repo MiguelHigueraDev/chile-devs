@@ -26,6 +26,16 @@ function getApiBase(): string {
 
 const API_BASE = getApiBase();
 
+export class ApiError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
 type FetchJsonOptions = {
   method?: string;
   body?: unknown;
@@ -76,7 +86,7 @@ async function fetchJson<T>(
     } catch {
       // keep default message
     }
-    throw new Error(message);
+    throw new ApiError(response.status, message);
   }
   return response.json() as Promise<T>;
 }
@@ -203,10 +213,18 @@ export function updateMyProfile(
 
 export async function logout(): Promise<{ ok: boolean }> {
   try {
+    if (!getAuthToken()) {
+      return { ok: true };
+    }
     return await fetchJson<{ ok: boolean }>('/auth/logout', {
       method: 'POST',
       auth: true,
     });
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      return { ok: true };
+    }
+    throw error;
   } finally {
     clearAuthToken();
   }

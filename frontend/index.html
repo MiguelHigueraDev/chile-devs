@@ -36,24 +36,7 @@
         "url": "%SITE_URL%/"
       }
     </script>
-    <script>
-      (function () {
-        var hash = window.location.hash;
-        if (!hash.startsWith("#session=")) return;
-        var token = decodeURIComponent(hash.slice("#session=".length));
-        if (!token) return;
-        try {
-          localStorage.setItem("chile_devs_session", token);
-        } catch (error) {
-          console.error("Failed to store auth session", error);
-        }
-        window.history.replaceState(
-          null,
-          "",
-          window.location.pathname + window.location.search,
-        );
-      })();
-    </script>
+    <meta http-equiv="Content-Security-Policy" content="%CONTENT_SECURITY_POLICY%" />
   </head>
   <body>
     <div id="root"></div>

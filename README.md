@@ -42,7 +42,7 @@ Edit `backend/.env` and set at least:
 | `SESSION_SECRET` | Secret used to sign login session cookies |
 | `FRONTEND_URL` | Frontend origin for OAuth redirects (default: `http://localhost:5173`) |
 | `GOOGLE_GENERATIVE_AI_API_KEY` | Google AI Studio key — required for natural-language search |
-| `SYNC_TOKEN` | Secret for the manual sync endpoint |
+| `SYNC_TOKEN` | Secret for the manual sync endpoint — send as `Authorization: Bearer <token>` on `POST /api/sync` and `POST /api/sync/user`. For `POST /api/sync/user`, also include `?user=<login>`; omitting it returns HTTP 400. |
 
 ### GitHub OAuth setup (profile claiming)
 
