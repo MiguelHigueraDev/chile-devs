@@ -203,10 +203,18 @@ export function updateMyProfile(
 
 export async function logout(): Promise<{ ok: boolean }> {
   try {
+    if (!getAuthToken()) {
+      return { ok: true };
+    }
     return await fetchJson<{ ok: boolean }>('/auth/logout', {
       method: 'POST',
       auth: true,
     });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('API error 401')) {
+      return { ok: true };
+    }
+    throw error;
   } finally {
     clearAuthToken();
   }

@@ -67,6 +67,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @UseGuards(AuthGuard)
   logout(@Res({ passthrough: true }) reply: FastifyReply) {
     reply.clearCookie(
       this.authService.sessionCookieName,
