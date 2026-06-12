@@ -33,6 +33,7 @@ type ExistingDeveloper = {
   reviews: number;
   totalStars: number;
   topLanguages: TopLanguage[];
+  rankScore: number | null;
   lastSeenAt: Date;
 };
 
@@ -166,6 +167,7 @@ export class SyncService implements OnModuleInit {
               const existing = existingById.get(hit.githubId);
               if (
                 existing &&
+                existing.rankScore != null &&
                 Date.now() - existing.lastSeenAt.getTime() < enrichmentTtlMs
               ) {
                 freshHits.push({ hit, existing });
@@ -455,6 +457,7 @@ export class SyncService implements OnModuleInit {
         reviews: developers.reviews,
         totalStars: developers.totalStars,
         topLanguages: developers.topLanguages,
+        rankScore: developers.rankScore,
         lastSeenAt: developers.lastSeenAt,
       })
       .from(developers)
@@ -472,6 +475,7 @@ export class SyncService implements OnModuleInit {
           reviews: row.reviews,
           totalStars: row.totalStars,
           topLanguages: row.topLanguages,
+          rankScore: row.rankScore,
           lastSeenAt: row.lastSeenAt,
         },
       ]),

@@ -27,7 +27,7 @@ export function formatTopPercentChile(percentileCl: number | null): string | nul
   }
 
   // percentileCl is 0 for the best dev in Chile; round up so #1 shows "Top 1%".
-  const topPercent = Math.max(1, Math.round(percentileCl));
+  const topPercent = Math.max(1, Math.ceil(percentileCl));
   return `Top ${topPercent}% in Chile`;
 }
 
