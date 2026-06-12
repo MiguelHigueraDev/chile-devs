@@ -24,10 +24,11 @@ export const parsedQuerySchema = z
     (data) =>
       data.sort !== 'languageShare' ||
       (typeof data.shareLanguage === 'string' &&
-        data.shareLanguage.trim().length > 0),
+        data.shareLanguage.trim().length > 0) ||
+      (Array.isArray(data.languages) && data.languages.length === 1),
     {
       error: 'shareLanguage is required when sort is languageShare',
-      path: ['shareLanguage'],
+      path: ['shareLanguage', 'languages'],
     },
   );
 
