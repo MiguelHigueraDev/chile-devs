@@ -1,6 +1,5 @@
 import fastifyCookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
-import rateLimit from '@fastify/rate-limit';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import {
@@ -9,6 +8,7 @@ import {
 } from '@nestjs/platform-fastify';
 import { AppModule } from './app.module';
 import { parseFrontendUrlConfig } from './lib/frontend-url';
+import { setupRateLimit } from './rate-limit/setup-rate-limit';
 
 const PERMISSIONS_POLICY =
   'camera=(), microphone=(), geolocation=(), payment=(), usb=()';
@@ -29,10 +29,14 @@ async function bootstrap() {
     },
   });
 
-  await app.register(rateLimit, {
-    max: 100,
-    timeWindow: '1 minute',
-  });
+  const banService = await setupRateLimit(app);
+  app.enableShutdownHooks();
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .addHook('onClose', () => {
+      banService.disconnect();
+    });
 
   const fastify = app.getHttpAdapter().getInstance();
   fastify.addHook('onSend', (_request, reply, _payload, done) => {
