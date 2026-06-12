@@ -10,7 +10,7 @@ import {
 } from "react";
 import { useSearchFacets } from "../api/queries";
 import { useStackedSheetDismissGuard } from "../lib/stacked-sheet-dismiss";
-import { RANK_CALCULATING_MESSAGE, RANK_SORT_LABEL } from "../lib/rank";
+import { RANK_SORT_LABEL } from "../lib/rank";
 import {
   DEFAULT_SEARCH_PARAMS,
   type SearchParams,
@@ -884,12 +884,6 @@ export function SearchFilterSheet({
                   </Button>
                 ))}
               </div>
-
-              {draft.sort === "rank" && (
-                <p className="bg-destructive/90 rounded-md px-3 py-2 text-xs leading-snug text-white">
-                  {RANK_CALCULATING_MESSAGE}
-                </p>
-              )}
 
               {draft.sort === "languageShare" && draft.languages.length > 0 && (
                 <div className="space-y-2">
