@@ -1,5 +1,6 @@
 import fastifyCookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import {
@@ -26,6 +27,11 @@ async function bootstrap() {
       maxAge: 63_072_000,
       includeSubDomains: true,
     },
+  });
+
+  await app.register(rateLimit, {
+    max: 100,
+    timeWindow: '1 minute',
   });
 
   const fastify = app.getHttpAdapter().getInstance();
