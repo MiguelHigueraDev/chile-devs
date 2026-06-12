@@ -1,9 +1,11 @@
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { Star } from 'lucide-react';
 import {
   clampRankScore,
   formatTopPercentChile,
   hasRankData,
+  isElitePercentileChile,
   RANK_LEVEL_RING_COLORS,
   rankRingFillPercent,
 } from '../lib/rank';
@@ -61,6 +63,8 @@ export function RankBadge({
   const topPercent = showPercentile
     ? formatTopPercentChile(developer.percentileCl)
     : null;
+  const showEliteStar =
+    showPercentile && isElitePercentileChile(developer.percentileCl);
   const sizeConfig = SIZE_CONFIG[size];
   const letterClass =
     developer.rankLevel.length > 1
@@ -119,7 +123,16 @@ export function RankBadge({
         </span>
       </div>
       {topPercent && (
-        <Badge variant="secondary" className="text-xs font-medium tabular-nums">
+        <Badge
+          variant="secondary"
+          className="inline-flex items-center gap-1 text-xs font-medium tabular-nums"
+        >
+          {showEliteStar && (
+            <Star
+              className="size-3 shrink-0 fill-amber-400 text-amber-400"
+              aria-hidden="true"
+            />
+          )}
           {topPercent}
         </Badge>
       )}

@@ -8,7 +8,7 @@ import type { DeveloperSummary } from '../types/api';
  *   not just other Chilean developers.
  *
  * - percentileCl: your position within indexed Chilean devs (0 = #1 locally, 100 = last).
- *   We phrase this as "Top X% in Chile" so #1 reads as "Top 1%", not "0%".
+ *   We phrase this as "Top X% in Chile". Values below 1% keep up to two decimal places.
  */
 
 export const RANK_SORT_LABEL = 'Rank (beta)';
@@ -21,14 +21,31 @@ export function hasRankData(
   return developer.rankLevel != null && developer.rankScore != null;
 }
 
+export function isElitePercentileChile(percentileCl: number | null): boolean {
+  return percentileCl != null && percentileCl <= 1;
+}
+
+function formatDecimalPercent(value: number): string {
+  const rounded = Math.round(value * 100) / 100;
+  if (rounded === 0) {
+    return '0.01';
+  }
+
+  return rounded.toFixed(2).replace(/\.?0+$/, '');
+}
+
 export function formatTopPercentChile(percentileCl: number | null): string | null {
   if (percentileCl == null) {
     return null;
   }
 
-  // percentileCl is 0 for the best dev in Chile; round up so #1 shows "Top 1%".
-  const topPercent = Math.max(1, Math.ceil(percentileCl));
-  return `Top ${topPercent}% in Chile`;
+  if (percentileCl < 1) {
+    const displayValue =
+      percentileCl === 0 ? '0.01' : formatDecimalPercent(percentileCl);
+    return `Top ${displayValue}% in Chile`;
+  }
+
+  return `Top ${Math.ceil(percentileCl)}% in Chile`;
 }
 
 export const RANK_LEVEL_RING_COLORS: Record<string, string> = {
