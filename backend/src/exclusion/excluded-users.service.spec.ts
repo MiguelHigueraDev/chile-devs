@@ -43,11 +43,11 @@ function createMockDb(state: MockState) {
             },
           }),
         }),
+        execute: () => {
+          state.rankingRefreshCount += 1;
+          return Promise.resolve();
+        },
       });
-    },
-    execute: () => {
-      state.rankingRefreshCount += 1;
-      return Promise.resolve();
     },
   };
 }

@@ -47,17 +47,13 @@ export class ExcludedUsersService {
         .returning({ githubId: developers.githubId });
 
       deletedProfile = deleted.length > 0;
+
+      if (deletedProfile) {
+        await tx.execute(buildClearStaleRankingsSql());
+        await tx.execute(buildRankingUpdateSql());
+      }
     });
 
-    if (deletedProfile) {
-      await this.refreshRankings();
-    }
-
     return { deletedProfile };
-  }
-
-  private async refreshRankings(): Promise<void> {
-    await this.db.execute(buildClearStaleRankingsSql());
-    await this.db.execute(buildRankingUpdateSql());
   }
 }
