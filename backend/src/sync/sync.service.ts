@@ -84,6 +84,7 @@ export class SyncService implements OnModuleInit {
     usersUpserted: number;
     usersDiscovered: number;
     usersUpdated: number;
+    usersDiscarded: number;
     status: string;
   }> {
     const token = this.config.get<string>('GITHUB_TOKEN', '');
@@ -99,6 +100,7 @@ export class SyncService implements OnModuleInit {
         usersUpserted: 0,
         usersDiscovered: 0,
         usersUpdated: 0,
+        usersDiscarded: 0,
         status: 'skipped',
       };
     }
@@ -119,6 +121,7 @@ export class SyncService implements OnModuleInit {
     let usersUpserted = 0;
     let usersDiscovered = 0;
     let usersUpdated = 0;
+    let usersDiscarded = 0;
     let lastLocationId: number | null = null;
 
     const processedThisRun = new Set<string>();
@@ -207,6 +210,13 @@ export class SyncService implements OnModuleInit {
                 hit.rawLocation,
                 allLocations,
               );
+              if (!classified) {
+                usersDiscarded += 1;
+                this.logger.debug(
+                  `Discarded @${hit.login} (raw: ${hit.rawLocation ?? 'none'})`,
+                );
+                continue;
+              }
               const isNew = !existingById.has(hit.githubId);
 
               if (!enrichment.has(hit.login)) {
@@ -256,6 +266,13 @@ export class SyncService implements OnModuleInit {
                 hit.rawLocation,
                 allLocations,
               );
+              if (!classified) {
+                usersDiscarded += 1;
+                this.logger.debug(
+                  `Discarded @${hit.login} (raw: ${hit.rawLocation ?? 'none'})`,
+                );
+                continue;
+              }
 
               await this.upsertDeveloperLightweight(
                 hit,
@@ -305,12 +322,13 @@ export class SyncService implements OnModuleInit {
         .where(eq(syncRuns.id, run.id));
 
       this.logger.log(
-        `Sync completed. ${usersUpserted} unique users (${usersDiscovered} new, ${usersUpdated} updated).`,
+        `Sync completed. ${usersUpserted} unique users (${usersDiscovered} new, ${usersUpdated} updated, ${usersDiscarded} discarded).`,
       );
       return {
         usersUpserted,
         usersDiscovered,
         usersUpdated,
+        usersDiscarded,
         status: 'completed',
       };
     } catch (error) {
@@ -369,6 +387,13 @@ export class SyncService implements OnModuleInit {
       user.rawLocation,
       allLocations,
     );
+    if (!classified) {
+      return {
+        login: user.login,
+        status: 'rejected',
+        locationId: 0,
+      };
+    }
 
     const existing = await this.loadExistingDevelopers([user.githubId]);
     const isNew = !existing.has(user.githubId);

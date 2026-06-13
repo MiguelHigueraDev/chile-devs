@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { LOCATION_SEEDS } from '../db/locations.data';
 import { EnrichmentCacheService } from './enrichment-cache.service';
+import { FOREIGN_QUALIFIERS } from './foreign-qualifiers.data';
 import type { Location, TopLanguage } from '../db/schema';
 
 type GitHubSearchUser = {
@@ -70,6 +70,8 @@ const LANGUAGES_REPO_LIMIT = 30;
 const TOP_LANGUAGES_COUNT = 5;
 const GITHUB_SEARCH_START = new Date('2008-01-01');
 const MAX_GRAPHQL_RETRIES = 3;
+
+const SEGMENT_SPLIT = /[,/|·]/;
 
 const USER_QUERY = `
   query FetchUser($login: String!) {
@@ -516,64 +518,127 @@ export class GithubService {
   classifyLocation(
     rawLocation: string | null,
     allLocations: Location[],
-  ): Location {
+  ): Location | null {
     const country = allLocations.find((l) => l.slug === 'chile')!;
 
-    if (!rawLocation) {
-      return country;
+    if (!rawLocation?.trim()) {
+      return null;
     }
 
     const normalized = this.normalize(rawLocation);
+    const segments = this.splitSegments(normalized);
+    const countryTerms = this.buildCountryTerms(country);
+    const hasChile = this.hasChileMarker(segments, normalized, countryTerms);
 
-    if (this.isCountryLevel(normalized)) {
+    if (this.hasForeignQualifier(segments) && !hasChile) {
+      return null;
+    }
+
+    const matched = this.findChileanMatch(segments, allLocations, countryTerms);
+    if (matched) {
+      return matched;
+    }
+
+    if (hasChile || this.isCountryLevel(normalized, countryTerms)) {
       return country;
     }
 
-    const cities = allLocations.filter((l) => l.kind === 'city');
-    const regions = allLocations.filter((l) => l.kind === 'region');
+    return null;
+  }
+
+  private splitSegments(normalized: string): string[] {
+    return normalized
+      .split(SEGMENT_SPLIT)
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+  }
+
+  private buildCountryTerms(country: Location): Set<string> {
+    return new Set(this.buildLocationTokens(country));
+  }
+
+  private buildLocationTokens(location: Location): string[] {
+    const tokens = new Set<string>();
+
+    tokens.add(this.normalize(location.name));
+
+    for (const term of location.searchTerms) {
+      const normalized = this.normalize(term);
+      tokens.add(normalized);
+
+      for (const piece of normalized.split(SEGMENT_SPLIT)) {
+        const trimmed = piece.trim();
+        if (trimmed) {
+          tokens.add(trimmed);
+        }
+      }
+    }
+
+    return [...tokens];
+  }
+
+  private hasChileMarker(
+    segments: string[],
+    normalizedRaw: string,
+    countryTerms: Set<string>,
+  ): boolean {
+    if (segments.some((segment) => countryTerms.has(segment))) {
+      return true;
+    }
+
+    return /\bchile\b/.test(normalizedRaw);
+  }
+
+  private hasForeignQualifier(segments: string[]): boolean {
+    return segments.some((segment) => FOREIGN_QUALIFIERS.has(segment));
+  }
+
+  private findChileanMatch(
+    segments: string[],
+    allLocations: Location[],
+    countryTerms: Set<string>,
+  ): Location | null {
+    const locationSegments = segments.filter(
+      (segment) => !countryTerms.has(segment),
+    );
+    if (locationSegments.length === 0) {
+      return null;
+    }
+
+    const cities = allLocations.filter((location) => location.kind === 'city');
+    const regions = allLocations.filter(
+      (location) => location.kind === 'region',
+    );
 
     for (const city of cities) {
-      if (this.matchesLocation(normalized, city)) {
+      if (this.segmentsMatchLocation(locationSegments, city)) {
         return city;
       }
     }
 
     for (const region of regions) {
-      if (this.matchesLocation(normalized, region)) {
+      if (this.segmentsMatchLocation(locationSegments, region)) {
         return region;
       }
     }
 
-    return country;
+    return null;
   }
 
-  private matchesLocation(normalized: string, location: Location): boolean {
-    const terms = [
-      this.normalize(location.name),
-      ...location.searchTerms.map((t) => this.normalize(t)),
-    ];
-
-    return terms.some(
-      (term) =>
-        normalized.includes(term) ||
-        term.includes(normalized) ||
-        this.fuzzyMatch(normalized, term),
-    );
+  private segmentsMatchLocation(
+    segments: string[],
+    location: Location,
+  ): boolean {
+    const tokens = new Set(this.buildLocationTokens(location));
+    return segments.some((segment) => tokens.has(segment));
   }
 
-  private fuzzyMatch(a: string, b: string): boolean {
-    if (a.length < 3 || b.length < 3) {
-      return false;
-    }
-    return a.startsWith(b) || b.startsWith(a);
-  }
-
-  private isCountryLevel(normalized: string): boolean {
-    const countryTerms = LOCATION_SEEDS.find(
-      (l) => l.slug === 'chile',
-    )!.searchTerms.map((t) => this.normalize(t));
+  private isCountryLevel(
+    normalized: string,
+    countryTerms: Set<string>,
+  ): boolean {
     // Exact match only — "Santiago, Chile" must not be treated as country-only.
-    return countryTerms.some((term) => normalized === term);
+    return countryTerms.has(normalized);
   }
 
   private normalize(value: string): string {
