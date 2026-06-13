@@ -176,11 +176,10 @@ export class DiscoveryService {
       ...contributorCandidates,
     ]);
 
+    const mergedGithubIds = merged.map((candidate) => candidate.githubId);
     const excluded = await this.excludedUsersService.loadExcludedGithubIds();
-    const known = await this.queue.loadKnownGithubIds();
-    const existingDevs = await this.loadExistingDeveloperIds(
-      merged.map((candidate) => candidate.githubId),
-    );
+    const known = await this.queue.loadKnownGithubIds(mergedGithubIds);
+    const existingDevs = await this.loadExistingDeveloperIds(mergedGithubIds);
 
     const fresh = merged.filter(
       (candidate) =>
@@ -273,6 +272,10 @@ export class DiscoveryService {
         neighborOverlap,
       });
 
+      // Keep accepted candidates `pending` until promotion actually succeeds so
+      // a failed promote() leaves them retryable instead of stuck non-pending.
+      const persistedStatus =
+        !dryRun && result.verdict === 'accepted' ? 'pending' : result.verdict;
       await this.queue.recordEvaluation(candidate.githubId, {
         rawLocation: profile.rawLocation,
         bio: profile.bio,
@@ -281,7 +284,7 @@ export class DiscoveryService {
         confidence: result.confidence,
         reasons: result.reasons,
         neighborOverlap,
-        status: result.verdict,
+        status: persistedStatus,
       });
 
       if (result.verdict === 'accepted') {
@@ -319,7 +322,7 @@ export class DiscoveryService {
     const enrichment = await this.github.enrichUsers(logins);
 
     let upserted = 0;
-    const requeue: string[] = [];
+    const promoted: string[] = [];
 
     for (const item of toPromote) {
       const profile = profiles.get(item.login);
@@ -334,7 +337,6 @@ export class DiscoveryService {
         this.logger.warn(
           `Enrichment missing for accepted candidate @${item.login}, re-queuing`,
         );
-        requeue.push(item.githubId);
         continue;
       }
 
@@ -343,14 +345,17 @@ export class DiscoveryService {
         allLocations,
       );
       await this.writer.upsertDeveloper(profile, stats, classified.id);
+      promoted.push(item.githubId);
       upserted += 1;
       this.logger.log(
         `Promoted @${item.login} via ${item.source} (location: ${classified.slug}, raw: ${profile.rawLocation ?? 'none'})`,
       );
     }
 
-    if (requeue.length > 0) {
-      await this.queue.markStatus(requeue, 'pending');
+    // Flip to `accepted` only after the developer row is committed; until now
+    // these stayed `pending` so any failure above keeps them retryable.
+    if (promoted.length > 0) {
+      await this.queue.markStatus(promoted, 'accepted');
     }
 
     if (upserted > 0) {

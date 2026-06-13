@@ -1,0 +1,1 @@
+CREATE INDEX "idx_candidates_status_created" ON "discovery_candidates" USING btree ("status","created_at");

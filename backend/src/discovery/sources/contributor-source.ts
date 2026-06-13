@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { GithubService } from '../../sync/github.service';
 import type { NewCandidate } from '../candidate-queue.service';
 import { CHILEAN_ORG_SEEDS, CHILEAN_REPO_SEEDS } from '../seeds.data';
+import { parsePositiveIntOrFallback } from '../utils';
 
 const DEFAULT_ORG_MEMBER_PAGES = 2;
 const DEFAULT_REPO_CONTRIBUTOR_PAGES = 1;
@@ -22,11 +23,13 @@ export class ContributorSource {
   ) {}
 
   async collect(): Promise<NewCandidate[]> {
-    const orgPages = this.num(
+    const orgPages = parsePositiveIntOrFallback(
+      this.config,
       'DISCOVERY_ORG_MEMBER_PAGES',
       DEFAULT_ORG_MEMBER_PAGES,
     );
-    const repoPages = this.num(
+    const repoPages = parsePositiveIntOrFallback(
+      this.config,
       'DISCOVERY_REPO_CONTRIBUTOR_PAGES',
       DEFAULT_REPO_CONTRIBUTOR_PAGES,
     );
@@ -83,10 +86,5 @@ export class ContributorSource {
     }
 
     return [...byGithubId.values()];
-  }
-
-  private num(key: string, fallback: number): number {
-    const raw = Number(this.config.get<string>(key, String(fallback)));
-    return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : fallback;
   }
 }

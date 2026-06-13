@@ -163,6 +163,7 @@ export const discoveryCandidates = pgTable(
   (table) => [
     index('idx_candidates_status').on(table.status),
     index('idx_candidates_confidence').on(table.confidence),
+    index('idx_candidates_status_created').on(table.status, table.createdAt),
   ],
 );
 

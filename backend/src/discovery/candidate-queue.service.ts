@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { asc, eq, inArray } from 'drizzle-orm';
+import { asc, eq, inArray, sql } from 'drizzle-orm';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
 import {
   discoveryCandidates,
@@ -36,11 +36,22 @@ export type CandidateEvaluation = {
 export class CandidateQueueService {
   constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
 
-  /** All github ids already in the queue (any status), for dedup before enqueue. */
-  async loadKnownGithubIds(): Promise<Set<string>> {
+  /**
+   * Returns the subset of the given github ids that already exist in the queue
+   * (any status), for dedup before enqueue. Scoped to the incoming batch so the
+   * scan stays proportional to the candidates being processed.
+   */
+  async loadKnownGithubIds(
+    incomingGithubIds: string[],
+  ): Promise<Set<string>> {
+    if (incomingGithubIds.length === 0) {
+      return new Set();
+    }
+
     const rows = await this.db
       .select({ githubId: discoveryCandidates.githubId })
-      .from(discoveryCandidates);
+      .from(discoveryCandidates)
+      .where(inArray(discoveryCandidates.githubId, incomingGithubIds));
     return new Set(rows.map((row) => row.githubId));
   }
 
@@ -64,7 +75,14 @@ export class CandidateQueueService {
     const inserted = await this.db
       .insert(discoveryCandidates)
       .values(rows)
-      .onConflictDoNothing({ target: discoveryCandidates.githubId })
+      .onConflictDoUpdate({
+        target: discoveryCandidates.githubId,
+        set: {
+          login: sql`excluded.login`,
+          source: sql`excluded.source`,
+          discoveredVia: sql`excluded.discovered_via`,
+        },
+      })
       .returning({ githubId: discoveryCandidates.githubId });
 
     return inserted.length;

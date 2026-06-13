@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, inArray, sql } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
 import {
   buildClearStaleRankingsSql,
@@ -201,7 +201,7 @@ export class DeveloperWriterService {
   ): Promise<void> {
     await tx
       .delete(developerLanguages)
-      .where(sql`developer_github_id = ${githubId}`);
+      .where(eq(developerLanguages.developerGithubId, githubId));
 
     if (topLanguages.length === 0) {
       return;

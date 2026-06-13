@@ -9,6 +9,7 @@ import {
   type NeighborDirection,
 } from '../../sync/github.service';
 import type { NewCandidate } from '../candidate-queue.service';
+import { parsePositiveIntOrFallback } from '../utils';
 
 const DEFAULT_SEEDS_PER_RUN = 25;
 const DEFAULT_NEIGHBOR_PAGES_PER_SEED = 2;
@@ -36,15 +37,18 @@ export class GraphSource {
   ) {}
 
   async collect(): Promise<NewCandidate[]> {
-    const seedsPerRun = this.num(
+    const seedsPerRun = parsePositiveIntOrFallback(
+      this.config,
       'DISCOVERY_GRAPH_SEEDS_PER_RUN',
       DEFAULT_SEEDS_PER_RUN,
     );
-    const neighborPages = this.num(
+    const neighborPages = parsePositiveIntOrFallback(
+      this.config,
       'DISCOVERY_NEIGHBOR_PAGES_PER_SEED',
       DEFAULT_NEIGHBOR_PAGES_PER_SEED,
     );
-    const recrawlDays = this.num(
+    const recrawlDays = parsePositiveIntOrFallback(
+      this.config,
       'DISCOVERY_SEED_RECRAWL_DAYS',
       DEFAULT_SEED_RECRAWL_DAYS,
     );
@@ -147,10 +151,5 @@ export class GraphSource {
       .update(developers)
       .set({ lastGraphCrawlAt: new Date() })
       .where(inArray(developers.githubId, githubIds));
-  }
-
-  private num(key: string, fallback: number): number {
-    const raw = Number(this.config.get<string>(key, String(fallback)));
-    return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : fallback;
   }
 }

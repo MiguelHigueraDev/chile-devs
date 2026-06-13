@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto';
 import {
   Controller,
   Get,
@@ -52,8 +53,22 @@ export class DiscoveryController {
 
   private validateSyncToken(token?: string): void {
     const expectedToken = this.configService.get<string>('SYNC_TOKEN');
-    if (!expectedToken || token !== expectedToken) {
+    if (!expectedToken || !token || !this.tokensMatch(token, expectedToken)) {
       throw new UnauthorizedException('Invalid or missing sync token');
     }
+  }
+
+  private tokensMatch(provided: string, expected: string): boolean {
+    const providedBuf = Buffer.from(provided, 'utf8');
+    const expectedBuf = Buffer.from(expected, 'utf8');
+
+    // Compare against a same-length buffer when lengths differ so the
+    // comparison cost stays constant and never short-circuits early.
+    if (providedBuf.length !== expectedBuf.length) {
+      timingSafeEqual(expectedBuf, Buffer.alloc(expectedBuf.length));
+      return false;
+    }
+
+    return timingSafeEqual(providedBuf, expectedBuf);
   }
 }
