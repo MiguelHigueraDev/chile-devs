@@ -16,6 +16,7 @@ import {
   fetchSearchFacets,
   fetchStats,
   logout,
+  optOut,
   updateMyProfile,
 } from './client'
 import {
@@ -185,6 +186,24 @@ export function useLogoutMutation() {
     onSuccess: async () => {
       await queryClient.cancelQueries({ queryKey: queryKeys.me })
       queryClient.setQueryData(queryKeys.me, null)
+    },
+  })
+}
+
+export function useOptOutMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: optOut,
+    onSuccess: async () => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.me })
+      queryClient.setQueryData(queryKeys.me, null)
+      await queryClient.invalidateQueries({ queryKey: queryKeys.map })
+      await queryClient.invalidateQueries({ queryKey: queryKeys.stats })
+      await queryClient.invalidateQueries({ queryKey: ['search'] })
+      await queryClient.invalidateQueries({ queryKey: ['country'] })
+      await queryClient.invalidateQueries({ queryKey: ['locations'] })
+      await queryClient.invalidateQueries({ queryKey: ['developers'] })
     },
   })
 }

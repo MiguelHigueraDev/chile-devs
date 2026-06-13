@@ -75,4 +75,10 @@ export class AuthController {
     );
     return { ok: true };
   }
+
+  @Post('opt-out')
+  @UseGuards(AuthGuard)
+  async optOut(@Req() request: FastifyRequest & AuthenticatedRequest) {
+    return this.authService.optOut(request.session);
+  }
 }

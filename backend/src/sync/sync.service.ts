@@ -21,6 +21,7 @@ import {
   syncRuns,
 } from '../db/schema';
 import type { TopLanguage } from '../db/schema';
+import { ExcludedUsersService } from '../exclusion/excluded-users.service';
 import {
   GithubService,
   type GitHubEnrichment,
@@ -50,6 +51,7 @@ export class SyncService implements OnModuleInit {
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly github: GithubService,
     private readonly config: ConfigService,
+    private readonly excludedUsersService: ExcludedUsersService,
   ) {}
 
   async onModuleInit() {
@@ -121,6 +123,8 @@ export class SyncService implements OnModuleInit {
 
     const processedThisRun = new Set<string>();
     const enrichmentTtlMs = this.getEnrichmentTtlMs();
+    const excludedGithubIds =
+      await this.excludedUsersService.loadExcludedGithubIds();
 
     try {
       const allLocations = await this.db.select().from(locations);
@@ -145,9 +149,9 @@ export class SyncService implements OnModuleInit {
 
         try {
           await this.github.searchUsersByLocation(term, async (hits) => {
-            const newHits = hits.filter(
-              (hit) => !processedThisRun.has(hit.githubId),
-            );
+            const newHits = hits
+              .filter((hit) => !processedThisRun.has(hit.githubId))
+              .filter((hit) => !excludedGithubIds.has(hit.githubId));
 
             for (const hit of newHits) {
               processedThisRun.add(hit.githubId);
@@ -335,6 +339,14 @@ export class SyncService implements OnModuleInit {
     const user = await this.github.fetchUserByLogin(normalizedLogin);
     if (!user) {
       throw new NotFoundException(`GitHub user "${normalizedLogin}" not found`);
+    }
+
+    if (await this.excludedUsersService.isExcluded(user.githubId)) {
+      return {
+        login: user.login,
+        status: 'excluded',
+        locationId: 0,
+      };
     }
 
     const allLocations = await this.db.select().from(locations);

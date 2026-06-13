@@ -231,6 +231,17 @@ export async function logout(): Promise<{ ok: boolean }> {
   }
 }
 
+export async function optOut(): Promise<{ deletedProfile: boolean }> {
+  try {
+    return await fetchJson<{ deletedProfile: boolean }>('/auth/opt-out', {
+      method: 'POST',
+      auth: true,
+    });
+  } finally {
+    clearAuthToken();
+  }
+}
+
 export function getGitHubAuthUrl(): string {
   return `${API_BASE}/auth/github`;
 }
