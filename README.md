@@ -24,10 +24,22 @@ docker compose up -d
 cd backend
 cp .env.example .env
 pnpm install
-pnpm db:migrate
+pnpm db:push
 pnpm db:seed
 pnpm start:dev
 ```
+
+#### Database schema
+
+The canonical schema lives in `backend/src/db/schema.ts`. Sync it to PostgreSQL with:
+
+```bash
+pnpm db:push
+```
+
+Do **not** use `pnpm db:migrate`. The SQL files under `backend/drizzle/` are historical artifacts and the Drizzle migration journal is not a reliable chain for a clean database (for example, some columns exist only in orphaned migration files). `db:push` applies the current TypeScript schema directly and is the supported workflow for local setup and new environments.
+
+After changing `schema.ts`, run `pnpm db:push` again. You can run `pnpm db:generate` to refresh SQL snapshots under `backend/drizzle/` for reference, but those files are not applied in normal development.
 
 Edit `backend/.env` and set at least:
 
