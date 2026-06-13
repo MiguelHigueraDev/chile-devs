@@ -46,6 +46,9 @@ describe('GithubService.classifyLocation', () => {
     expect(service.classifyLocation('China', locations)).toBeNull();
     expect(service.classifyLocation('San Francisco, CA', locations)).toBeNull();
     expect(service.classifyLocation('Valparaíso USA', locations)).toBeNull();
+    expect(
+      service.classifyLocation('Los Ángeles, CA, Chile', locations),
+    ).toBeNull();
   });
 
   it('classifies Chilean city locations', () => {

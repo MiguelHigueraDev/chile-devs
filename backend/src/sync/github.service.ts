@@ -530,11 +530,15 @@ export class GithubService {
     const countryTerms = this.buildCountryTerms(country);
     const hasChile = this.hasChileMarker(segments, normalized, countryTerms);
 
-    if (this.hasForeignQualifier(segments) && !hasChile) {
+    const locationSegments = segments.filter(
+      (segment) => !countryTerms.has(segment),
+    );
+
+    if (this.hasForeignQualifier(locationSegments)) {
       return null;
     }
 
-    const matched = this.findChileanMatch(segments, allLocations, countryTerms);
+    const matched = this.findChileanMatch(locationSegments, allLocations);
     if (matched) {
       return matched;
     }
@@ -594,13 +598,9 @@ export class GithubService {
   }
 
   private findChileanMatch(
-    segments: string[],
+    locationSegments: string[],
     allLocations: Location[],
-    countryTerms: Set<string>,
   ): Location | null {
-    const locationSegments = segments.filter(
-      (segment) => !countryTerms.has(segment),
-    );
     if (locationSegments.length === 0) {
       return null;
     }
