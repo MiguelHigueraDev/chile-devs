@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "skills": {
+    "drizzle": {
+      "source": "bobmatnyc/claude-mpm-skills",
+      "sourceType": "autoskills-registry",
+      "computedHash": "ee38c0b7737febd7409d84e613099a0f276e215e0bbda418b2593786ea8a4754"
+    },
+    "nestjs-best-practices": {
+      "source": "kadajett/agent-nestjs-skills",
+      "sourceType": "autoskills-registry",
+      "computedHash": "7f14f088a79090183152c2aa556f708b2f5b7d0dacfb0ad339df2d498ba52aa3"
+    },
+    "nodejs-backend-patterns": {
+      "source": "wshobson/agents",
+      "sourceType": "autoskills-registry",
+      "computedHash": "710a5e6f83c46e8f6c43356df55c143a7375c4414559a581654ce51709138c55"
+    },
+    "nodejs-best-practices": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "autoskills-registry",
+      "computedHash": "7361ab02fb6b09913e3bdd9cf61c629ed6c17de9485e6a781054e5d437ccfc29"
+    },
+    "typescript-advanced-types": {
+      "source": "wshobson/agents",
+      "sourceType": "autoskills-registry",
+      "computedHash": "5ca0e177c6aaaba1889255691224daafdb7d71f317cc70bede1590d3907ded42"
+    },
+    "use-ai-sdk": {
+      "source": "vercel/ai",
+      "sourceType": "autoskills-registry",
+      "computedHash": "78ef7cd5ffec2f2781724bd8f14042e27194536964453e51d9c583c151943698"
+    },
+    "zod": {
+      "source": "pproenca/dot-skills",
+      "sourceType": "autoskills-registry",
+      "computedHash": "aa8a97195b07763d37494b511f48be90979fd6826c031956c831cfc58f6a24b8"
+    }
+  }
+}
