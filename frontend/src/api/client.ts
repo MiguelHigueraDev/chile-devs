@@ -233,12 +233,17 @@ export async function logout(): Promise<{ ok: boolean }> {
 
 export async function optOut(): Promise<{ deletedProfile: boolean }> {
   try {
-    return await fetchJson<{ deletedProfile: boolean }>('/auth/opt-out', {
+    const result = await fetchJson<{ deletedProfile: boolean }>('/auth/opt-out', {
       method: 'POST',
       auth: true,
     });
-  } finally {
     clearAuthToken();
+    return result;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      clearAuthToken();
+    }
+    throw error;
   }
 }
 
