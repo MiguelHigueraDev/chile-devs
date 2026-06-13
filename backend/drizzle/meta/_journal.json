@@ -71,6 +71,13 @@
       "when": 1781305447955,
       "tag": "0009_neat_owl",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1781321592664,
+      "tag": "0010_illegal_pepper_potts",
+      "breakpoints": true
     }
   ]
 }

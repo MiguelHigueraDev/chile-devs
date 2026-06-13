@@ -63,13 +63,28 @@ type LanguageRepo = {
 } | null;
 
 const SEARCH_PAGE_SIZE = 50;
+const NEIGHBOR_PAGE_SIZE = 100;
+const ORG_MEMBER_PAGE_SIZE = 100;
+const REST_PAGE_SIZE = 100;
 const SEARCH_MAX_PAGES = 20;
 const SLICE_THRESHOLD = 950;
 const ENRICHMENT_BATCH_SIZE = 5;
+const PROFILE_BATCH_SIZE = 20;
 const LANGUAGES_REPO_LIMIT = 30;
 const TOP_LANGUAGES_COUNT = 5;
 const GITHUB_SEARCH_START = new Date('2008-01-01');
 const MAX_GRAPHQL_RETRIES = 3;
+
+// Secondary slicing dimension for single-day ranges that still exceed the ~1000
+// result cap. Buckets are mutually exclusive and cover the full follower range.
+const FOLLOWER_BUCKETS = [
+  '0..2',
+  '3..10',
+  '11..30',
+  '31..100',
+  '101..500',
+  '>500',
+];
 
 const USER_QUERY = `
   query FetchUser($login: String!) {
@@ -120,6 +135,27 @@ const SEARCH_QUERY = `
   }
 `;
 
+const ORG_MEMBERS_QUERY = `
+  query OrgMembers($org: String!, $cursor: String) {
+    organization(login: $org) {
+      membersWithRole(first: ${ORG_MEMBER_PAGE_SIZE}, after: $cursor) {
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+        nodes {
+          databaseId
+          login
+        }
+      }
+    }
+    rateLimit {
+      remaining
+      resetAt
+    }
+  }
+`;
+
 export type GitHubSearchHit = {
   githubId: string;
   login: string;
@@ -143,6 +179,62 @@ export type GitHubEnrichment = {
 export type GitHubUserResult = GitHubSearchHit & {
   enrichment: GitHubEnrichment | null;
 };
+
+// Lightweight profile used by the discovery pipeline to score candidates and to
+// upsert accepted ones without a second lookup. Extends the search hit shape with
+// the extra fields the Chile-confidence scorer relies on.
+export type GitHubProfile = GitHubSearchHit & {
+  bio: string | null;
+  company: string | null;
+  blog: string | null;
+  following: number;
+};
+
+type ProfileUser = {
+  databaseId: number | null;
+  login: string;
+  name: string | null;
+  avatarUrl: string;
+  location: string | null;
+  bio: string | null;
+  company: string | null;
+  websiteUrl: string | null;
+  url: string;
+  followers: { totalCount: number };
+  following: { totalCount: number };
+} | null;
+
+export type NeighborDirection = 'followers' | 'following';
+
+export type GitHubNeighbor = {
+  githubId: string;
+  login: string;
+};
+
+type ConnectionNode = { databaseId: number | null; login: string } | null;
+
+type UserConnection = {
+  pageInfo: { hasNextPage: boolean; endCursor: string | null };
+  nodes: ConnectionNode[];
+};
+
+type NeighborResponse = {
+  data?: {
+    user: Record<NeighborDirection, UserConnection> | null;
+    rateLimit?: RateLimit;
+  };
+  errors?: Array<{ message: string }>;
+};
+
+type OrgMembersResponse = {
+  data?: {
+    organization: { membersWithRole: UserConnection } | null;
+    rateLimit?: RateLimit;
+  };
+  errors?: Array<{ message: string }>;
+};
+
+type RepoContributor = { id: number; login: string; type: string };
 
 @Injectable()
 export class GithubService {
@@ -299,6 +391,255 @@ export class GithubService {
     return enrichment;
   }
 
+  /**
+   * Batch-fetch lightweight profiles (location, bio, company, website, follower
+   * counts) for a set of logins. Used by the discovery pipeline to score
+   * candidates cheaply (1 GraphQL point per user) before deciding to enrich.
+   */
+  async fetchProfiles(logins: string[]): Promise<Map<string, GitHubProfile>> {
+    const profiles = new Map<string, GitHubProfile>();
+    if (logins.length === 0) {
+      return profiles;
+    }
+
+    for (let i = 0; i < logins.length; i += PROFILE_BATCH_SIZE) {
+      const batch = logins.slice(i, i + PROFILE_BATCH_SIZE);
+      const query = this.buildProfileQuery(batch);
+
+      const response = await this.graphql<{
+        data?: Record<string, ProfileUser> & { rateLimit?: RateLimit };
+        errors?: Array<{ message: string }>;
+      }>(query, {});
+
+      if (response.errors?.length) {
+        this.logger.warn(
+          `Profile batch failed for ${batch.join(', ')}: ${this.formatGraphqlErrors(response.errors)}`,
+        );
+        continue;
+      }
+
+      batch.forEach((login, index) => {
+        const user = response.data?.[`u${index}`];
+        if (!user?.databaseId) {
+          return;
+        }
+
+        profiles.set(login, {
+          githubId: String(user.databaseId),
+          login: user.login,
+          name: user.name,
+          avatarUrl: user.avatarUrl,
+          rawLocation: user.location,
+          followers: user.followers.totalCount,
+          following: user.following.totalCount,
+          profileUrl: user.url,
+          bio: user.bio,
+          company: user.company,
+          blog: user.websiteUrl,
+        });
+      });
+    }
+
+    return profiles;
+  }
+
+  /**
+   * Fetch the followers or following of a single user (the social-graph snowball).
+   * Bounded by `maxPages` to keep per-seed cost predictable.
+   */
+  async fetchNeighbors(
+    login: string,
+    direction: NeighborDirection,
+    maxPages: number,
+  ): Promise<GitHubNeighbor[]> {
+    const neighbors: GitHubNeighbor[] = [];
+    let cursor: string | null = null;
+    let page = 0;
+
+    const query = this.buildNeighborQuery(direction);
+
+    while (page < maxPages) {
+      const response: NeighborResponse = await this.graphql<NeighborResponse>(
+        query,
+        { login, cursor },
+      );
+
+      if (response.errors?.length) {
+        this.logger.warn(
+          `Neighbor fetch failed for @${login} (${direction}): ${this.formatGraphqlErrors(response.errors)}`,
+        );
+        break;
+      }
+
+      const connection = response.data?.user?.[direction];
+      if (!connection) {
+        break;
+      }
+
+      for (const node of connection.nodes) {
+        if (node?.databaseId && node.login) {
+          neighbors.push({
+            githubId: String(node.databaseId),
+            login: node.login,
+          });
+        }
+      }
+
+      if (!connection.pageInfo.hasNextPage || !connection.pageInfo.endCursor) {
+        break;
+      }
+
+      cursor = connection.pageInfo.endCursor;
+      page += 1;
+    }
+
+    return neighbors;
+  }
+
+  /** Fetch the visible members of a GitHub organization. */
+  async fetchOrgMembers(
+    org: string,
+    maxPages: number,
+  ): Promise<GitHubNeighbor[]> {
+    const members: GitHubNeighbor[] = [];
+    let cursor: string | null = null;
+    let page = 0;
+
+    while (page < maxPages) {
+      const response: OrgMembersResponse =
+        await this.graphql<OrgMembersResponse>(ORG_MEMBERS_QUERY, {
+          org,
+          cursor,
+        });
+
+      if (response.errors?.length) {
+        this.logger.warn(
+          `Org member fetch failed for ${org}: ${this.formatGraphqlErrors(response.errors)}`,
+        );
+        break;
+      }
+
+      const connection = response.data?.organization?.membersWithRole;
+      if (!connection) {
+        break;
+      }
+
+      for (const node of connection.nodes) {
+        if (node?.databaseId && node.login) {
+          members.push({
+            githubId: String(node.databaseId),
+            login: node.login,
+          });
+        }
+      }
+
+      if (!connection.pageInfo.hasNextPage || !connection.pageInfo.endCursor) {
+        break;
+      }
+
+      cursor = connection.pageInfo.endCursor;
+      page += 1;
+    }
+
+    return members;
+  }
+
+  /**
+   * Fetch contributors of a public repository via the REST API (the GraphQL API
+   * has no contributors connection). Returns logins + numeric ids.
+   */
+  async fetchRepoContributors(
+    ownerRepo: string,
+    maxPages: number,
+  ): Promise<GitHubNeighbor[]> {
+    const [owner, repo] = ownerRepo.split('/');
+    if (!owner || !repo) {
+      this.logger.warn(`Invalid repo seed "${ownerRepo}", expected owner/repo`);
+      return [];
+    }
+
+    const contributors: GitHubNeighbor[] = [];
+
+    for (let page = 1; page <= maxPages; page += 1) {
+      const url = `https://api.github.com/repos/${owner}/${repo}/contributors?per_page=${REST_PAGE_SIZE}&page=${page}&anon=false`;
+      const rows = await this.restGet<RepoContributor[]>(url);
+
+      if (!rows || rows.length === 0) {
+        break;
+      }
+
+      for (const row of rows) {
+        if (row.type === 'User' && row.login && row.id) {
+          contributors.push({ githubId: String(row.id), login: row.login });
+        }
+      }
+
+      if (rows.length < REST_PAGE_SIZE) {
+        break;
+      }
+    }
+
+    return contributors;
+  }
+
+  private buildNeighborQuery(direction: NeighborDirection): string {
+    return `
+      query Neighbors($login: String!, $cursor: String) {
+        user(login: $login) {
+          ${direction}(first: ${NEIGHBOR_PAGE_SIZE}, after: $cursor) {
+            pageInfo {
+              hasNextPage
+              endCursor
+            }
+            nodes {
+              databaseId
+              login
+            }
+          }
+        }
+        rateLimit {
+          remaining
+          resetAt
+        }
+      }
+    `;
+  }
+
+  private buildProfileQuery(logins: string[]): string {
+    const userFields = logins
+      .map(
+        (login, index) => `
+      u${index}: user(login: ${JSON.stringify(login)}) {
+        databaseId
+        login
+        name
+        avatarUrl
+        location
+        bio
+        company
+        websiteUrl
+        url
+        followers {
+          totalCount
+        }
+        following {
+          totalCount
+        }
+      }`,
+      )
+      .join('\n');
+
+    return `
+      query BatchProfiles {
+        ${userFields}
+        rateLimit {
+          remaining
+          resetAt
+        }
+      }
+    `;
+  }
+
   private async searchDateRange(
     locationTerm: string,
     start: Date,
@@ -308,25 +649,45 @@ export class GithubService {
     const query = this.buildLocationQuery(locationTerm, start, end);
     const probe = await this.fetchSearchPage(query, null);
 
-    if (
-      probe.userCount > SLICE_THRESHOLD &&
-      this.canSplitDateRange(start, end)
-    ) {
-      const mid = this.midpointDate(start, end);
-      const nextDay = this.addDays(mid, 1);
+    if (probe.userCount > SLICE_THRESHOLD) {
+      if (this.canSplitDateRange(start, end)) {
+        const mid = this.midpointDate(start, end);
+        const nextDay = this.addDays(mid, 1);
 
-      this.logger.debug(
-        `Splitting "${locationTerm}" (${probe.userCount} users) ${this.formatDate(start)}..${this.formatDate(end)}`,
-      );
+        this.logger.debug(
+          `Splitting "${locationTerm}" (${probe.userCount} users) ${this.formatDate(start)}..${this.formatDate(end)}`,
+        );
 
-      await this.searchDateRange(locationTerm, start, mid, onPage);
-      if (nextDay <= end) {
-        await this.searchDateRange(locationTerm, nextDay, end, onPage);
+        await this.searchDateRange(locationTerm, start, mid, onPage);
+        if (nextDay <= end) {
+          await this.searchDateRange(locationTerm, nextDay, end, onPage);
+        }
+        return;
       }
+
+      // The date range is already a single day but still exceeds GitHub's ~1000
+      // result cap. Slice along a second dimension (follower count) so we can
+      // reach users that pagination alone would truncate.
+      this.logger.debug(
+        `Date range exhausted for "${locationTerm}" (${probe.userCount} users on ${this.formatDate(start)}), slicing by followers`,
+      );
+      await this.searchByFollowerBuckets(locationTerm, start, end, onPage);
       return;
     }
 
     await this.paginateSearch(query, onPage);
+  }
+
+  private async searchByFollowerBuckets(
+    locationTerm: string,
+    start: Date,
+    end: Date,
+    onPage: (users: GitHubSearchHit[]) => Promise<void>,
+  ): Promise<void> {
+    for (const bucket of FOLLOWER_BUCKETS) {
+      const query = this.buildLocationQuery(locationTerm, start, end, bucket);
+      await this.paginateSearch(query, onPage);
+    }
   }
 
   private async paginateSearch(
@@ -395,17 +756,19 @@ export class GithubService {
     locationTerm: string,
     start: Date,
     end: Date,
+    followersClause?: string,
   ): string {
     const escaped = locationTerm.replace(/"/g, '\\"');
     const base = `location:"${escaped}"`;
     const startStr = this.formatDate(start);
     const endStr = this.formatDate(end);
+    const followers = followersClause ? ` followers:${followersClause}` : '';
 
     if (startStr === endStr) {
-      return `${base} created:${startStr}`;
+      return `${base} created:${startStr}${followers}`;
     }
 
-    return `${base} created:${startStr}..${endStr}`;
+    return `${base} created:${startStr}..${endStr}${followers}`;
   }
 
   private buildEnrichmentQuery(logins: string[]): string {
@@ -735,6 +1098,54 @@ export class GithubService {
     }
 
     return body;
+  }
+
+  private async restGet<T>(url: string, attempt = 0): Promise<T | null> {
+    await this.paceBeforeRequest();
+
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'chile-devs',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+    });
+
+    if (response.status === 404) {
+      return null;
+    }
+
+    if (
+      (response.status === 403 || response.status === 429) &&
+      attempt < MAX_GRAPHQL_RETRIES
+    ) {
+      const retryAfter = response.headers.get('retry-after');
+      if (retryAfter) {
+        await this.sleep(Number(retryAfter) * 1000 + 1000);
+        return this.restGet<T>(url, attempt + 1);
+      }
+
+      const resetHeader = response.headers.get('x-ratelimit-reset');
+      if (resetHeader) {
+        await this.waitForRateLimit(
+          new Date(Number(resetHeader) * 1000).toISOString(),
+        );
+        return this.restGet<T>(url, attempt + 1);
+      }
+    }
+
+    if (response.status >= 500 && attempt < MAX_GRAPHQL_RETRIES) {
+      await this.sleep(Math.min(1000 * 2 ** attempt, 10_000));
+      return this.restGet<T>(url, attempt + 1);
+    }
+
+    if (!response.ok) {
+      this.logger.warn(`REST GET ${url} failed: HTTP ${response.status}`);
+      return null;
+    }
+
+    return (await response.json()) as T;
   }
 
   private async waitForRateLimit(resetAt: string): Promise<void> {

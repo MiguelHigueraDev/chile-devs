@@ -8,39 +8,19 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { count, eq, inArray, sql } from 'drizzle-orm';
+import { count, eq, sql } from 'drizzle-orm';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
+import { developers, locations, syncRuns } from '../db/schema';
 import {
-  buildClearStaleRankingsSql,
-  buildRankingUpdateSql,
-} from '../db/ranking-sql';
-import {
-  developerLanguages,
-  developers,
-  locations,
-  syncRuns,
-} from '../db/schema';
-import type { TopLanguage } from '../db/schema';
+  DeveloperWriterService,
+  type ExistingDeveloper,
+} from '../developers/developer-writer.service';
 import { ExcludedUsersService } from '../exclusion/excluded-users.service';
 import {
   GithubService,
   type GitHubEnrichment,
   type GitHubSearchHit,
 } from './github.service';
-import { calculateRank } from './rank';
-
-type ExistingDeveloper = {
-  githubId: string;
-  contributions: number;
-  commits: number;
-  prs: number;
-  issues: number;
-  reviews: number;
-  totalStars: number;
-  topLanguages: TopLanguage[];
-  rankScore: number | null;
-  lastSeenAt: Date;
-};
 
 @Injectable()
 export class SyncService implements OnModuleInit {
@@ -52,6 +32,7 @@ export class SyncService implements OnModuleInit {
     private readonly github: GithubService,
     private readonly config: ConfigService,
     private readonly excludedUsersService: ExcludedUsersService,
+    private readonly writer: DeveloperWriterService,
   ) {}
 
   async onModuleInit() {
@@ -168,7 +149,7 @@ export class SyncService implements OnModuleInit {
               return;
             }
 
-            const existingById = await this.loadExistingDevelopers(
+            const existingById = await this.writer.loadExistingDevelopers(
               newHits.map((hit) => hit.githubId),
             );
 
@@ -221,9 +202,9 @@ export class SyncService implements OnModuleInit {
                 this.logger.warn(
                   `Enrichment missing for @${hit.login}, preserving stored metrics`,
                 );
-                await this.upsertDeveloperLightweight(
+                await this.writer.upsertDeveloperLightweight(
                   hit,
-                  this.toEnrichment(existing),
+                  this.writer.toEnrichment(existing),
                   classified.id,
                 );
                 lastLocationId = classified.id;
@@ -233,7 +214,7 @@ export class SyncService implements OnModuleInit {
               }
 
               const stats = enrichment.get(hit.login)!;
-              await this.upsertDeveloper(hit, stats, classified.id);
+              await this.writer.upsertDeveloper(hit, stats, classified.id);
 
               lastLocationId = classified.id;
               usersUpserted += 1;
@@ -257,7 +238,7 @@ export class SyncService implements OnModuleInit {
                 allLocations,
               );
 
-              await this.upsertDeveloperLightweight(
+              await this.writer.upsertDeveloperLightweight(
                 hit,
                 {
                   contributions: existing.contributions,
@@ -289,7 +270,7 @@ export class SyncService implements OnModuleInit {
         }
       }
 
-      await this.refreshRankings();
+      await this.writer.refreshRankings();
 
       await this.db
         .update(syncRuns)
@@ -370,7 +351,7 @@ export class SyncService implements OnModuleInit {
       allLocations,
     );
 
-    const existing = await this.loadExistingDevelopers([user.githubId]);
+    const existing = await this.writer.loadExistingDevelopers([user.githubId]);
     const isNew = !existing.has(user.githubId);
 
     if (!user.enrichment) {
@@ -384,16 +365,16 @@ export class SyncService implements OnModuleInit {
       this.logger.warn(
         `Enrichment missing for @${user.login}, preserving stored metrics`,
       );
-      await this.upsertDeveloperLightweight(
+      await this.writer.upsertDeveloperLightweight(
         user,
-        this.toEnrichment(stored),
+        this.writer.toEnrichment(stored),
         classified.id,
       );
     } else {
-      await this.upsertDeveloper(user, user.enrichment, classified.id);
+      await this.writer.upsertDeveloper(user, user.enrichment, classified.id);
     }
 
-    await this.refreshRankings();
+    await this.writer.refreshRankings();
 
     if (isNew) {
       this.logger.log(
@@ -485,197 +466,5 @@ export class SyncService implements OnModuleInit {
     );
     const hours = Number.isFinite(ttlHours) && ttlHours > 0 ? ttlHours : 24;
     return hours * 60 * 60 * 1000;
-  }
-
-  private async loadExistingDevelopers(
-    githubIds: string[],
-  ): Promise<Map<string, ExistingDeveloper>> {
-    if (githubIds.length === 0) {
-      return new Map();
-    }
-
-    const rows = await this.db
-      .select({
-        githubId: developers.githubId,
-        contributions: developers.contributions,
-        commits: developers.commits,
-        prs: developers.prs,
-        issues: developers.issues,
-        reviews: developers.reviews,
-        totalStars: developers.totalStars,
-        topLanguages: developers.topLanguages,
-        rankScore: developers.rankScore,
-        lastSeenAt: developers.lastSeenAt,
-      })
-      .from(developers)
-      .where(inArray(developers.githubId, githubIds));
-
-    return new Map(
-      rows.map((row) => [
-        row.githubId,
-        {
-          githubId: row.githubId,
-          contributions: row.contributions,
-          commits: row.commits,
-          prs: row.prs,
-          issues: row.issues,
-          reviews: row.reviews,
-          totalStars: row.totalStars,
-          topLanguages: row.topLanguages,
-          rankScore: row.rankScore,
-          lastSeenAt: row.lastSeenAt,
-        },
-      ]),
-    );
-  }
-
-  private toEnrichment(existing: ExistingDeveloper): GitHubEnrichment {
-    return {
-      contributions: existing.contributions,
-      commits: existing.commits,
-      prs: existing.prs,
-      issues: existing.issues,
-      reviews: existing.reviews,
-      totalStars: existing.totalStars,
-      topLanguages: existing.topLanguages,
-    };
-  }
-
-  // Turns raw GitHub stats into rankScore (0–100, lower is better) and rankLevel (S–C).
-  private buildRankFields(
-    enrichment: GitHubEnrichment,
-    followers: number,
-  ): Pick<typeof developers.$inferInsert, 'rankScore' | 'rankLevel'> {
-    const rank = calculateRank({
-      commits: enrichment.commits,
-      prs: enrichment.prs,
-      issues: enrichment.issues,
-      reviews: enrichment.reviews,
-      stars: enrichment.totalStars,
-      followers,
-    });
-
-    return {
-      rankScore: rank.score,
-      rankLevel: rank.level,
-    };
-  }
-
-  private async refreshRankings(): Promise<void> {
-    await this.db.execute(buildClearStaleRankingsSql());
-    await this.db.execute(buildRankingUpdateSql());
-  }
-
-  private async upsertDeveloper(
-    hit: GitHubSearchHit,
-    enrichment: GitHubEnrichment,
-    locationId: number,
-  ): Promise<void> {
-    const rankFields = this.buildRankFields(enrichment, hit.followers);
-
-    await this.db.transaction(async (tx) => {
-      await tx
-        .insert(developers)
-        .values({
-          githubId: hit.githubId,
-          login: hit.login,
-          name: hit.name,
-          avatarUrl: hit.avatarUrl,
-          rawLocation: hit.rawLocation,
-          locationId,
-          followers: hit.followers,
-          contributions: enrichment.contributions,
-          commits: enrichment.commits,
-          prs: enrichment.prs,
-          issues: enrichment.issues,
-          reviews: enrichment.reviews,
-          totalStars: enrichment.totalStars,
-          topLanguages: enrichment.topLanguages,
-          profileUrl: hit.profileUrl,
-          lastSeenAt: new Date(),
-          ...rankFields,
-        })
-        .onConflictDoUpdate({
-          target: developers.githubId,
-          set: {
-            login: hit.login,
-            name: hit.name,
-            avatarUrl: hit.avatarUrl,
-            rawLocation: hit.rawLocation,
-            locationId,
-            followers: hit.followers,
-            contributions: enrichment.contributions,
-            commits: enrichment.commits,
-            prs: enrichment.prs,
-            issues: enrichment.issues,
-            reviews: enrichment.reviews,
-            totalStars: enrichment.totalStars,
-            topLanguages: enrichment.topLanguages,
-            profileUrl: hit.profileUrl,
-            lastSeenAt: new Date(),
-            ...rankFields,
-          },
-        });
-
-      await this.replaceDeveloperLanguages(
-        tx,
-        hit.githubId,
-        enrichment.topLanguages,
-      );
-    });
-  }
-
-  private async upsertDeveloperLightweight(
-    hit: GitHubSearchHit,
-    existingStats: GitHubEnrichment,
-    locationId: number,
-  ): Promise<void> {
-    const rankFields = this.buildRankFields(existingStats, hit.followers);
-
-    await this.db
-      .update(developers)
-      .set({
-        login: hit.login,
-        name: hit.name,
-        avatarUrl: hit.avatarUrl,
-        rawLocation: hit.rawLocation,
-        locationId,
-        followers: hit.followers,
-        profileUrl: hit.profileUrl,
-        lastSeenAt: new Date(),
-        ...rankFields,
-      })
-      .where(eq(developers.githubId, hit.githubId));
-  }
-
-  private async replaceDeveloperLanguages(
-    tx: Parameters<Parameters<DrizzleDB['transaction']>[0]>[0],
-    githubId: string,
-    topLanguages: TopLanguage[],
-  ): Promise<void> {
-    await tx
-      .delete(developerLanguages)
-      .where(sql`developer_github_id = ${githubId}`);
-
-    if (topLanguages.length === 0) {
-      return;
-    }
-
-    const dedupedLanguages = new Map<string, { name: string; share: number }>();
-    for (const lang of topLanguages) {
-      const key = lang.name.toLowerCase();
-      const existing = dedupedLanguages.get(key);
-      if (!existing || lang.share > existing.share) {
-        dedupedLanguages.set(key, lang);
-      }
-    }
-
-    await tx.insert(developerLanguages).values(
-      [...dedupedLanguages.values()].map((lang) => ({
-        developerGithubId: githubId,
-        language: lang.name.toLowerCase(),
-        share: lang.share,
-      })),
-    );
   }
 }

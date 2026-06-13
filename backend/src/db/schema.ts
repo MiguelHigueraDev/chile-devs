@@ -28,6 +28,29 @@ export const syncStatusEnum = pgEnum('sync_status', [
   'failed',
 ]);
 
+export const discoverySourceEnum = pgEnum('discovery_source', [
+  'location_search',
+  'follower_graph',
+  'following_graph',
+  'org_contributor',
+  'repo_contributor',
+]);
+
+export const candidateStatusEnum = pgEnum('candidate_status', [
+  'pending',
+  'accepted',
+  'rejected',
+  'excluded',
+]);
+
+export type CandidateSignals = {
+  // Human-readable signal keys that fired during scoring (for transparency/debugging).
+  reasons: string[];
+  // Number of already-verified Chilean devs whose follower/following graph points
+  // at this candidate. Accumulated by the social-graph snowball source.
+  neighborOverlap?: number;
+};
+
 export const locations = pgTable('locations', {
   id: serial('id').primaryKey(),
   slug: text('slug').notNull().unique(),
@@ -78,10 +101,14 @@ export const developers = pgTable(
     lastSeenAt: timestamp('last_seen_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
+    // When this developer was last expanded as a seed by the social-graph
+    // snowball crawler. Null means never expanded.
+    lastGraphCrawlAt: timestamp('last_graph_crawl_at', { withTimezone: true }),
   },
   (table) => [
     index('idx_developers_rank_score').on(table.rankScore),
     index('idx_developers_location_rank').on(table.locationId, table.rankScore),
+    index('idx_developers_graph_crawl').on(table.lastGraphCrawlAt),
   ],
 );
 
@@ -110,6 +137,56 @@ export const excludedUsers = pgTable('excluded_users', {
     .defaultNow(),
 });
 
+export const discoveryCandidates = pgTable(
+  'discovery_candidates',
+  {
+    githubId: text('github_id').primaryKey(),
+    login: text('login').notNull(),
+    rawLocation: text('raw_location'),
+    bio: text('bio'),
+    company: text('company'),
+    blog: text('blog'),
+    source: discoverySourceEnum('source').notNull(),
+    // Where the candidate came from: a seed login, org login, or owner/repo.
+    discoveredVia: text('discovered_via'),
+    confidence: doublePrecision('confidence'),
+    signals: jsonb('signals')
+      .$type<CandidateSignals>()
+      .notNull()
+      .default({ reasons: [] }),
+    status: candidateStatusEnum('status').notNull().default('pending'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lastEvaluatedAt: timestamp('last_evaluated_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('idx_candidates_status').on(table.status),
+    index('idx_candidates_confidence').on(table.confidence),
+  ],
+);
+
+export const discoveryRuns = pgTable('discovery_runs', {
+  id: serial('id').primaryKey(),
+  startedAt: timestamp('started_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  finishedAt: timestamp('finished_at', { withTimezone: true }),
+  // Total candidates newly enqueued this run, broken down per source.
+  candidatesDiscovered: integer('candidates_discovered').notNull().default(0),
+  candidatesEvaluated: integer('candidates_evaluated').notNull().default(0),
+  candidatesAccepted: integer('candidates_accepted').notNull().default(0),
+  candidatesRejected: integer('candidates_rejected').notNull().default(0),
+  // Per-source breakdown: { [source]: { discovered, accepted } }.
+  sourceStats: jsonb('source_stats')
+    .$type<Record<string, { discovered: number; accepted: number }>>()
+    .notNull()
+    .default({}),
+  dryRun: integer('dry_run').notNull().default(0),
+  status: syncStatusEnum('status').notNull().default('running'),
+  errorMessage: text('error_message'),
+});
+
 export const syncRuns = pgTable('sync_runs', {
   id: serial('id').primaryKey(),
   startedAt: timestamp('started_at', { withTimezone: true })
@@ -135,3 +212,7 @@ export type ExcludedUser = typeof excludedUsers.$inferSelect;
 export type Developer = typeof developers.$inferSelect;
 export type DeveloperLanguage = typeof developerLanguages.$inferSelect;
 export type SyncRun = typeof syncRuns.$inferSelect;
+export type DiscoveryCandidate = typeof discoveryCandidates.$inferSelect;
+export type DiscoveryRun = typeof discoveryRuns.$inferSelect;
+export type DiscoverySource = (typeof discoverySourceEnum.enumValues)[number];
+export type CandidateStatus = (typeof candidateStatusEnum.enumValues)[number];
