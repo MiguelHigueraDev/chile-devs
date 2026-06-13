@@ -149,9 +149,16 @@ export class SyncService implements OnModuleInit {
 
         try {
           await this.github.searchUsersByLocation(term, async (hits) => {
-            const newHits = hits
-              .filter((hit) => !processedThisRun.has(hit.githubId))
-              .filter((hit) => !excludedGithubIds.has(hit.githubId));
+            const candidateHits = hits.filter(
+              (hit) => !processedThisRun.has(hit.githubId),
+            );
+            const newHits: GitHubSearchHit[] = [];
+            for (const hit of candidateHits) {
+              if (await this.isSyncExcluded(hit.githubId, excludedGithubIds)) {
+                continue;
+              }
+              newHits.push(hit);
+            }
 
             for (const hit of newHits) {
               processedThisRun.add(hit.githubId);
@@ -192,6 +199,10 @@ export class SyncService implements OnModuleInit {
                 : new Map<string, GitHubEnrichment>();
 
             for (const hit of needsEnrichment) {
+              if (await this.isSyncExcluded(hit.githubId, excludedGithubIds)) {
+                continue;
+              }
+
               const classified = this.github.classifyLocation(
                 hit.rawLocation,
                 allLocations,
@@ -237,6 +248,10 @@ export class SyncService implements OnModuleInit {
             }
 
             for (const { hit, existing } of freshHits) {
+              if (await this.isSyncExcluded(hit.githubId, excludedGithubIds)) {
+                continue;
+              }
+
               const classified = this.github.classifyLocation(
                 hit.rawLocation,
                 allLocations,
@@ -405,6 +420,22 @@ export class SyncService implements OnModuleInit {
       .limit(1);
 
     return runs[0] ?? null;
+  }
+
+  private async isSyncExcluded(
+    githubId: string,
+    excludedGithubIds: Set<string>,
+  ): Promise<boolean> {
+    if (excludedGithubIds.has(githubId)) {
+      return true;
+    }
+
+    if (await this.excludedUsersService.isExcluded(githubId)) {
+      excludedGithubIds.add(githubId);
+      return true;
+    }
+
+    return false;
   }
 
   private buildUniqueSearchTerms(
