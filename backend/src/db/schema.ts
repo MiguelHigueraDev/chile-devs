@@ -102,6 +102,14 @@ export const developerLanguages = pgTable(
   ],
 );
 
+export const excludedUsers = pgTable('excluded_users', {
+  githubId: text('github_id').primaryKey(),
+  login: text('login').notNull(),
+  excludedAt: timestamp('excluded_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const syncRuns = pgTable('sync_runs', {
   id: serial('id').primaryKey(),
   startedAt: timestamp('started_at', { withTimezone: true })
@@ -123,6 +131,7 @@ export const syncRuns = pgTable('sync_runs', {
 });
 
 export type Location = typeof locations.$inferSelect;
+export type ExcludedUser = typeof excludedUsers.$inferSelect;
 export type Developer = typeof developers.$inferSelect;
 export type DeveloperLanguage = typeof developerLanguages.$inferSelect;
 export type SyncRun = typeof syncRuns.$inferSelect;

@@ -49,6 +49,7 @@ export type MeResponse = {
   login: string;
   avatarUrl: string | null;
   hasProfile: boolean;
+  isExcluded: boolean;
 };
 
 export type UpdateProfileInput = {

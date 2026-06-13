@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { LogIn, LogOut, Pencil, SlidersHorizontal, User } from 'lucide-react'
-import { useMe, useLogoutMutation, useStats } from '../api/queries'
+import { LogIn, LogOut, Pencil, SlidersHorizontal, User, UserX } from 'lucide-react'
+import { useMe, useLogoutMutation, useOptOutMutation, useStats } from '../api/queries'
 import { getGitHubAuthUrl } from '../api/client'
 import { getGitHubAvatarUrl } from '../lib/github'
 import { toSafeHttpsUrl } from '../lib/safe-url'
@@ -9,6 +9,7 @@ import type { MapLocation } from '../types/api'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { OptOutConfirmDialog } from './OptOutConfirmDialog'
 
 type StatsHeaderProps = {
   onViewAllDevelopers: (location: MapLocation) => void
@@ -28,7 +29,9 @@ export function StatsHeader({
   const { data: stats } = useStats()
   const { data: me } = useMe()
   const logoutMutation = useLogoutMutation()
+  const optOutMutation = useOptOutMutation()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [optOutOpen, setOptOutOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const avatarUrl =
     toSafeHttpsUrl(me?.avatarUrl) ??
@@ -134,6 +137,19 @@ export function StatsHeader({
                     Edit profile
                   </button>
                 )}
+                {!me.isExcluded && (
+                  <button
+                    type="button"
+                    className="hover:bg-accent text-destructive flex w-full items-center gap-2 px-3 py-2 text-left text-sm"
+                    onClick={() => {
+                      setMenuOpen(false)
+                      setOptOutOpen(true)
+                    }}
+                  >
+                    <UserX className="size-3.5" />
+                    Remove my profile
+                  </button>
+                )}
                 <button
                   type="button"
                   className="hover:bg-accent text-destructive flex w-full items-center gap-2 px-3 py-2 text-left text-sm"
@@ -163,6 +179,20 @@ export function StatsHeader({
           </Button>
         )}
       </div>
+
+      {me && (
+        <OptOutConfirmDialog
+          open={optOutOpen}
+          onOpenChange={setOptOutOpen}
+          login={me.login}
+          isPending={optOutMutation.isPending}
+          onConfirm={() => {
+            optOutMutation.mutate(undefined, {
+              onSuccess: () => setOptOutOpen(false),
+            })
+          }}
+        />
+      )}
     </header>
   )
 }

@@ -12,6 +12,7 @@ import { eq } from 'drizzle-orm';
 import { randomBytes } from 'node:crypto';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
 import { developers } from '../db/schema';
+import { ExcludedUsersService } from '../exclusion/excluded-users.service';
 import { parseFrontendUrlConfig } from '../lib/frontend-url';
 import type { SessionPayload } from './auth.types';
 
@@ -51,6 +52,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
+    private readonly excludedUsersService: ExcludedUsersService,
   ) {}
 
   get sessionCookieName(): string {
@@ -203,17 +205,21 @@ export class AuthService {
     }
     const githubId = String(githubUser.id);
 
-    const [developer] = await this.db
-      .select({ claimedAt: developers.claimedAt })
-      .from(developers)
-      .where(eq(developers.githubId, githubId))
-      .limit(1);
+    const excluded = await this.excludedUsersService.isExcluded(githubId);
 
-    if (developer && developer.claimedAt == null) {
-      await this.db
-        .update(developers)
-        .set({ claimedAt: new Date() })
-        .where(eq(developers.githubId, githubId));
+    if (!excluded) {
+      const [developer] = await this.db
+        .select({ claimedAt: developers.claimedAt })
+        .from(developers)
+        .where(eq(developers.githubId, githubId))
+        .limit(1);
+
+      if (developer && developer.claimedAt == null) {
+        await this.db
+          .update(developers)
+          .set({ claimedAt: new Date() })
+          .where(eq(developers.githubId, githubId));
+      }
     }
 
     const payload: SessionPayload = {
@@ -245,6 +251,10 @@ export class AuthService {
   }
 
   async getMe(session: SessionPayload) {
+    const isExcluded = await this.excludedUsersService.isExcluded(
+      session.githubId,
+    );
+
     const [developer] = await this.db
       .select({
         login: developers.login,
@@ -258,6 +268,14 @@ export class AuthService {
       login: developer?.login ?? session.login,
       avatarUrl: developer?.avatarUrl ?? session.avatarUrl ?? null,
       hasProfile: !!developer,
+      isExcluded,
     };
+  }
+
+  async optOut(session: SessionPayload) {
+    return this.excludedUsersService.excludeUser(
+      session.githubId,
+      session.login,
+    );
   }
 }
