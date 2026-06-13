@@ -53,7 +53,7 @@ export function StatsHeader({
   return (
     <header className="border-border/60 bg-background/80 z-10 flex shrink-0 flex-col gap-3 border-b px-3 py-3 backdrop-blur-md sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-4">
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex min-h-7 items-center gap-2">
           <h1 className="text-sm leading-none font-semibold tracking-tight sm:text-base">
             Chile Devs Map
           </h1>

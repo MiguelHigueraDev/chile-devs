@@ -83,6 +83,18 @@ function GithubLink() {
 const footerGridClass =
   "grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-[1fr_auto_1fr] sm:items-center";
 
+const metricsWrapperClass =
+  "col-span-2 grid grid-cols-2 gap-x-4 gap-y-1 sm:col-span-1 sm:col-start-2 sm:flex sm:items-center sm:justify-center sm:gap-3";
+
+function metricCellClass(index: number) {
+  return cn(
+    "justify-self-center text-center",
+    index === METRICS.length - 1 &&
+      METRICS.length % 2 !== 0 &&
+      "col-span-2 sm:col-span-1",
+  );
+}
+
 function GithubColumn({ className }: { className?: string }) {
   return (
     <div
@@ -114,13 +126,28 @@ export function StatsFooter() {
 
   if (isPending && !stats) {
     return (
-      <footer className="relative shrink-0 px-1 py-1">
+      <footer className="text-muted-foreground relative shrink-0 px-1 py-1 text-[10px] tabular-nums sm:text-[11px]">
         <div className={footerGridClass}>
-          <div className="col-span-2 sm:col-span-1 sm:col-start-2 sm:flex sm:justify-center sm:gap-3">
-            {METRICS.map((metric) => (
-              <Skeleton key={metric.key} className="h-3 w-24" />
+          <div className="col-span-2 sm:col-span-1 sm:col-start-1">
+            <Skeleton className="h-3.5 w-40 max-w-full" />
+          </div>
+
+          <div className={metricsWrapperClass}>
+            {METRICS.map((metric, index) => (
+              <div key={metric.key} className={metricCellClass(index)}>
+                <div className="flex items-center justify-center gap-2 sm:gap-3">
+                  {index > 0 && (
+                    <Separator
+                      orientation="vertical"
+                      className="hidden h-3 sm:block"
+                    />
+                  )}
+                  <Skeleton className="h-3.5 w-24" />
+                </div>
+              </div>
             ))}
           </div>
+
           <GithubColumn />
         </div>
       </footer>
@@ -128,9 +155,6 @@ export function StatsFooter() {
   }
 
   if (!stats) return null;
-
-  const metricsWrapperClass =
-    "col-span-2 grid grid-cols-2 gap-x-4 gap-y-1 sm:col-span-1 sm:col-start-2 sm:flex sm:items-center sm:justify-center sm:gap-3";
 
   return (
     <footer className="text-muted-foreground relative shrink-0 px-1 py-1 text-[10px] tabular-nums sm:text-[11px]">
@@ -146,15 +170,7 @@ export function StatsFooter() {
 
         <div className={metricsWrapperClass}>
           {METRICS.map((metric, index) => (
-            <div
-              key={metric.key}
-              className={cn(
-                "justify-self-center text-center",
-                index === METRICS.length - 1 &&
-                  METRICS.length % 2 !== 0 &&
-                  "col-span-2 sm:col-span-1",
-              )}
-            >
+            <div key={metric.key} className={metricCellClass(index)}>
               <div className="flex items-center justify-center gap-2 sm:gap-3">
                 {index > 0 && (
                   <Separator
