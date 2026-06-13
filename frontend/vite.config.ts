@@ -16,22 +16,37 @@ const SITE_META = {
   twitterCard: "summary_large_image",
 } as const;
 
-function siteMetaPlugin(siteUrl: string, backendUrl?: string): Plugin {
-  const normalizedSiteUrl = siteUrl.replace(/\/$/, "");
-  const contentSecurityPolicy = buildContentSecurityPolicy({
-    backendUrl,
-    includeFrameAncestors: false,
-  });
+const CSP_META_TAG =
+  /^\s*<meta http-equiv="Content-Security-Policy"[^>]*\/>\s*$/m;
 
-  const injectSiteMeta = (contents: string) =>
-    contents
+function siteMetaPlugin(
+  siteUrl: string,
+  backendUrl?: string,
+  isDev = false,
+): Plugin {
+  const normalizedSiteUrl = siteUrl.replace(/\/$/, "");
+  const contentSecurityPolicy = isDev
+    ? null
+    : buildContentSecurityPolicy({
+        backendUrl,
+        includeFrameAncestors: false,
+      });
+
+  const injectSiteMeta = (contents: string) => {
+    const html = contents
       .replaceAll("%SITE_URL%", normalizedSiteUrl)
       .replaceAll("%SITE_NAME%", SITE_META.name)
       .replaceAll("%SITE_DESCRIPTION%", SITE_META.description)
       .replaceAll("%SITE_TAGLINE%", SITE_META.tagline)
       .replaceAll("%SITE_LOCALE%", SITE_META.locale)
-      .replaceAll("%TWITTER_CARD%", SITE_META.twitterCard)
-      .replaceAll("%CONTENT_SECURITY_POLICY%", contentSecurityPolicy);
+      .replaceAll("%TWITTER_CARD%", SITE_META.twitterCard);
+
+    if (contentSecurityPolicy === null) {
+      return html.replace(CSP_META_TAG, "");
+    }
+
+    return html.replaceAll("%CONTENT_SECURITY_POLICY%", contentSecurityPolicy);
+  };
 
   const readSeoTemplate = (fileName: (typeof SEO_FILES)[number]) =>
     readFileSync(path.resolve(__dirname, "seo", fileName), "utf8");
@@ -57,13 +72,15 @@ function siteMetaPlugin(siteUrl: string, backendUrl?: string): Plugin {
         res.end(body);
       });
 
-      server.middlewares.use((_req, res, next) => {
-        res.setHeader(
-          "Content-Security-Policy",
-          buildContentSecurityPolicy({ backendUrl }),
-        );
-        next();
-      });
+      if (!isDev) {
+        server.middlewares.use((_req, res, next) => {
+          res.setHeader(
+            "Content-Security-Policy",
+            buildContentSecurityPolicy({ backendUrl }),
+          );
+          next();
+        });
+      }
     },
     closeBundle() {
       const distDir = path.resolve(__dirname, "dist");
@@ -78,13 +95,18 @@ function siteMetaPlugin(siteUrl: string, backendUrl?: string): Plugin {
 }
 
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
+  const isDev = command === "serve";
   const env = loadEnv(mode, process.cwd(), "");
   const backendUrl = env.VITE_BACKEND_URL ?? "http://localhost:3000";
   const siteUrl = env.VITE_SITE_URL ?? "http://localhost:5173";
 
   return {
-    plugins: [react(), tailwindcss(), siteMetaPlugin(siteUrl, backendUrl)],
+    plugins: [
+      react(),
+      tailwindcss(),
+      siteMetaPlugin(siteUrl, backendUrl, isDev),
+    ],
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
