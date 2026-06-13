@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ExternalLink, Globe, LogIn, Pencil } from "lucide-react";
+import { ExternalLink, Globe, HelpCircle, LogIn, Pencil } from "lucide-react";
 import {
   useDeveloper,
   useMe,
@@ -26,6 +26,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { ExternalLinkWarningDialog } from "./ExternalLinkWarningDialog";
+import { RankHelpDialog } from "./RankHelpDialog";
 import { TopLanguagesBar } from "./TopLanguagesBar";
 import { RankBadge } from "./RankBadge";
 import { hasRankData, RANK_SECTION_LABEL, formatCountryRank, formatLocationRank } from "../lib/rank";
@@ -85,6 +86,7 @@ function ProfileView({
   onEdit: () => void;
 }) {
   const [portfolioWarningOpen, setPortfolioWarningOpen] = useState(false);
+  const [rankHelpOpen, setRankHelpOpen] = useState(false);
   const profileUrl = toSafeHttpsUrl(developer.profileUrl);
   const avatarUrl = toSafeHttpsUrl(developer.avatarUrl);
   const portfolioUrl = toSafeHttpsUrl(developer.portfolioUrl);
@@ -141,9 +143,21 @@ function ProfileView({
 
       {hasRankData(developer) && (
         <div className="space-y-3 text-center">
-          <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-            {RANK_SECTION_LABEL}
-          </p>
+          <div className="flex items-center justify-center gap-1">
+            <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+              {RANK_SECTION_LABEL}
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="text-muted-foreground hover:text-foreground"
+              aria-label="How is rank calculated?"
+              onClick={() => setRankHelpOpen(true)}
+            >
+              <HelpCircle className="size-3.5" />
+            </Button>
+          </div>
           <RankBadge
             developer={developer}
             showPercentile
@@ -154,6 +168,8 @@ function ProfileView({
           />
         </div>
       )}
+
+      <RankHelpDialog open={rankHelpOpen} onOpenChange={setRankHelpOpen} />
 
       {developer.topLanguages.length > 0 && (
         <div className="space-y-2">
