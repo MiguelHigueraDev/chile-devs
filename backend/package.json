@@ -22,8 +22,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/db/seed.ts",
-    "db:refresh-rankings": "tsx src/db/refresh-rankings.ts",
-    "db:remove-invalid-locations": "tsx src/db/remove-invalid-locations.ts"
+    "db:refresh-rankings": "tsx src/db/refresh-rankings.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.80",
