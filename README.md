@@ -53,7 +53,7 @@ Edit `backend/.env` and set at least:
 | `GITHUB_OAUTH_CALLBACK_URL` | OAuth callback URL (default: `http://localhost:3000/api/auth/github/callback`) |
 | `SESSION_SECRET` | Secret used to sign login session cookies |
 | `FRONTEND_URL` | Frontend origin for OAuth redirects (default: `http://localhost:5173`) |
-| `GOOGLE_GENERATIVE_AI_API_KEY` | Google AI Studio key — required for natural-language search |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | Google AI Studio key — currently unused, but it could be used later to add AI features. It was used before for NL search. |
 | `SYNC_TOKEN` | Secret for the manual sync endpoint — send as `Authorization: Bearer <token>` on `POST /api/sync` and `POST /api/sync/user`. For `POST /api/sync/user`, also include `?user=<login>`; omitting it returns HTTP 400. |
 
 ### GitHub OAuth setup (profile claiming)
@@ -97,7 +97,6 @@ This project is a snapshot of publicly available GitHub data, not a complete dir
 - **Incomplete coverage** — Discovery relies on the free-form `location` field on GitHub profiles. Not all developers set a location, and spelling varies, so the list is not exhaustive.
 - **Public data only** — Stats and languages are derived from **public repositories** only. Private repos are not included.
 - **Top-language sampling** — Language breakdowns are computed from each developer's **top 30 repositories** (by stars) to stay within GitHub API rate limits and avoid `429` errors.
-- **Natural-language search** — Search queries are parsed by an LLM, which can misinterpret intent or extract the wrong filters. Double-check results if a query seems off.
 - **Limited locations** — The map does not include every Chilean city and region, only the main ones included in the seed data. If yours is missing, [open an issue](https://github.com/MiguelHigueraDev/chile-devs/issues/new) and ask to have it added.
 - **"Programming" languages** — GitHub counts HTML and CSS as languages, so yes, someone might show up as a top HTML developer. We don't make the rules; we just report them.
 
