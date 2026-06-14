@@ -16,7 +16,7 @@ import {
   MAP_STYLE,
   ZOOM_SCALED_RADIUS,
 } from "@/lib/map-styles";
-import { formatNumber } from "@/lib/utils";
+import { formatNumber, truncateText } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { MapLegend } from "./MapLegend";
 
@@ -64,6 +64,7 @@ type MapTooltip = {
   y: number;
   title: string;
   subtitle: string;
+  description?: string;
 };
 
 type ClusterChooser =
@@ -562,11 +563,15 @@ export function ChileMap({
           return;
         }
 
+        const repo = resolveRepoFromFeature(feature, reposRef.current);
         setTooltip({
           x: event.point.x,
           y: event.point.y,
           title: feature.properties.nameWithOwner as string,
           subtitle: `${formatNumber(feature.properties.stars as number)} stars`,
+          description: repo?.description
+            ? truncateText(repo.description, 100)
+            : undefined,
         });
         return;
       }
@@ -762,7 +767,7 @@ export function ChileMap({
 
       {tooltip && (
         <div
-          className="pointer-events-none absolute z-20 rounded-md border bg-popover px-3 py-1.5 text-xs shadow-md"
+          className="pointer-events-none absolute z-20 max-w-xs rounded-md border bg-popover px-3 py-1.5 text-xs shadow-md"
           style={{
             left: tooltip.x + 12,
             top: tooltip.y - 12,
@@ -770,6 +775,11 @@ export function ChileMap({
         >
           <p className="font-medium">{tooltip.title}</p>
           <p className="text-muted-foreground">{tooltip.subtitle}</p>
+          {tooltip.description && (
+            <p className="text-muted-foreground mt-1 leading-snug">
+              {tooltip.description}
+            </p>
+          )}
         </div>
       )}
 

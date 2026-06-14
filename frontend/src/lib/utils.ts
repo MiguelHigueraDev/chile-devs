@@ -24,3 +24,8 @@ export function formatDateTime(iso: string): string {
   }
   return dateTimeFormat.format(date);
 }
+
+export function truncateText(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength)}…`;
+}
