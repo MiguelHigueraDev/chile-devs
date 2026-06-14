@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   doublePrecision,
   index,
@@ -184,8 +185,11 @@ export const repoCandidates = pgTable(
     index('idx_repo_candidates_location').on(table.locationId),
     index('idx_repo_candidates_region_location').on(table.regionLocationId),
     index('idx_repo_candidates_owner').on(table.ownerGithubId),
-    index('idx_repo_candidates_scatter_lat').on(table.scatterLat),
-    index('idx_repo_candidates_scatter_lng').on(table.scatterLng),
+    index('idx_repo_candidates_promoted_scatter_bbox')
+      .on(table.scatterLng, table.scatterLat)
+      .where(
+        sql`${table.status} = 'promoted' AND ${table.scatterLat} IS NOT NULL AND ${table.scatterLng} IS NOT NULL`,
+      ),
   ],
 );
 
