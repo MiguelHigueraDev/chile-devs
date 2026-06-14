@@ -120,22 +120,27 @@ export type CandidateScope = 'region' | 'country';
 export type CandidateSortKey = 'stars' | 'regionRank' | 'countryRank';
 
 export type Candidate = {
-  login: string;
-  name: string | null;
-  avatarUrl: string;
-  profileUrl: string;
-  totalStars: number;
-  topLanguages: TopLanguage[];
-  rankLevel: string | null;
-  followers: number;
-  contributions: number;
+  repoGithubId: string;
+  nameWithOwner: string;
+  name: string;
+  description: string | null;
+  url: string;
+  primaryLanguage: string | null;
+  stars: number;
+  forks: number;
   regionRank: number | null;
   countryRank: number | null;
-  totalStarsAtSelection: number;
+  starsAtSelection: number;
   status: CandidateStatus;
   selectedAt: string;
   promotedAt: string | null;
   promotedByLogin: string | null;
+  owner: {
+    login: string;
+    name: string | null;
+    avatarUrl: string;
+    profileUrl: string;
+  };
   location: {
     slug: string;
     name: string;
@@ -156,6 +161,9 @@ export type CandidatesResponse = {
 export type RefreshCandidatesSummary = {
   perRegion: number;
   perCountry: number;
+  topDevs: number;
+  reposPerDev: number;
+  reposScanned: number;
   regionPicks: number;
   countryPicks: number;
   totalSelected: number;

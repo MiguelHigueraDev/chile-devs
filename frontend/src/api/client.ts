@@ -279,6 +279,8 @@ export function fetchCandidates(
 export function refreshCandidates(input: {
   perRegion?: number;
   perCountry?: number;
+  topDevs?: number;
+  reposPerDev?: number;
 } = {}): Promise<RefreshCandidatesSummary> {
   return fetchJson<RefreshCandidatesSummary>('/admin/repo-candidates/refresh', {
     method: 'POST',
@@ -288,28 +290,37 @@ export function refreshCandidates(input: {
 }
 
 export function promoteCandidate(
-  login: string,
-): Promise<{ login: string; status: 'promoted' }> {
-  return fetchJson(`/admin/repo-candidates/${encodeURIComponent(login)}/promote`, {
-    method: 'POST',
-    auth: true,
-  });
+  repoGithubId: string,
+): Promise<{ repoGithubId: string; status: 'promoted' }> {
+  return fetchJson(
+    `/admin/repo-candidates/${encodeURIComponent(repoGithubId)}/promote`,
+    {
+      method: 'POST',
+      auth: true,
+    },
+  );
 }
 
 export function rejectCandidate(
-  login: string,
-): Promise<{ login: string; status: 'rejected' }> {
-  return fetchJson(`/admin/repo-candidates/${encodeURIComponent(login)}/reject`, {
-    method: 'POST',
-    auth: true,
-  });
+  repoGithubId: string,
+): Promise<{ repoGithubId: string; status: 'rejected' }> {
+  return fetchJson(
+    `/admin/repo-candidates/${encodeURIComponent(repoGithubId)}/reject`,
+    {
+      method: 'POST',
+      auth: true,
+    },
+  );
 }
 
 export function resetCandidate(
-  login: string,
-): Promise<{ login: string; status: 'candidate' }> {
-  return fetchJson(`/admin/repo-candidates/${encodeURIComponent(login)}/reset`, {
-    method: 'POST',
-    auth: true,
-  });
+  repoGithubId: string,
+): Promise<{ repoGithubId: string; status: 'candidate' }> {
+  return fetchJson(
+    `/admin/repo-candidates/${encodeURIComponent(repoGithubId)}/reset`,
+    {
+      method: 'POST',
+      auth: true,
+    },
+  );
 }

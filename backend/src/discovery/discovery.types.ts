@@ -14,11 +14,16 @@ export type CandidateSortKey = (typeof CANDIDATE_SORT_KEYS)[number];
 export type RefreshCandidatesInput = {
   perRegion?: number;
   perCountry?: number;
+  topDevs?: number;
+  reposPerDev?: number;
 };
 
 export type RefreshCandidatesSummary = {
   perRegion: number;
   perCountry: number;
+  topDevs: number;
+  reposPerDev: number;
+  reposScanned: number;
   regionPicks: number;
   countryPicks: number;
   totalSelected: number;
