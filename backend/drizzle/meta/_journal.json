@@ -85,6 +85,13 @@
       "when": 1781500000000,
       "tag": "0011_repo_candidates_region_location",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1781600000000,
+      "tag": "0012_repo_candidates_scatter_coords",
+      "breakpoints": true
     }
   ]
 }

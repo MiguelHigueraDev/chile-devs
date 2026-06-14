@@ -1,4 +1,9 @@
-import { decodeCursor, encodeCursor } from './api.service';
+import {
+  decodeCursor,
+  decodeRepoCursor,
+  encodeCursor,
+  encodeRepoCursor,
+} from './api.service';
 
 describe('developer pagination cursors', () => {
   it('round-trips numeric rank cursors', () => {
@@ -27,5 +32,29 @@ describe('developer pagination cursors', () => {
   it('rejects cursors when sort does not match', () => {
     const cursor = encodeCursor('rank', 10, 'dev-123');
     expect(decodeCursor(cursor, 'followers')).toBeNull();
+  });
+});
+
+describe('repo pagination cursors', () => {
+  it('round-trips stars cursors', () => {
+    const cursor = encodeRepoCursor(1250, 'repo-456');
+    expect(decodeRepoCursor(cursor)).toEqual({
+      stars: 1250,
+      repoGithubId: 'repo-456',
+    });
+  });
+
+  it('rejects malformed repo cursors', () => {
+    expect(decodeRepoCursor('not-a-cursor')).toBeNull();
+  });
+
+  it('rejects negative star cursors', () => {
+    const cursor = Buffer.from('stars:-1:repo-456').toString('base64url');
+    expect(decodeRepoCursor(cursor)).toBeNull();
+  });
+
+  it('rejects decimal star cursors', () => {
+    const cursor = Buffer.from('stars:12.5:repo-456').toString('base64url');
+    expect(decodeRepoCursor(cursor)).toBeNull();
   });
 });

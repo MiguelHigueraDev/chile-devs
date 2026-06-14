@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -14,6 +15,7 @@ import type { FastifyRequest } from 'fastify';
 import { AuthGuard } from '../auth/auth.guard';
 import type { AuthenticatedRequest } from '../auth/auth.types';
 import { ApiService, parseDeveloperSort } from './api.service';
+import { parseReposListQuery, parseReposViewportQuery } from './repos.dto';
 import { parseUpdateProfileInput } from './update-profile.dto';
 
 @Controller('api')
@@ -23,6 +25,47 @@ export class ApiController {
   @Get('map')
   getMap() {
     return this.apiService.getMapData();
+  }
+
+  @Get('repos/list')
+  getReposList(
+    @Query('region') region?: string,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('cursor') cursor?: string,
+  ) {
+    const input = parseReposListQuery({
+      region,
+      limit: limit != null ? String(limit) : undefined,
+      cursor,
+    });
+    return this.apiService.getPromotedReposList(input);
+  }
+
+  @Get('repos/by-name')
+  async getRepoByName(@Query('nameWithOwner') nameWithOwner?: string) {
+    const trimmed = nameWithOwner?.trim() ?? '';
+    if (!trimmed) {
+      throw new BadRequestException(
+        'Missing required query parameter: nameWithOwner',
+      );
+    }
+
+    const repo = await this.apiService.getPromotedRepoByNameWithOwner(trimmed);
+
+    if (!repo) {
+      throw new NotFoundException(`Repo "${trimmed}" not found`);
+    }
+
+    return repo;
+  }
+
+  @Get('repos')
+  getRepos(@Query('bbox') bbox?: string, @Query('limit') limit?: string) {
+    const input = parseReposViewportQuery({ bbox, limit });
+    if (!input) {
+      return [];
+    }
+    return this.apiService.getPromotedReposInViewport(input);
   }
 
   @Get('stats')

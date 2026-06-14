@@ -2,6 +2,7 @@ import { ALL_CHILE_SLUG, createAllChileLocation } from './all-chile-location';
 import type {
   DeveloperSortKey,
   MapLocation,
+  MapMode,
   SearchParams,
   SearchSortKey,
   StatsResponse,
@@ -10,6 +11,7 @@ import { DEFAULT_DEVELOPER_SORT, DEFAULT_SEARCH_PARAMS } from '../types/api';
 
 export const APP_URL_PARAMS = {
   location: 'location',
+  mode: 'mode',
   langs: 'langs',
   langMode: 'langMode',
   locs: 'locs',
@@ -19,6 +21,7 @@ export const APP_URL_PARAMS = {
   sort: 'sort',
   shareLang: 'shareLang',
   dev: 'dev',
+  repo: 'repo',
 } as const;
 
 export const VALID_SORTS = new Set<DeveloperSortKey>([
@@ -38,10 +41,16 @@ export const VALID_SEARCH_SORTS = new Set<SearchSortKey>([
 
 export type AppUrlState = {
   locationSlug: string | null;
+  mapMode: MapMode;
   searchParams: SearchParams | null;
   sort: DeveloperSortKey | null;
   devLogin: string | null;
+  repoNameWithOwner: string | null;
 };
+
+export function parseMapModeParam(value: string | null): MapMode {
+  return value === 'repos' ? 'repos' : 'devs';
+}
 
 function parseCsvParam(value: string | null): string[] {
   if (!value?.trim()) {
@@ -114,11 +123,13 @@ export function readAppUrlState(): AppUrlState {
 
   return {
     locationSlug: searchParams ? null : locationSlug || null,
+    mapMode: parseMapModeParam(params.get(APP_URL_PARAMS.mode)),
     searchParams,
     sort: searchParams
       ? null
       : parseSortParam(params.get(APP_URL_PARAMS.sort)),
     devLogin: params.get(APP_URL_PARAMS.dev) || null,
+    repoNameWithOwner: params.get(APP_URL_PARAMS.repo)?.trim() || null,
   };
 }
 
@@ -161,13 +172,23 @@ export function buildSearchUrlParams(params: SearchParams): URLSearchParams {
 export function buildAppUrlSearchParams(state: AppUrlState): URLSearchParams {
   if (state.searchParams) {
     const params = buildSearchUrlParams(state.searchParams);
+    if (state.mapMode === 'repos') {
+      params.set(APP_URL_PARAMS.mode, 'repos');
+    }
     if (state.devLogin) {
       params.set(APP_URL_PARAMS.dev, state.devLogin);
+    }
+    if (state.repoNameWithOwner) {
+      params.set(APP_URL_PARAMS.repo, state.repoNameWithOwner);
     }
     return params;
   }
 
   const params = new URLSearchParams();
+
+  if (state.mapMode === 'repos') {
+    params.set(APP_URL_PARAMS.mode, 'repos');
+  }
 
   if (state.locationSlug) {
     params.set(APP_URL_PARAMS.location, state.locationSlug);
@@ -183,6 +204,10 @@ export function buildAppUrlSearchParams(state: AppUrlState): URLSearchParams {
 
   if (state.devLogin) {
     params.set(APP_URL_PARAMS.dev, state.devLogin);
+  }
+
+  if (state.repoNameWithOwner) {
+    params.set(APP_URL_PARAMS.repo, state.repoNameWithOwner);
   }
 
   return params;
@@ -206,16 +231,41 @@ export function syncAppUrlState(state: AppUrlState, replace = true): void {
   }
 }
 
+type LocationCatalogEntry = {
+  slug: string;
+  name: string;
+  kind: MapLocation['kind'];
+};
+
 export function resolveLocationFromSlug(
   slug: string,
   locations: MapLocation[],
   stats: StatsResponse | undefined,
+  catalog: LocationCatalogEntry[] = [],
 ): MapLocation | null {
   if (slug === ALL_CHILE_SLUG) {
     return stats ? createAllChileLocation(stats) : null;
   }
 
-  return locations.find((location) => location.slug === slug) ?? null;
+  const fromMap = locations.find((location) => location.slug === slug);
+  if (fromMap) {
+    return fromMap;
+  }
+
+  const fromCatalog = catalog.find((entry) => entry.slug === slug);
+  if (fromCatalog) {
+    return {
+      slug: fromCatalog.slug,
+      name: fromCatalog.name,
+      kind: fromCatalog.kind,
+      lat: 0,
+      lng: 0,
+      devCount: 0,
+      totalContributions: 0,
+    };
+  }
+
+  return null;
 }
 
 export function countActiveSearchFilters(params: SearchParams): number {

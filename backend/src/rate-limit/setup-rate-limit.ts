@@ -44,36 +44,27 @@ export async function setupRateLimit(
     redis: banService.client,
     nameSpace: 'ratelimit:counters:',
     skipOnError: true,
-    errorResponseBuilder: async (request, context) => {
-      const ip = request.ip;
-      const existingBan = await banService.isBanned(ip);
-      if (existingBan.banned) {
-        return {
-          statusCode: 403,
-          error: 'Forbidden',
-          message: 'Too many requests. You are temporarily banned.',
-          retryAfter: existingBan.retryAfterSeconds,
-        };
-      }
-
-      const { banned } = await banService.recordExceededWindow(ip);
-      if (banned) {
-        logger.warn(`Rate limit ban applied for ${ip}`);
-        const banStatus = await banService.isBanned(ip);
-        return {
-          statusCode: 403,
-          error: 'Forbidden',
-          message: 'Too many requests. You are temporarily banned.',
-          retryAfter: banStatus.retryAfterSeconds,
-        };
-      }
-
-      return {
-        statusCode: 429,
-        error: 'Too Many Requests',
-        message: `Rate limit exceeded, retry in ${context.after}.`,
-      };
+    onExceeded: (request) => {
+      void banService
+        .recordExceededWindow(request.ip)
+        .then(({ banned }) => {
+          if (banned) {
+            logger.warn(`Rate limit ban applied for ${request.ip}`);
+          }
+        })
+        .catch((error) => {
+          logger.error(
+            `Failed to record rate-limit violation for ${request.ip}`,
+            error,
+          );
+        });
     },
+    // Must stay synchronous: @fastify/rate-limit throws the return value.
+    errorResponseBuilder: (_request, context) => ({
+      statusCode: 429,
+      error: 'Too Many Requests',
+      message: `Rate limit exceeded, retry in ${context.after}.`,
+    }),
   });
 
   return banService;

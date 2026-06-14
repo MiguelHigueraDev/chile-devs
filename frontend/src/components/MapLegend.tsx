@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import type { MapMode } from '../types/api'
 
-const LEGEND_ITEMS = [
+const DEV_LEGEND_ITEMS = [
   { color: '#dc2626', label: '1–20 devs' },
   { color: '#ea580c', label: '21–75 devs' },
   { color: '#ca8a04', label: '76–200 devs' },
@@ -8,16 +9,27 @@ const LEGEND_ITEMS = [
   { color: '#16a34a', label: '500+ devs' },
 ]
 
-export function MapLegend() {
+const REPO_LEGEND_ITEMS = [
+  { color: '#38bdf8', label: 'Regional featured repo' },
+  { color: '#f472b6', label: 'National featured repo' },
+]
+
+type MapLegendProps = {
+  mode: MapMode
+}
+
+export function MapLegend({ mode }: MapLegendProps) {
+  const items = mode === 'repos' ? REPO_LEGEND_ITEMS : DEV_LEGEND_ITEMS
+
   return (
-    <Card className="absolute bottom-6 left-4 z-10 hidden w-44 gap-3 border-border/60 bg-card/90 py-4 shadow-lg backdrop-blur-sm sm:block">
+    <Card className="absolute bottom-6 left-4 z-10 hidden w-52 gap-3 border-border/60 bg-card/90 py-4 shadow-lg backdrop-blur-sm sm:block">
       <CardHeader className="px-4 py-0">
         <CardTitle className="text-xs font-medium tracking-wide uppercase">
-          Developer density
+          {mode === 'repos' ? 'Featured repos' : 'Developer density'}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 px-4 py-0">
-        {LEGEND_ITEMS.map((item) => (
+        {items.map((item) => (
           <div key={item.label} className="flex items-center gap-2">
             <span
               className="size-3 shrink-0 rounded-full border border-white/40"
@@ -27,7 +39,9 @@ export function MapLegend() {
           </div>
         ))}
         <p className="text-muted-foreground pt-1 text-[10px] leading-snug">
-          Click clusters to zoom in. Click a city for details.
+          {mode === 'repos'
+            ? 'Click clusters to zoom in. Click a marker for details.'
+            : 'Click clusters to zoom in. Click a city for details.'}
         </p>
       </CardContent>
     </Card>

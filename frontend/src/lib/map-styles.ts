@@ -44,3 +44,59 @@ export const CLUSTER_RADIUS: ExpressionSpecification = [
   1000,
   34,
 ]
+
+export const REPO_SCOPE_COLOR: ExpressionSpecification = [
+  'match',
+  ['get', 'scope'],
+  'regional',
+  '#38bdf8',
+  'national',
+  '#f472b6',
+  '#94a3b8',
+]
+
+export const REPO_STAR_RADIUS: ExpressionSpecification = [
+  'interpolate',
+  ['linear'],
+  ['get', 'stars'],
+  0,
+  6,
+  50,
+  8,
+  200,
+  10,
+  1000,
+  14,
+  5000,
+  18,
+]
+
+export const REPO_STAR_COLOR: ExpressionSpecification = [
+  'interpolate',
+  ['linear'],
+  ['get', 'stars'],
+  0,
+  '#64748b',
+  50,
+  '#38bdf8',
+  500,
+  '#818cf8',
+  2000,
+  '#f472b6',
+  10000,
+  '#fbbf24',
+]
+
+export const REPO_CLUSTER_RADIUS: ExpressionSpecification = [
+  'step',
+  ['get', 'point_count'],
+  18,
+  5,
+  22,
+  15,
+  26,
+  30,
+  30,
+  50,
+  34,
+]

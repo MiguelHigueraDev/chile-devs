@@ -13,8 +13,12 @@ import {
   desc,
   eq,
   gt,
+  gte,
+  inArray,
+  isNotNull,
   isNull,
   lt,
+  lte,
   ne,
   or,
   sql,
@@ -22,11 +26,15 @@ import {
   type AnyColumn,
   type SQL,
 } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
-import { developers, locations, syncRuns } from '../db/schema';
+import { developers, locations, repoCandidates, syncRuns } from '../db/schema';
+import { expandLocationSlugs } from '../search/geo.data';
+import type { ReposListInput, ReposViewportInput } from './repos.dto';
 import type { UpdateProfileInput } from './update-profile.dto';
 
 const MAX_DEVELOPERS_PAGE_SIZE = 10;
+const MAX_REPOS_PAGE_SIZE = 10;
 
 export const DEVELOPER_SORT_KEYS = [
   'contributions',
@@ -138,6 +146,106 @@ export function parseDeveloperSort(sort?: string): DeveloperSortKey {
   return DEFAULT_DEVELOPER_SORT;
 }
 
+type RepoCursor = {
+  stars: number;
+  repoGithubId: string;
+};
+
+export function encodeRepoCursor(stars: number, repoGithubId: string): string {
+  return Buffer.from(`stars:${stars}:${repoGithubId}`).toString('base64url');
+}
+
+export function decodeRepoCursor(cursor: string): RepoCursor | null {
+  try {
+    const decoded = Buffer.from(cursor, 'base64url').toString('utf8');
+    const firstSep = decoded.indexOf(':');
+    const lastSep = decoded.lastIndexOf(':');
+    if (firstSep === -1 || lastSep === firstSep) {
+      return null;
+    }
+
+    const sort = decoded.slice(0, firstSep);
+    const stars = Number(decoded.slice(firstSep + 1, lastSep));
+    const repoGithubId = decoded.slice(lastSep + 1);
+    if (
+      sort !== 'stars' ||
+      !Number.isInteger(stars) ||
+      stars < 0 ||
+      !repoGithubId
+    ) {
+      return null;
+    }
+
+    return { stars, repoGithubId };
+  } catch {
+    return null;
+  }
+}
+
+type PromotedRepoRow = {
+  repoGithubId: string;
+  nameWithOwner: string;
+  name: string;
+  description: string | null;
+  url: string;
+  primaryLanguage: string | null;
+  stars: number;
+  forks: number;
+  regionRank: number | null;
+  countryRank: number | null;
+  scatterLat: number | null;
+  scatterLng: number | null;
+  ownerLogin: string;
+  ownerName: string | null;
+  ownerAvatarUrl: string;
+  ownerProfileUrl: string;
+  regionSlug: string | null;
+  regionName: string | null;
+};
+
+function mapPromotedRepoRow(row: PromotedRepoRow) {
+  return {
+    repoGithubId: row.repoGithubId,
+    nameWithOwner: row.nameWithOwner,
+    name: row.name,
+    description: row.description,
+    url: row.url,
+    primaryLanguage: row.primaryLanguage,
+    stars: row.stars,
+    forks: row.forks,
+    regionRank: row.regionRank,
+    countryRank: row.countryRank,
+    scope:
+      row.regionRank != null ? ('regional' as const) : ('national' as const),
+    lat: row.scatterLat ?? 0,
+    lng: row.scatterLng ?? 0,
+    owner: {
+      login: row.ownerLogin,
+      name: row.ownerName,
+      avatarUrl: row.ownerAvatarUrl,
+      profileUrl: row.ownerProfileUrl,
+    },
+    region:
+      row.regionSlug && row.regionName
+        ? {
+            slug: row.regionSlug,
+            name: row.regionName,
+          }
+        : null,
+  };
+}
+
+function buildRepoCursorFilter(decodedCursor: RepoCursor): SQL {
+  const { stars, repoGithubId } = decodedCursor;
+  return or(
+    lt(repoCandidates.stars, stars),
+    and(
+      eq(repoCandidates.stars, stars),
+      gt(repoCandidates.repoGithubId, repoGithubId),
+    ),
+  )!;
+}
+
 @Injectable()
 export class ApiService {
   private readonly logger = new Logger(ApiService.name);
@@ -183,7 +291,7 @@ export class ApiService {
     limit: number,
     cursor: string | undefined,
     sort: DeveloperSortKey,
-    locationId?: number,
+    locationIds?: number[],
   ) {
     const pageSize = Math.max(1, Math.min(limit, MAX_DEVELOPERS_PAGE_SIZE));
     let decodedCursor: DeveloperCursor | null = null;
@@ -200,7 +308,9 @@ export class ApiService {
     const sortAscending = sort === 'rank';
 
     const locationFilter =
-      locationId != null ? eq(developers.locationId, locationId) : undefined;
+      locationIds != null && locationIds.length > 0
+        ? inArray(developers.locationId, locationIds)
+        : undefined;
     const cursorFilter = decodedCursor
       ? buildDeveloperCursorFilter(sort, sortColumn, decodedCursor)
       : undefined;
@@ -283,6 +393,20 @@ export class ApiService {
     };
   }
 
+  private async resolveLocationIdsForSlug(
+    slug: string,
+    kind: 'country' | 'region' | 'city',
+  ): Promise<number[]> {
+    const slugsToResolve =
+      kind === 'region' ? [...expandLocationSlugs([slug])] : [slug];
+    const rows = await this.db
+      .select({ id: locations.id })
+      .from(locations)
+      .where(inArray(locations.slug, slugsToResolve));
+
+    return rows.map((row) => row.id);
+  }
+
   async getLocationDevelopers(
     slug: string,
     limit = MAX_DEVELOPERS_PAGE_SIZE,
@@ -299,11 +423,20 @@ export class ApiService {
       return null;
     }
 
+    const locationIds = await this.resolveLocationIdsForSlug(
+      location.slug,
+      location.kind,
+    );
+
+    if (locationIds.length === 0) {
+      return null;
+    }
+
     const page = await this.paginateDevelopers(
       limit,
       cursor,
       sort,
-      location.id,
+      locationIds,
     );
 
     if (!page.isFirstPage) {
@@ -315,15 +448,17 @@ export class ApiService {
       };
     }
 
+    const locationFilter = inArray(developers.locationId, locationIds);
+
     const [{ devCount }] = await this.db
       .select({ devCount: count() })
       .from(developers)
-      .where(eq(developers.locationId, location.id));
+      .where(locationFilter);
 
     const [{ totalContributions }] = await this.db
       .select({ totalContributions: sum(developers.contributions) })
       .from(developers)
-      .where(eq(developers.locationId, location.id));
+      .where(locationFilter);
 
     return {
       location: {
@@ -579,5 +714,229 @@ export class ApiService {
             }
           : null,
     };
+  }
+
+  async getPromotedReposInViewport(input: ReposViewportInput) {
+    const { bbox, limit } = input;
+    const regionLocations = alias(locations, 'region_locations');
+
+    const rows = await this.db
+      .select({
+        repoGithubId: repoCandidates.repoGithubId,
+        nameWithOwner: repoCandidates.nameWithOwner,
+        name: repoCandidates.name,
+        description: repoCandidates.description,
+        url: repoCandidates.url,
+        primaryLanguage: repoCandidates.primaryLanguage,
+        stars: repoCandidates.stars,
+        forks: repoCandidates.forks,
+        regionRank: repoCandidates.regionRank,
+        countryRank: repoCandidates.countryRank,
+        scatterLat: repoCandidates.scatterLat,
+        scatterLng: repoCandidates.scatterLng,
+        ownerLogin: developers.login,
+        ownerName: developers.name,
+        ownerAvatarUrl: developers.avatarUrl,
+        ownerProfileUrl: developers.profileUrl,
+        regionSlug: regionLocations.slug,
+        regionName: regionLocations.name,
+      })
+      .from(repoCandidates)
+      .innerJoin(
+        developers,
+        eq(repoCandidates.ownerGithubId, developers.githubId),
+      )
+      .leftJoin(
+        regionLocations,
+        eq(repoCandidates.regionLocationId, regionLocations.id),
+      )
+      .where(
+        and(
+          eq(repoCandidates.status, 'promoted'),
+          isNotNull(repoCandidates.scatterLat),
+          isNotNull(repoCandidates.scatterLng),
+          gte(repoCandidates.scatterLng, bbox.minLng),
+          lte(repoCandidates.scatterLng, bbox.maxLng),
+          gte(repoCandidates.scatterLat, bbox.minLat),
+          lte(repoCandidates.scatterLat, bbox.maxLat),
+        ),
+      )
+      .orderBy(desc(repoCandidates.stars), asc(repoCandidates.repoGithubId))
+      .limit(limit);
+
+    return rows.map((row) => mapPromotedRepoRow(row));
+  }
+
+  async getPromotedReposList(input: ReposListInput) {
+    const pageSize = Math.max(1, Math.min(input.limit, MAX_REPOS_PAGE_SIZE));
+    let decodedCursor: RepoCursor | null = null;
+
+    if (input.cursor) {
+      decodedCursor = decodeRepoCursor(input.cursor);
+      if (!decodedCursor) {
+        throw new BadRequestException('Invalid pagination cursor');
+      }
+    }
+
+    const regionLocations = alias(locations, 'region_locations');
+    const filters: SQL[] = [
+      eq(repoCandidates.status, 'promoted'),
+      isNotNull(repoCandidates.scatterLat),
+      isNotNull(repoCandidates.scatterLng),
+    ];
+
+    if (input.regionSlug) {
+      const [region] = await this.db
+        .select({ id: locations.id, slug: locations.slug, name: locations.name })
+        .from(locations)
+        .where(
+          and(eq(locations.slug, input.regionSlug), eq(locations.kind, 'region')),
+        )
+        .limit(1);
+
+      if (!region) {
+        throw new NotFoundException(`Region "${input.regionSlug}" not found`);
+      }
+
+      filters.push(eq(repoCandidates.regionLocationId, region.id));
+    }
+
+    if (decodedCursor) {
+      filters.push(buildRepoCursorFilter(decodedCursor));
+    }
+
+    const whereClause = and(...filters);
+
+    const rows = await this.db
+      .select({
+        repoGithubId: repoCandidates.repoGithubId,
+        nameWithOwner: repoCandidates.nameWithOwner,
+        name: repoCandidates.name,
+        description: repoCandidates.description,
+        url: repoCandidates.url,
+        primaryLanguage: repoCandidates.primaryLanguage,
+        stars: repoCandidates.stars,
+        forks: repoCandidates.forks,
+        regionRank: repoCandidates.regionRank,
+        countryRank: repoCandidates.countryRank,
+        scatterLat: repoCandidates.scatterLat,
+        scatterLng: repoCandidates.scatterLng,
+        ownerLogin: developers.login,
+        ownerName: developers.name,
+        ownerAvatarUrl: developers.avatarUrl,
+        ownerProfileUrl: developers.profileUrl,
+        regionSlug: regionLocations.slug,
+        regionName: regionLocations.name,
+      })
+      .from(repoCandidates)
+      .innerJoin(
+        developers,
+        eq(repoCandidates.ownerGithubId, developers.githubId),
+      )
+      .leftJoin(
+        regionLocations,
+        eq(repoCandidates.regionLocationId, regionLocations.id),
+      )
+      .where(whereClause)
+      .orderBy(desc(repoCandidates.stars), asc(repoCandidates.repoGithubId))
+      .limit(pageSize + 1);
+
+    const hasMore = rows.length > pageSize;
+    const pageRows = hasMore ? rows.slice(0, pageSize) : rows;
+    const lastRow = pageRows.at(-1);
+    const nextCursor =
+      hasMore && lastRow
+        ? encodeRepoCursor(lastRow.stars, lastRow.repoGithubId)
+        : null;
+
+    const response: {
+      repos: ReturnType<typeof mapPromotedRepoRow>[];
+      nextCursor: string | null;
+      hasMore: boolean;
+      total?: number;
+      region?: { slug: string; name: string } | null;
+    } = {
+      repos: pageRows.map((row) => mapPromotedRepoRow(row)),
+      nextCursor,
+      hasMore,
+    };
+
+    if (!decodedCursor) {
+      const [{ total }] = await this.db
+        .select({ total: count() })
+        .from(repoCandidates)
+        .where(whereClause);
+
+      response.total = Number(total);
+
+      if (input.regionSlug) {
+        const [region] = await this.db
+          .select({ slug: locations.slug, name: locations.name })
+          .from(locations)
+          .where(eq(locations.slug, input.regionSlug))
+          .limit(1);
+        response.region = region ?? null;
+      } else {
+        response.region = null;
+      }
+    }
+
+    return response;
+  }
+
+  async getPromotedRepoByNameWithOwner(nameWithOwner: string) {
+    const trimmed = nameWithOwner.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    const regionLocations = alias(locations, 'region_locations');
+
+    const rows = await this.db
+      .select({
+        repoGithubId: repoCandidates.repoGithubId,
+        nameWithOwner: repoCandidates.nameWithOwner,
+        name: repoCandidates.name,
+        description: repoCandidates.description,
+        url: repoCandidates.url,
+        primaryLanguage: repoCandidates.primaryLanguage,
+        stars: repoCandidates.stars,
+        forks: repoCandidates.forks,
+        regionRank: repoCandidates.regionRank,
+        countryRank: repoCandidates.countryRank,
+        scatterLat: repoCandidates.scatterLat,
+        scatterLng: repoCandidates.scatterLng,
+        ownerLogin: developers.login,
+        ownerName: developers.name,
+        ownerAvatarUrl: developers.avatarUrl,
+        ownerProfileUrl: developers.profileUrl,
+        regionSlug: regionLocations.slug,
+        regionName: regionLocations.name,
+      })
+      .from(repoCandidates)
+      .innerJoin(
+        developers,
+        eq(repoCandidates.ownerGithubId, developers.githubId),
+      )
+      .leftJoin(
+        regionLocations,
+        eq(repoCandidates.regionLocationId, regionLocations.id),
+      )
+      .where(
+        and(
+          eq(repoCandidates.status, 'promoted'),
+          isNotNull(repoCandidates.scatterLat),
+          isNotNull(repoCandidates.scatterLng),
+          eq(repoCandidates.nameWithOwner, trimmed),
+        ),
+      )
+      .limit(1);
+
+    const [row] = rows;
+    if (!row) {
+      return null;
+    }
+
+    return mapPromotedRepoRow(row);
   }
 }

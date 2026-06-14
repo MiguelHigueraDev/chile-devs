@@ -5,14 +5,16 @@ import { getGitHubAuthUrl } from '../api/client'
 import { getGitHubAvatarUrl } from '../lib/github'
 import { toSafeHttpsUrl } from '../lib/safe-url'
 import { createAllChileLocation } from '../lib/all-chile-location'
-import type { MapLocation } from '../types/api'
+import type { MapLocation, MapMode } from '../types/api'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { OptOutConfirmDialog } from './OptOutConfirmDialog'
 
 type StatsHeaderProps = {
-  onViewAllDevelopers: (location: MapLocation) => void
+  mapMode: MapMode
+  filtersDisabled?: boolean
+  onViewAll: (location: MapLocation) => void
   onOpenFilters: () => void
   activeFilterCount?: number
   onOpenMyProfile: (login: string) => void
@@ -20,7 +22,9 @@ type StatsHeaderProps = {
 }
 
 export function StatsHeader({
-  onViewAllDevelopers,
+  mapMode,
+  filtersDisabled = false,
+  onViewAll,
   onOpenFilters,
   activeFilterCount = 0,
   onOpenMyProfile,
@@ -63,9 +67,9 @@ export function StatsHeader({
               variant="outline"
               size="sm"
               className="h-7 shrink-0 px-2.5 text-xs"
-              onClick={() => onViewAllDevelopers(createAllChileLocation(stats))}
+              onClick={() => onViewAll(createAllChileLocation(stats))}
             >
-              View all
+              {mapMode === 'repos' ? 'View all repos' : 'View all devs'}
             </Button>
           )}
         </div>
@@ -81,6 +85,7 @@ export function StatsHeader({
           size="sm"
           className="h-8 min-w-0 flex-1 sm:flex-none"
           onClick={onOpenFilters}
+          disabled={filtersDisabled}
         >
           <SlidersHorizontal className="size-3.5 shrink-0" />
           <span>Filters</span>

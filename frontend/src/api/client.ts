@@ -11,7 +11,9 @@ import type {
   DeveloperSortKey,
   LocationDevelopersResponse,
   MapLocation,
+  MapRepo,
   MeResponse,
+  ReposListResponse,
   RefreshCandidatesSummary,
   SearchFacets,
   SearchParams,
@@ -98,6 +100,39 @@ async function fetchJson<T>(
 
 export function fetchMapData(): Promise<MapLocation[]> {
   return fetchJson<MapLocation[]>('/map');
+}
+
+export function fetchReposInViewport(bbox: string): Promise<MapRepo[]> {
+  const params = new URLSearchParams({ bbox });
+  return fetchJson<MapRepo[]>(`/repos?${params.toString()}`);
+}
+
+export type FetchPromotedReposListOptions = {
+  region?: string;
+  cursor?: string;
+  limit?: number;
+};
+
+export function fetchPromotedReposList(
+  options: FetchPromotedReposListOptions = {},
+): Promise<ReposListResponse> {
+  const params = new URLSearchParams();
+  if (options.region) {
+    params.set('region', options.region);
+  }
+  if (options.cursor) {
+    params.set('cursor', options.cursor);
+  }
+  if (options.limit != null) {
+    params.set('limit', String(options.limit));
+  }
+  const query = params.toString();
+  return fetchJson<ReposListResponse>(`/repos/list${query ? `?${query}` : ''}`);
+}
+
+export function fetchRepo(nameWithOwner: string): Promise<MapRepo> {
+  const params = new URLSearchParams({ nameWithOwner });
+  return fetchJson<MapRepo>(`/repos/by-name?${params.toString()}`);
 }
 
 export function fetchStats(): Promise<StatsResponse> {
