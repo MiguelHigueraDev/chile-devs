@@ -43,10 +43,30 @@ export type ReposViewportInput = {
 
 const DEFAULT_REPOS_LIMIT = 300;
 
+const CHILE_VIEWPORT_BBOX = {
+  minLng: -109.981,
+  minLat: -61.097,
+  maxLng: -26.58,
+  maxLat: -14.287,
+} as const;
+
+function clipBboxToChile(bbox: ReposViewportInput['bbox']) {
+  const minLng = Math.max(bbox.minLng, CHILE_VIEWPORT_BBOX.minLng);
+  const minLat = Math.max(bbox.minLat, CHILE_VIEWPORT_BBOX.minLat);
+  const maxLng = Math.min(bbox.maxLng, CHILE_VIEWPORT_BBOX.maxLng);
+  const maxLat = Math.min(bbox.maxLat, CHILE_VIEWPORT_BBOX.maxLat);
+
+  if (minLng >= maxLng || minLat >= maxLat) {
+    return null;
+  }
+
+  return { minLng, minLat, maxLng, maxLat };
+}
+
 export function parseReposViewportQuery(query: {
   bbox?: string;
   limit?: string;
-}): ReposViewportInput {
+}): ReposViewportInput | null {
   const parsed = bboxSchema.safeParse(query);
   if (!parsed.success) {
     const message = parsed.error.issues
@@ -55,8 +75,13 @@ export function parseReposViewportQuery(query: {
     throw new BadRequestException(message);
   }
 
+  const clippedBbox = clipBboxToChile(parsed.data.bbox);
+  if (!clippedBbox) {
+    return null;
+  }
+
   return {
-    bbox: parsed.data.bbox,
+    bbox: clippedBbox,
     limit: parsed.data.limit ?? DEFAULT_REPOS_LIMIT,
   };
 }

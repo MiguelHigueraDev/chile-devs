@@ -56,11 +56,11 @@ export class ApiController {
   }
 
   @Get('repos')
-  getRepos(
-    @Query('bbox') bbox?: string,
-    @Query('limit') limit?: string,
-  ) {
+  getRepos(@Query('bbox') bbox?: string, @Query('limit') limit?: string) {
     const input = parseReposViewportQuery({ bbox, limit });
+    if (!input) {
+      return [];
+    }
     return this.apiService.getPromotedReposInViewport(input);
   }
 

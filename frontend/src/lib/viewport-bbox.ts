@@ -7,6 +7,14 @@ export type ViewportBbox = {
   maxLat: number
 }
 
+/** Territorial extent used for map repo queries (includes mainland + islands). */
+export const CHILE_VIEWPORT_BBOX: ViewportBbox = {
+  minLng: -109.981,
+  minLat: -61.097,
+  maxLng: -26.58,
+  maxLat: -14.287,
+}
+
 export function formatViewportBbox(bbox: ViewportBbox): string {
   return [
     bbox.minLng.toFixed(3),
@@ -28,6 +36,30 @@ export function parseViewportBbox(bbox: string): ViewportBbox | null {
   }
 
   return { minLng, minLat, maxLng, maxLat }
+}
+
+export function intersectBboxes(
+  a: ViewportBbox,
+  b: ViewportBbox,
+): ViewportBbox | null {
+  const minLng = Math.max(a.minLng, b.minLng)
+  const minLat = Math.max(a.minLat, b.minLat)
+  const maxLng = Math.min(a.maxLng, b.maxLng)
+  const maxLat = Math.min(a.maxLat, b.maxLat)
+
+  if (minLng >= maxLng || minLat >= maxLat) {
+    return null
+  }
+
+  return { minLng, minLat, maxLng, maxLat }
+}
+
+export function clipViewportToChile(viewport: ViewportBbox): ViewportBbox | null {
+  return intersectBboxes(viewport, CHILE_VIEWPORT_BBOX)
+}
+
+export function repoInChile(repo: MapRepo): boolean {
+  return repoInViewport(repo, CHILE_VIEWPORT_BBOX)
 }
 
 export function isBboxContained(inner: ViewportBbox, outer: ViewportBbox): boolean {
@@ -59,7 +91,9 @@ export function filterReposInViewport(
   repos: Iterable<MapRepo>,
   bbox: ViewportBbox,
 ): MapRepo[] {
-  return [...repos].filter((repo) => repoInViewport(repo, bbox))
+  return [...repos].filter(
+    (repo) => repoInChile(repo) && repoInViewport(repo, bbox),
+  )
 }
 
 export function mergeReposIntoMap(

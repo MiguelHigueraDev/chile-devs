@@ -181,7 +181,7 @@ export function ChileMap({
   const [viewportBbox, setViewportBbox] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<MapTooltip | null>(null);
   const [chooser, setChooser] = useState<ClusterChooser | null>(null);
-  const { data: repos = [], isFetching: reposFetching } =
+  const { data: repos = [], isFetching: reposFetching, hasChileIntersection } =
     useAccumulatedReposInViewport(viewportBbox, mode === "repos");
   const reposRef = useRef(repos);
 
@@ -796,6 +796,7 @@ export function ChileMap({
 
       {mode === "repos" &&
         !reposFetching &&
+        hasChileIntersection &&
         viewportBbox != null &&
         repos.length === 0 &&
         !error && (
