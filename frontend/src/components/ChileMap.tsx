@@ -2,7 +2,9 @@ import type { FeatureCollection } from "geojson";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { useEffect, useRef, useState } from "react";
-import { useMapData, useReposInViewport } from "../api/queries";
+import { useMapData } from "../api/queries";
+import { useAccumulatedReposInViewport } from "@/lib/use-accumulated-repos-in-viewport";
+import { formatViewportBbox } from "@/lib/viewport-bbox";
 import type { MapLocation, MapMode, MapRepo } from "../types/api";
 import {
   REPO_SCOPE_COLOR,
@@ -122,15 +124,15 @@ function locationsToGeoJson(locations: MapLocation[]): FeatureCollection {
   };
 }
 
-function formatBbox(bounds: maplibregl.LngLatBounds): string {
+function formatMapBounds(bounds: maplibregl.LngLatBounds): string {
   const sw = bounds.getSouthWest();
   const ne = bounds.getNorthEast();
-  return [
-    sw.lng.toFixed(3),
-    sw.lat.toFixed(3),
-    ne.lng.toFixed(3),
-    ne.lat.toFixed(3),
-  ].join(",");
+  return formatViewportBbox({
+    minLng: sw.lng,
+    minLat: sw.lat,
+    maxLng: ne.lng,
+    maxLat: ne.lat,
+  });
 }
 
 function reposToGeoJson(repos: MapRepo[]): FeatureCollection {
@@ -179,10 +181,8 @@ export function ChileMap({
   const [viewportBbox, setViewportBbox] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<MapTooltip | null>(null);
   const [chooser, setChooser] = useState<ClusterChooser | null>(null);
-  const { data: repos = [], isFetching: reposFetching } = useReposInViewport(
-    viewportBbox,
-    mode === "repos",
-  );
+  const { data: repos = [], isFetching: reposFetching } =
+    useAccumulatedReposInViewport(viewportBbox, mode === "repos");
   const reposRef = useRef(repos);
 
   useEffect(() => {
@@ -217,7 +217,7 @@ export function ChileMap({
     mapRef.current = map;
 
     const updateViewportBbox = () => {
-      setViewportBbox(formatBbox(map.getBounds()));
+      setViewportBbox(formatMapBounds(map.getBounds()));
     };
 
     map.on("load", () => {

@@ -36,6 +36,7 @@ import {
   type UpdateProfileInput,
 } from "../types/api";
 import { fetchGithubStars } from "../lib/github";
+import { resetAccumulatedReposCache } from "../lib/use-accumulated-repos-in-viewport";
 import type { DeveloperSortKey } from "../types/api";
 
 export const queryKeys = {
@@ -69,7 +70,7 @@ export function reposInViewportQueryOptions(bbox: string | null) {
     queryFn: () => fetchReposInViewport(bbox!),
     enabled: bbox != null,
     placeholderData: (previousData) => previousData,
-    staleTime: 30 * 1000,
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -320,6 +321,7 @@ export function usePromoteCandidateMutation() {
   return useMutation({
     mutationFn: promoteCandidate,
     onSuccess: () => {
+      resetAccumulatedReposCache();
       void queryClient.invalidateQueries({
         queryKey: ["admin", "repo-candidates"],
       });
@@ -337,6 +339,7 @@ export function useRejectCandidateMutation() {
   return useMutation({
     mutationFn: rejectCandidate,
     onSuccess: () => {
+      resetAccumulatedReposCache();
       void queryClient.invalidateQueries({
         queryKey: ["admin", "repo-candidates"],
       });
@@ -354,6 +357,7 @@ export function useResetCandidateMutation() {
   return useMutation({
     mutationFn: resetCandidate,
     onSuccess: () => {
+      resetAccumulatedReposCache();
       void queryClient.invalidateQueries({
         queryKey: ["admin", "repo-candidates"],
       });
