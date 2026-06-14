@@ -314,15 +314,15 @@ export function RepoListPanel({
         onFocusOutside={blockOutsideDismiss}
         className="border-border/60 bg-background/98 flex w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
       >
-        {location && regionSlug && (
+        {location ? (
           <>
             <SheetHeader className="shrink-0 border-b px-5 pb-4">
               <SheetTitle className="text-lg">{location.name}</SheetTitle>
               <SheetDescription>
                 Featured repos ranked by stars
               </SheetDescription>
-              <RepoListPanelStats regionSlug={regionSlug} />
-              {showRegionPicker && (
+              {regionSlug ? <RepoListPanelStats regionSlug={regionSlug} /> : null}
+              {showRegionPicker && regionSlug && (
                 <RegionScopeSelect
                   id="repo-region-scope"
                   value={countryWide ? ALL_CHILE_SLUG : regionSlug}
@@ -332,17 +332,21 @@ export function RepoListPanel({
               )}
             </SheetHeader>
 
-            <ScrollArea ref={scrollRootRef} className="min-h-0 flex-1">
-              <RepoListContent
-                regionSlug={regionSlug}
-                scrollRootRef={scrollRootRef}
-                onRepoSelect={onRepoSelect}
-              />
-            </ScrollArea>
+            {regionSlug ? (
+              <>
+                <ScrollArea ref={scrollRootRef} className="min-h-0 flex-1">
+                  <RepoListContent
+                    regionSlug={regionSlug}
+                    scrollRootRef={scrollRootRef}
+                    onRepoSelect={onRepoSelect}
+                  />
+                </ScrollArea>
 
-            <Separator className="shrink-0" />
+                <Separator className="shrink-0" />
+              </>
+            ) : null}
           </>
-        )}
+        ) : null}
       </SheetContent>
     </Sheet>
   )

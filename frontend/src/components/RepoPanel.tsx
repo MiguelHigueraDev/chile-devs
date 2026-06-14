@@ -53,22 +53,28 @@ export function RepoPanel({ nameWithOwner, onClose }: RepoPanelProps) {
       >
         {nameWithOwner && (
           <>
-            {isPending && !repo ? (
-              <>
-                <SheetHeader className="border-border/60 space-y-3 border-b px-5 py-5 text-left">
+            <SheetHeader className="border-border/60 space-y-3 border-b px-5 py-5 text-left">
+              {(isPending && !repo) || error ? (
+                <>
+                  <SheetTitle className="sr-only">{nameWithOwner}</SheetTitle>
+                  <SheetDescription className="sr-only">
+                    {error
+                      ? 'Failed to load repository details'
+                      : 'Loading repository details'}
+                  </SheetDescription>
+                </>
+              ) : null}
+
+              {isPending && !repo && !error ? (
+                <>
                   <Skeleton className="h-10 w-10 rounded-full" />
                   <Skeleton className="h-5 w-48" />
                   <Skeleton className="h-4 w-32" />
-                </SheetHeader>
-                <RepoPanelSkeleton />
-              </>
-            ) : error ? (
-              <div className="px-5 py-5">
-                <p className="text-destructive text-sm">{error.message}</p>
-              </div>
-            ) : repo ? (
-              <>
-                <SheetHeader className="border-border/60 space-y-3 border-b px-5 py-5 text-left">
+                </>
+              ) : null}
+
+              {repo ? (
+                <>
                   <div className="flex items-start gap-3">
                     <Avatar className="size-10 shrink-0">
                       {avatarUrl ? (
@@ -110,59 +116,69 @@ export function RepoPanel({ nameWithOwner, onClose }: RepoPanelProps) {
                       {formatNumber(repo.forks)} forks
                     </span>
                   </div>
-                </SheetHeader>
+                </>
+              ) : null}
+            </SheetHeader>
 
-                <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-5">
-                  {repo.description ? (
-                    <p className="text-sm leading-relaxed">{repo.description}</p>
-                  ) : (
-                    <p className="text-muted-foreground text-sm italic">
-                      No description provided.
+            {isPending && !repo && !error ? <RepoPanelSkeleton /> : null}
+
+            {error ? (
+              <div className="px-5 py-5">
+                <p className="text-destructive text-sm">{error.message}</p>
+              </div>
+            ) : null}
+
+            {repo ? (
+              <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-5">
+                {repo.description ? (
+                  <p className="text-sm leading-relaxed">{repo.description}</p>
+                ) : (
+                  <p className="text-muted-foreground text-sm italic">
+                    No description provided.
+                  </p>
+                )}
+
+                <div className="space-y-2 text-sm">
+                  <p>
+                    <span className="text-muted-foreground">Owner: </span>
+                    {ownerProfileUrl ? (
+                      <a
+                        href={ownerProfileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-medium hover:underline"
+                      >
+                        {repo.owner.name ?? repo.owner.login}
+                      </a>
+                    ) : (
+                      <span className="font-medium">
+                        {repo.owner.name ?? repo.owner.login}
+                      </span>
+                    )}
+                  </p>
+                  {repo.regionRank != null && (
+                    <p>
+                      <span className="text-muted-foreground">Regional rank: </span>
+                      #{repo.regionRank}
                     </p>
                   )}
-
-                  <div className="space-y-2 text-sm">
+                  {repo.countryRank != null && (
                     <p>
-                      <span className="text-muted-foreground">Owner: </span>
-                      {ownerProfileUrl ? (
-                        <a
-                          href={ownerProfileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="font-medium hover:underline"
-                        >
-                          {repo.owner.name ?? repo.owner.login}
-                        </a>
-                      ) : (
-                        <span className="font-medium">
-                          {repo.owner.name ?? repo.owner.login}
-                        </span>
-                      )}
+                      <span className="text-muted-foreground">National rank: </span>
+                      #{repo.countryRank}
                     </p>
-                    {repo.regionRank != null && (
-                      <p>
-                        <span className="text-muted-foreground">Regional rank: </span>
-                        #{repo.regionRank}
-                      </p>
-                    )}
-                    {repo.countryRank != null && (
-                      <p>
-                        <span className="text-muted-foreground">National rank: </span>
-                        #{repo.countryRank}
-                      </p>
-                    )}
-                  </div>
-
-                  {repoUrl ? (
-                    <Button asChild className="mt-auto w-full">
-                      <a href={repoUrl} target="_blank" rel="noreferrer">
-                        Open on GitHub
-                        <ExternalLink className="size-4" />
-                      </a>
-                    </Button>
-                  ) : null}
+                  )}
                 </div>
-              </>
+
+                {repoUrl ? (
+                  <Button asChild className="mt-auto w-full">
+                    <a href={repoUrl} target="_blank" rel="noreferrer">
+                      Open on GitHub
+                      <ExternalLink className="size-4" />
+                    </a>
+                  </Button>
+                ) : null}
+              </div>
             ) : null}
           </>
         )}
