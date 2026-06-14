@@ -40,6 +40,21 @@ export class ApiController {
     return this.apiService.getPromotedReposList(input);
   }
 
+  @Get('repos/by-name')
+  async getRepoByName(@Query('nameWithOwner') nameWithOwner?: string) {
+    const repo = await this.apiService.getPromotedRepoByNameWithOwner(
+      nameWithOwner?.trim() ?? '',
+    );
+
+    if (!repo) {
+      throw new NotFoundException(
+        `Repo "${nameWithOwner?.trim() ?? ''}" not found`,
+      );
+    }
+
+    return repo;
+  }
+
   @Get('repos')
   getRepos(
     @Query('bbox') bbox?: string,

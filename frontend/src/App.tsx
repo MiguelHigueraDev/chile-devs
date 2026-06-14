@@ -37,8 +37,8 @@ function App() {
   const { data: stats } = useStats();
   const [sortBy, setSortBy] = useDeveloperSortPreference();
   const [initialUrlState] = useState(() => readAppUrlState());
-  const [mapMode, setMapMode] = useState<MapMode>(
-    () => initialUrlState.mapMode,
+  const [mapMode, setMapMode] = useState<MapMode>(() =>
+    initialUrlState.repoNameWithOwner ? "repos" : initialUrlState.mapMode,
   );
   const [locationSlug, setLocationSlug] = useState<string | null>(
     () => initialUrlState.locationSlug,
@@ -58,7 +58,9 @@ function App() {
   const [devLogin, setDevLogin] = useState<string | null>(
     () => initialUrlState.devLogin,
   );
-  const [selectedRepo, setSelectedRepo] = useState<MapRepo | null>(null);
+  const [repoNameWithOwner, setRepoNameWithOwner] = useState<string | null>(
+    () => initialUrlState.repoNameWithOwner,
+  );
   const [profileEditMode, setProfileEditMode] = useState(false);
   const [viewAllBrowse, setViewAllBrowse] = useState(() => {
     if (initialUrlState.searchParams || !initialUrlState.locationSlug) {
@@ -117,7 +119,7 @@ function App() {
       if (urlState.searchParams) {
         setMapMode(urlState.mapMode);
         setLocationSlug(null);
-        setSelectedRepo(null);
+        setRepoNameWithOwner(null);
         setDraftFilters(urlState.searchParams);
         setCommittedFilters(urlState.searchParams);
         setFilterSheetOpen(true);
@@ -130,9 +132,11 @@ function App() {
       setCommittedFilters(null);
       setFilterSheetOpen(false);
       setResultsOpen(false);
-      setMapMode(urlState.mapMode);
+      setMapMode(
+        urlState.repoNameWithOwner ? "repos" : urlState.mapMode,
+      );
       setLocationSlug(urlState.locationSlug);
-      setSelectedRepo(null);
+      setRepoNameWithOwner(urlState.repoNameWithOwner);
       setViewAllBrowse(
         urlState.searchParams == null &&
           urlState.locationSlug != null &&
@@ -151,6 +155,7 @@ function App() {
       searchParams: urlSearchParams,
       sort: locationSlug ? sortBy : null,
       devLogin,
+      repoNameWithOwner,
     };
     const prevState = urlSyncRef.current;
     const enteredOrLeftSearch =
@@ -161,7 +166,7 @@ function App() {
 
     syncAppUrlState(nextState, isInitialSync || !panelChanged);
     urlSyncRef.current = nextState;
-  }, [locationSlug, mapMode, urlSearchParams, sortBy, devLogin]);
+  }, [locationSlug, mapMode, urlSearchParams, sortBy, devLogin, repoNameWithOwner]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -177,12 +182,12 @@ function App() {
     filterSheetOpen ||
     resultsOpen ||
     devLogin ||
-    selectedRepo;
+    repoNameWithOwner;
 
   const handleMapModeChange = useCallback((nextMode: MapMode) => {
     setMapMode(nextMode);
     setLocationSlug(null);
-    setSelectedRepo(null);
+    setRepoNameWithOwner(null);
     setViewAllBrowse(false);
     setDraftFilters(DEFAULT_SEARCH_PARAMS);
     setCommittedFilters(null);
@@ -195,7 +200,7 @@ function App() {
     setCommittedFilters(null);
     setFilterSheetOpen(false);
     setResultsOpen(false);
-    setSelectedRepo(null);
+    setRepoNameWithOwner(null);
     setViewAllBrowse(false);
     setLocationSlug(location.slug);
   }, []);
@@ -206,7 +211,7 @@ function App() {
       setCommittedFilters(null);
       setFilterSheetOpen(false);
       setResultsOpen(false);
-      setSelectedRepo(null);
+      setRepoNameWithOwner(null);
       setViewAllBrowse(true);
       setLocationSlug(location.slug);
     },
@@ -230,7 +235,8 @@ function App() {
       setFilterSheetOpen(false);
       setResultsOpen(false);
     }
-    setSelectedRepo(repo);
+    setMapMode("repos");
+    setRepoNameWithOwner(repo.nameWithOwner);
   }, []);
 
   const handleOpenFilters = useCallback(() => {
@@ -296,7 +302,6 @@ function App() {
           <StatsFooter />
         </div>
       </div>
-      <RepoPanel repo={selectedRepo} onClose={() => setSelectedRepo(null)} />
       {mapMode === "devs" && (
         <LocationPanel
           location={selectedLocation}
@@ -322,9 +327,13 @@ function App() {
             setViewAllBrowse(false);
           }}
           onRepoSelect={(repo) => handleRepoSelect(repo, true)}
-          repoDetailOpen={selectedRepo != null}
+          repoDetailOpen={repoNameWithOwner != null}
         />
       )}
+      <RepoPanel
+        nameWithOwner={repoNameWithOwner}
+        onClose={() => setRepoNameWithOwner(null)}
+      />
       <SearchFilterSheet
         open={filterSheetOpen}
         params={draftFilters}

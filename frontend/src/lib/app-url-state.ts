@@ -21,6 +21,7 @@ export const APP_URL_PARAMS = {
   sort: 'sort',
   shareLang: 'shareLang',
   dev: 'dev',
+  repo: 'repo',
 } as const;
 
 export const VALID_SORTS = new Set<DeveloperSortKey>([
@@ -44,6 +45,7 @@ export type AppUrlState = {
   searchParams: SearchParams | null;
   sort: DeveloperSortKey | null;
   devLogin: string | null;
+  repoNameWithOwner: string | null;
 };
 
 export function parseMapModeParam(value: string | null): MapMode {
@@ -127,6 +129,7 @@ export function readAppUrlState(): AppUrlState {
       ? null
       : parseSortParam(params.get(APP_URL_PARAMS.sort)),
     devLogin: params.get(APP_URL_PARAMS.dev) || null,
+    repoNameWithOwner: params.get(APP_URL_PARAMS.repo)?.trim() || null,
   };
 }
 
@@ -175,6 +178,9 @@ export function buildAppUrlSearchParams(state: AppUrlState): URLSearchParams {
     if (state.devLogin) {
       params.set(APP_URL_PARAMS.dev, state.devLogin);
     }
+    if (state.repoNameWithOwner) {
+      params.set(APP_URL_PARAMS.repo, state.repoNameWithOwner);
+    }
     return params;
   }
 
@@ -198,6 +204,10 @@ export function buildAppUrlSearchParams(state: AppUrlState): URLSearchParams {
 
   if (state.devLogin) {
     params.set(APP_URL_PARAMS.dev, state.devLogin);
+  }
+
+  if (state.repoNameWithOwner) {
+    params.set(APP_URL_PARAMS.repo, state.repoNameWithOwner);
   }
 
   return params;

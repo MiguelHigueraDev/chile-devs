@@ -130,6 +130,11 @@ export function fetchPromotedReposList(
   return fetchJson<ReposListResponse>(`/repos/list${query ? `?${query}` : ''}`);
 }
 
+export function fetchRepo(nameWithOwner: string): Promise<MapRepo> {
+  const params = new URLSearchParams({ nameWithOwner });
+  return fetchJson<MapRepo>(`/repos/by-name?${params.toString()}`);
+}
+
 export function fetchStats(): Promise<StatsResponse> {
   return fetchJson<StatsResponse>('/stats');
 }

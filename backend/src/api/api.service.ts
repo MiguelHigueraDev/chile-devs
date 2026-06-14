@@ -874,4 +874,58 @@ export class ApiService {
 
     return response;
   }
+
+  async getPromotedRepoByNameWithOwner(nameWithOwner: string) {
+    const trimmed = nameWithOwner.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    const regionLocations = alias(locations, 'region_locations');
+
+    const rows = await this.db
+      .select({
+        repoGithubId: repoCandidates.repoGithubId,
+        nameWithOwner: repoCandidates.nameWithOwner,
+        name: repoCandidates.name,
+        description: repoCandidates.description,
+        url: repoCandidates.url,
+        primaryLanguage: repoCandidates.primaryLanguage,
+        stars: repoCandidates.stars,
+        forks: repoCandidates.forks,
+        regionRank: repoCandidates.regionRank,
+        countryRank: repoCandidates.countryRank,
+        scatterLat: repoCandidates.scatterLat,
+        scatterLng: repoCandidates.scatterLng,
+        ownerLogin: developers.login,
+        ownerName: developers.name,
+        ownerAvatarUrl: developers.avatarUrl,
+        ownerProfileUrl: developers.profileUrl,
+        regionSlug: regionLocations.slug,
+        regionName: regionLocations.name,
+      })
+      .from(repoCandidates)
+      .innerJoin(
+        developers,
+        eq(repoCandidates.ownerGithubId, developers.githubId),
+      )
+      .leftJoin(
+        regionLocations,
+        eq(repoCandidates.regionLocationId, regionLocations.id),
+      )
+      .where(
+        and(
+          eq(repoCandidates.status, 'promoted'),
+          eq(repoCandidates.nameWithOwner, trimmed),
+        ),
+      )
+      .limit(1);
+
+    const [row] = rows;
+    if (!row) {
+      return null;
+    }
+
+    return mapPromotedRepoRow(row);
+  }
 }

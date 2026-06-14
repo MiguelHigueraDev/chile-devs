@@ -16,6 +16,7 @@ import {
   fetchMapData,
   fetchMe,
   fetchPromotedReposList,
+  fetchRepo,
   fetchReposInViewport,
   fetchSearch,
   fetchSearchFacets,
@@ -41,6 +42,7 @@ export const queryKeys = {
   map: ["map"] as const,
   repos: (bbox: string) => ["repos", bbox] as const,
   reposList: (regionSlug: string) => ["repos", "list", regionSlug] as const,
+  repo: (nameWithOwner: string) => ["repos", "by-name", nameWithOwner] as const,
   stats: ["stats"] as const,
   githubStars: ["github", "stars"] as const,
   me: ["auth", "me"] as const,
@@ -160,6 +162,15 @@ export function usePromotedReposList(
   return useInfiniteQuery({
     ...buildReposListInfiniteQueryOptions(regionSlug),
     enabled: enabled && regionSlug != null,
+  });
+}
+
+export function useRepo(nameWithOwner: string | null) {
+  return useQuery({
+    queryKey: queryKeys.repo(nameWithOwner ?? ""),
+    queryFn: () => fetchRepo(nameWithOwner!),
+    enabled: !!nameWithOwner,
+    staleTime: 60 * 1000,
   });
 }
 
