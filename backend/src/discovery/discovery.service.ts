@@ -53,7 +53,10 @@ export class DiscoveryService {
     const fallback =
       Number(this.configService.get<string>('DISCOVERY_TOP_PER_REGION')) ||
       DEFAULT_PER_REGION;
-    const value = input ?? fallback;
+    let value = fallback;
+    if (input !== undefined && Number.isFinite(input)) {
+      value = input;
+    }
     return Math.max(1, Math.min(Math.trunc(value), MAX_PER_SCOPE));
   }
 
@@ -61,7 +64,10 @@ export class DiscoveryService {
     const fallback =
       Number(this.configService.get<string>('DISCOVERY_TOP_COUNTRY')) ||
       DEFAULT_PER_COUNTRY;
-    const value = input ?? fallback;
+    let value = fallback;
+    if (input !== undefined && Number.isFinite(input)) {
+      value = input;
+    }
     return Math.max(1, Math.min(Math.trunc(value), MAX_PER_SCOPE));
   }
 
@@ -192,7 +198,8 @@ export class DiscoveryService {
       perRegion,
       perCountry,
       regionPicks: selectedRows.filter((row) => row.regionRank != null).length,
-      countryPicks: selectedRows.filter((row) => row.countryRank != null).length,
+      countryPicks: selectedRows.filter((row) => row.countryRank != null)
+        .length,
       totalSelected: selectedRows.length,
       totalCandidates: Number(totalCandidates),
       promotedRetained: Number(promotedRetained),
@@ -212,11 +219,13 @@ export class DiscoveryService {
         return [
           sql`${candidates.regionRank} ASC NULLS LAST`,
           desc(candidates.totalStarsAtSelection),
+          asc(candidates.developerGithubId),
         ];
       case 'countryRank':
         return [
           sql`${candidates.countryRank} ASC NULLS LAST`,
           desc(candidates.totalStarsAtSelection),
+          asc(candidates.developerGithubId),
         ];
       case 'stars':
       default:
@@ -228,11 +237,16 @@ export class DiscoveryService {
   }
 
   async listCandidates(input: ListCandidatesInput = {}) {
-    const limit = Math.max(
-      1,
-      Math.min(input.limit ?? DEFAULT_LIST_LIMIT, MAX_LIST_LIMIT),
-    );
-    const offset = Math.max(0, input.offset ?? 0);
+    let limit = DEFAULT_LIST_LIMIT;
+    if (input.limit !== undefined && Number.isFinite(input.limit)) {
+      limit = input.limit;
+    }
+    limit = Math.max(1, Math.min(limit, MAX_LIST_LIMIT));
+
+    let offset = 0;
+    if (input.offset !== undefined && Number.isFinite(input.offset)) {
+      offset = Math.max(0, Math.trunc(input.offset));
+    }
     const sort = input.sort ?? 'stars';
 
     const filters: SQL[] = [];
@@ -350,9 +364,7 @@ export class DiscoveryService {
         promotedAt: new Date(),
         promotedByLogin: adminLogin,
       })
-      .where(
-        eq(candidates.developerGithubId, candidate.developerGithubId),
-      );
+      .where(eq(candidates.developerGithubId, candidate.developerGithubId));
 
     return { login, status: 'promoted' as const };
   }

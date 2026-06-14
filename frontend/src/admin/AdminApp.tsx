@@ -48,15 +48,29 @@ export function AdminApp() {
       );
     }
 
+    if (status === 403) {
+      return (
+        <CenteredMessage>
+          <ShieldAlert className="text-destructive size-7" />
+          <h1 className="text-foreground text-lg font-semibold">
+            Not authorized
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            Your account does not have admin access. Ask an administrator to add
+            your GitHub login to the admins list.
+          </p>
+        </CenteredMessage>
+      );
+    }
+
     return (
       <CenteredMessage>
         <ShieldAlert className="text-destructive size-7" />
         <h1 className="text-foreground text-lg font-semibold">
-          Not authorized
+          Unable to verify admin access
         </h1>
         <p className="text-muted-foreground text-sm">
-          Your account does not have admin access. Ask an administrator to add
-          your GitHub login to the admins list.
+          Please try again in a moment.
         </p>
       </CenteredMessage>
     );

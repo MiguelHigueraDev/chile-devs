@@ -14,7 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn, formatDateTime, formatNumber } from '@/lib/utils';
 import { toSafeHttpsUrl } from '../lib/safe-url';
 import {
-  useCandidates,
+  useCandidatesInfinite,
   usePromoteCandidateMutation,
   useRefreshCandidatesMutation,
   useRejectCandidateMutation,
@@ -179,7 +179,7 @@ export function CandidatesPanel() {
     [facets.data],
   );
 
-  const query: CandidatesQuery = useMemo(
+  const query: Omit<CandidatesQuery, 'offset'> = useMemo(
     () => ({
       status: status === 'all' ? undefined : status,
       scope: scope === 'all' ? undefined : scope,
@@ -190,7 +190,19 @@ export function CandidatesPanel() {
     [status, scope, region, sort],
   );
 
-  const candidates = useCandidates(query);
+  const candidates = useCandidatesInfinite(query);
+  const candidateList = useMemo(() => {
+    if (!candidates.data) return [];
+    const seen = new Set<string>();
+    return candidates.data.pages.flatMap((page) =>
+      page.candidates.filter((candidate) => {
+        if (seen.has(candidate.login)) return false;
+        seen.add(candidate.login);
+        return true;
+      }),
+    );
+  }, [candidates.data]);
+  const total = candidates.data?.pages[0]?.total ?? 0;
   const refresh = useRefreshCandidatesMutation();
   const summary = refresh.data;
 
@@ -314,12 +326,26 @@ export function CandidatesPanel() {
           <p className="text-destructive px-4 py-8 text-center text-sm">
             Failed to load candidates.
           </p>
-        ) : candidates.data && candidates.data.candidates.length > 0 ? (
-          <ul>
-            {candidates.data.candidates.map((candidate) => (
-              <CandidateRow key={candidate.login} candidate={candidate} />
-            ))}
-          </ul>
+        ) : candidateList.length > 0 ? (
+          <>
+            <ul>
+              {candidateList.map((candidate) => (
+                <CandidateRow key={candidate.login} candidate={candidate} />
+              ))}
+            </ul>
+            {candidates.hasNextPage ? (
+              <div className="border-border border-t px-4 py-3">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void candidates.fetchNextPage()}
+                  disabled={candidates.isFetchingNextPage}
+                >
+                  {candidates.isFetchingNextPage ? 'Loading…' : 'Load more'}
+                </Button>
+              </div>
+            ) : null}
+          </>
         ) : (
           <p className="text-muted-foreground px-4 py-8 text-center text-sm">
             No candidates match these filters. Try refreshing candidates.
@@ -329,8 +355,8 @@ export function CandidatesPanel() {
 
       {candidates.data ? (
         <p className="text-muted-foreground text-xs">
-          Showing {formatNumber(candidates.data.candidates.length)} of{' '}
-          {formatNumber(candidates.data.total)} matching.
+          Showing {formatNumber(candidateList.length)} of{' '}
+          {formatNumber(total)} matching.
         </p>
       ) : null}
     </div>

@@ -11,7 +11,7 @@ function parseAdminLogins(raw: string | undefined): string[] {
     new Set(
       raw
         .split(',')
-        .map((login) => login.trim())
+        .map((login) => login.trim().toLowerCase())
         .filter((login) => login.length > 0),
     ),
   );

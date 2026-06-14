@@ -18,12 +18,23 @@ import {
 } from '../discovery/discovery.types';
 import { AdminGuard } from './admin.guard';
 
-function parseOptionalPositiveInt(value: unknown): number | undefined {
+function parseOptionalInt(value: unknown, min: number): number | undefined {
   if (value === undefined || value === null || value === '') {
     return undefined;
   }
   const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : undefined;
+  if (!Number.isInteger(parsed) || parsed < min) {
+    return undefined;
+  }
+  return parsed;
+}
+
+function parseOptionalPositiveInt(value: unknown): number | undefined {
+  return parseOptionalInt(value, 1);
+}
+
+function parseOptionalNonNegativeInt(value: unknown): number | undefined {
+  return parseOptionalInt(value, 0);
 }
 
 @Controller('api/admin')
@@ -60,7 +71,7 @@ export class AdminController {
       scope: parseCandidateScope(scope),
       sort: parseCandidateSort(sort),
       limit: parseOptionalPositiveInt(limit),
-      offset: offset ? Math.max(0, Math.trunc(Number(offset)) || 0) : undefined,
+      offset: parseOptionalNonNegativeInt(offset),
     });
   }
 

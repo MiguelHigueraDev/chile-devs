@@ -226,10 +226,17 @@ export function useAdminMe() {
   })
 }
 
-export function useCandidates(query: CandidatesQuery, enabled = true) {
-  return useQuery({
+export function useCandidatesInfinite(
+  query: Omit<CandidatesQuery, 'offset'>,
+  enabled = true,
+) {
+  return useInfiniteQuery({
     queryKey: queryKeys.candidates(query),
-    queryFn: () => fetchCandidates(query),
+    queryFn: ({ pageParam }) =>
+      fetchCandidates({ ...query, offset: pageParam as number }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) =>
+      lastPage.hasMore ? (lastPage.nextOffset ?? undefined) : undefined,
     enabled,
     staleTime: 30 * 1000,
   })

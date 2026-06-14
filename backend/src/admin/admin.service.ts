@@ -21,21 +21,17 @@ export class AdminService {
 
     // Admins are seeded by login, so the first time a seeded admin signs in we
     // backfill their stable GitHub id.
-    const [byLogin] = await this.db
-      .select({ id: admins.id })
-      .from(admins)
-      .where(and(eq(admins.login, session.login), isNull(admins.githubId)))
-      .limit(1);
-
-    if (!byLogin) {
-      return false;
-    }
-
-    await this.db
+    const claimed = await this.db
       .update(admins)
       .set({ githubId: session.githubId })
-      .where(eq(admins.id, byLogin.id));
+      .where(
+        and(
+          eq(admins.login, session.login.toLowerCase()),
+          isNull(admins.githubId),
+        ),
+      )
+      .returning({ id: admins.id });
 
-    return true;
+    return claimed.length > 0;
   }
 }

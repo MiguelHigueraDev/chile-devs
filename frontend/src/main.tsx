@@ -13,7 +13,8 @@ if (consumeSessionFromUrlHash() || getAuthToken()) {
   void queryClient.invalidateQueries({ queryKey: queryKeys.me });
 }
 
-const isAdminRoute = window.location.pathname.startsWith("/admin");
+const pathname = window.location.pathname;
+const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
