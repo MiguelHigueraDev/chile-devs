@@ -964,7 +964,15 @@ export class ApiService {
       throw new NotFoundException(`Developer "${trimmed}" not found`);
     }
 
-    const cached = await this.activityCache.getUserActivity(trimmed);
+    const cached = await this.activityCache
+      .getUserActivity(trimmed)
+      .catch((error) => {
+        this.logger.warn(
+          `Activity cache read failed for user "${trimmed}", fetching from GitHub`,
+          error instanceof Error ? error.message : error,
+        );
+        return null;
+      });
     if (cached) {
       return cached;
     }
@@ -976,7 +984,14 @@ export class ApiService {
       );
     }
 
-    await this.activityCache.setUserActivity(trimmed, activity);
+    await this.activityCache
+      .setUserActivity(trimmed, activity)
+      .catch((error) => {
+        this.logger.warn(
+          `Activity cache write failed for user "${trimmed}"`,
+          error instanceof Error ? error.message : error,
+        );
+      });
     return activity;
   }
 
@@ -991,13 +1006,28 @@ export class ApiService {
       throw new NotFoundException(`Repo "${trimmed}" not found`);
     }
 
-    const cached = await this.activityCache.getRepoActivity(trimmed);
+    const cached = await this.activityCache
+      .getRepoActivity(trimmed)
+      .catch((error) => {
+        this.logger.warn(
+          `Activity cache read failed for repo "${trimmed}", fetching from GitHub`,
+          error instanceof Error ? error.message : error,
+        );
+        return null;
+      });
     if (cached) {
       return cached;
     }
 
     const activity = await this.github.fetchRepoCommitActivity(trimmed);
-    await this.activityCache.setRepoActivity(trimmed, activity);
+    await this.activityCache
+      .setRepoActivity(trimmed, activity)
+      .catch((error) => {
+        this.logger.warn(
+          `Activity cache write failed for repo "${trimmed}"`,
+          error instanceof Error ? error.message : error,
+        );
+      });
     return activity;
   }
 }

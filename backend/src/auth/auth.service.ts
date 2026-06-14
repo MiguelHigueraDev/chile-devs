@@ -13,26 +13,12 @@ import { randomBytes } from 'node:crypto';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
 import { developers } from '../db/schema';
 import { ExcludedUsersService } from '../exclusion/excluded-users.service';
+import { fetchWithTimeout } from '../lib/fetch-with-timeout';
 import { parseFrontendUrlConfig } from '../lib/frontend-url';
 import type { SessionPayload } from './auth.types';
 
 const SESSION_COOKIE = 'chile_devs_session';
 const OAUTH_STATE_COOKIE = 'chile_devs_oauth_state';
-const GITHUB_FETCH_TIMEOUT_MS = 10_000;
-
-async function fetchWithTimeout(
-  url: string,
-  init: RequestInit = {},
-  timeoutMs = GITHUB_FETCH_TIMEOUT_MS,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(timeout);
-  }
-}
 
 type GitHubTokenResponse = {
   access_token?: string;

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { fetchWithTimeout } from '../lib/fetch-with-timeout';
 import { LOCATION_SEEDS } from '../db/locations.data';
 import { EnrichmentCacheService } from './enrichment-cache.service';
 import type { Location, TopLanguage } from '../db/schema';
@@ -200,6 +201,20 @@ export type GitHubRepo = {
 const REPOS_FETCH_BATCH_SIZE = 10;
 const MAX_REST_RETRIES = 5;
 const REST_202_BACKOFF_MS = 1500;
+
+function parseRetryAfterMs(retryAfter: string): number {
+  const numericSeconds = Number(retryAfter);
+  if (Number.isFinite(numericSeconds)) {
+    return numericSeconds * 1000 + 1000;
+  }
+
+  const retryAt = Date.parse(retryAfter);
+  if (Number.isFinite(retryAt)) {
+    return Math.max(0, retryAt - Date.now());
+  }
+
+  return 5000;
+}
 
 @Injectable()
 export class GithubService {
@@ -901,7 +916,7 @@ export class GithubService {
   private async restGet<T>(path: string, attempt = 0): Promise<T> {
     await this.paceBeforeRequest();
 
-    const response = await fetch(`https://api.github.com${path}`, {
+    const response = await fetchWithTimeout(`https://api.github.com${path}`, {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${this.token}`,
@@ -934,7 +949,7 @@ export class GithubService {
     ) {
       const retryAfter = response.headers.get('retry-after');
       if (retryAfter) {
-        const waitMs = Number(retryAfter) * 1000 + 1000;
+        const waitMs = parseRetryAfterMs(retryAfter);
         await this.sleep(waitMs);
         return this.restGet(path, attempt + 1);
       }
@@ -968,7 +983,7 @@ export class GithubService {
   ): Promise<T> {
     await this.paceBeforeRequest();
 
-    const response = await fetch('https://api.github.com/graphql', {
+    const response = await fetchWithTimeout('https://api.github.com/graphql', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${this.token}`,
@@ -984,7 +999,7 @@ export class GithubService {
     ) {
       const retryAfter = response.headers.get('retry-after');
       if (retryAfter) {
-        const waitMs = Number(retryAfter) * 1000 + 1000;
+        const waitMs = parseRetryAfterMs(retryAfter);
         this.logger.warn(
           `Secondary rate limit hit (HTTP ${response.status}), waiting ${Math.ceil(waitMs / 1000)}s before retry (attempt ${attempt + 1}/${MAX_GRAPHQL_RETRIES})`,
         );

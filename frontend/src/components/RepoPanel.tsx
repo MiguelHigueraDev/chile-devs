@@ -1,25 +1,25 @@
-import { ExternalLink, GitFork, Star } from 'lucide-react'
-import { useRepo, useRepoActivity } from '../api/queries'
-import { getGitHubAvatarUrl } from '../lib/github'
-import { toSafeHttpsUrl } from '../lib/safe-url'
-import { formatNumber } from '../lib/utils'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { ExternalLink, GitFork, Star } from "lucide-react";
+import { useRepo, useRepoActivity } from "../api/queries";
+import { getGitHubAvatarUrl } from "../lib/github";
+import { toSafeHttpsUrl } from "../lib/safe-url";
+import { formatNumber } from "../lib/utils";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from '@/components/ui/sheet'
-import { Skeleton } from '@/components/ui/skeleton'
-import { RepoCommitActivityChart } from './RepoCommitActivity'
+} from "@/components/ui/sheet";
+import { Skeleton } from "@/components/ui/skeleton";
+import { RepoCommitActivityChart } from "./RepoCommitActivity";
 
 type RepoPanelProps = {
-  nameWithOwner: string | null
-  onClose: () => void
-}
+  nameWithOwner: string | null;
+  onClose: () => void;
+};
 
 function RepoPanelSkeleton() {
   return (
@@ -29,21 +29,21 @@ function RepoPanelSkeleton() {
       <Skeleton className="h-4 w-2/3" />
       <Skeleton className="mt-auto h-10 w-full" />
     </div>
-  )
+  );
 }
 
 export function RepoPanel({ nameWithOwner, onClose }: RepoPanelProps) {
-  const { data: repo, error, isPending } = useRepo(nameWithOwner)
+  const { data: repo, error, isPending } = useRepo(nameWithOwner);
   const {
     data: activity,
     error: activityError,
     isPending: activityPending,
-  } = useRepoActivity(nameWithOwner)
+  } = useRepoActivity(nameWithOwner);
   const avatarUrl =
     toSafeHttpsUrl(repo?.owner.avatarUrl) ??
-    (repo?.owner.login ? getGitHubAvatarUrl(repo.owner.login) : null)
-  const ownerProfileUrl = toSafeHttpsUrl(repo?.owner.profileUrl)
-  const repoUrl = toSafeHttpsUrl(repo?.url)
+    (repo?.owner.login ? getGitHubAvatarUrl(repo.owner.login) : null);
+  const ownerProfileUrl = toSafeHttpsUrl(repo?.owner.profileUrl);
+  const repoUrl = toSafeHttpsUrl(repo?.url);
 
   return (
     <Sheet
@@ -65,8 +65,8 @@ export function RepoPanel({ nameWithOwner, onClose }: RepoPanelProps) {
                   <SheetTitle className="sr-only">{nameWithOwner}</SheetTitle>
                   <SheetDescription className="sr-only">
                     {error
-                      ? 'Failed to load repository details'
-                      : 'Loading repository details'}
+                      ? "Failed to load repository details"
+                      : "Loading repository details"}
                   </SheetDescription>
                 </>
               ) : null}
@@ -102,7 +102,9 @@ export function RepoPanel({ nameWithOwner, onClose }: RepoPanelProps) {
 
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant="secondary">
-                      {repo.scope === 'regional' ? 'Regional pick' : 'National pick'}
+                      {repo.scope === "regional"
+                        ? "Regional pick"
+                        : "National pick"}
                     </Badge>
                     {repo.region && (
                       <Badge variant="outline">{repo.region.name}</Badge>
@@ -164,13 +166,17 @@ export function RepoPanel({ nameWithOwner, onClose }: RepoPanelProps) {
                   </p>
                   {repo.regionRank != null && (
                     <p>
-                      <span className="text-muted-foreground">Regional rank: </span>
+                      <span className="text-muted-foreground">
+                        Regional rank:{" "}
+                      </span>
                       #{repo.regionRank}
                     </p>
                   )}
                   {repo.countryRank != null && (
                     <p>
-                      <span className="text-muted-foreground">National rank: </span>
+                      <span className="text-muted-foreground">
+                        National rank:{" "}
+                      </span>
                       #{repo.countryRank}
                     </p>
                   )}
@@ -196,5 +202,5 @@ export function RepoPanel({ nameWithOwner, onClose }: RepoPanelProps) {
         )}
       </SheetContent>
     </Sheet>
-  )
+  );
 }

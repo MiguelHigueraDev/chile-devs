@@ -52,13 +52,17 @@ export function RepoCommitActivityChart({
         <TooltipProvider>
           <div className="flex h-24 min-w-full items-end gap-[3px]">
             {activity.weeks.map((week) => {
-              const heightPct = Math.max((week.total / maxTotal) * 100, 4);
+              const heightPct =
+                week.total > 0
+                  ? Math.max((week.total / maxTotal) * 100, 4)
+                  : 0;
 
               return (
                 <Tooltip key={week.weekStart}>
                   <TooltipTrigger asChild>
-                    <div
-                      className="bg-emerald-500/80 dark:bg-emerald-400/70 hover:bg-emerald-600 dark:hover:bg-emerald-300 min-w-[6px] flex-1 rounded-sm motion-safe:transition-colors"
+                    <button
+                      type="button"
+                      className="border-0 bg-emerald-500/80 p-0 dark:bg-emerald-400/70 hover:bg-emerald-600 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none dark:hover:bg-emerald-300 min-w-[6px] flex-1 rounded-sm motion-safe:transition-colors"
                       style={{ height: `${heightPct}%` }}
                       aria-label={formatWeekTooltip(week.weekStart, week.total)}
                     />
