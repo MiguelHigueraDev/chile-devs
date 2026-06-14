@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useRef } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import { useCountryDevelopers, useLocationDevelopers, useSearchFacets } from "../api/queries";
 import { ALL_CHILE_SLUG, isAllChileLocation } from "../lib/all-chile-location";
-import { getFilterListState } from "../lib/filter-list-state";
+import {
+  getFilterListState,
+  getListLoadingPresentation,
+  useStaleWhileRevalidate,
+} from "../lib/filter-list-state";
 import { useStackedSheetDismissGuard } from "../lib/stacked-sheet-dismiss";
 import { cn, formatNumber } from "../lib/utils";
 import { RANK_SORT_LABEL } from "../lib/rank";
@@ -89,6 +93,13 @@ function LocationDevelopersList({
   const totalCount =
     data?.pages.find((page) => page.devCount != null)?.devCount ?? null;
   const hasMore = hasNextPage ?? false;
+  const { visibleItems: visibleDevelopers, hasStaleFallback } =
+    useStaleWhileRevalidate(developers);
+  const { showFullSkeleton, isDimmed } = getListLoadingPresentation({
+    showInitialSkeleton,
+    isRefreshing,
+    hasStaleFallback,
+  });
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -98,7 +109,7 @@ function LocationDevelopersList({
     if (
       !sentinel ||
       !scrollRoot ||
-      showInitialSkeleton ||
+      showFullSkeleton ||
       isFetchingNextPage ||
       !hasMore
     ) {
@@ -116,9 +127,9 @@ function LocationDevelopersList({
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [fetchNextPage, hasMore, isFetchingNextPage, showInitialSkeleton, scrollRootRef]);
+  }, [fetchNextPage, hasMore, isFetchingNextPage, showFullSkeleton, scrollRootRef]);
 
-  if (showInitialSkeleton) {
+  if (showFullSkeleton) {
     return (
       <div className="space-y-3 px-4 py-2">
         {Array.from({ length: 5 }).map((_, index) => (
@@ -136,13 +147,13 @@ function LocationDevelopersList({
     );
   }
 
-  if (error && developers.length === 0) {
+  if (error && visibleDevelopers.length === 0) {
     return (
       <p className="text-destructive px-4 py-4 text-sm">{error.message}</p>
     );
   }
 
-  if (developers.length === 0) {
+  if (visibleDevelopers.length === 0) {
     return (
       <p className="text-muted-foreground px-4 py-4 text-sm">
         No developers found for this location.
@@ -154,11 +165,11 @@ function LocationDevelopersList({
     <div
       className={cn(
         "transition-opacity duration-150",
-        isRefreshing && "pointer-events-none opacity-60",
+        isDimmed && "pointer-events-none opacity-60",
       )}
     >
       <DeveloperList
-        developers={developers}
+        developers={visibleDevelopers}
         sortBy={sortBy}
         showSummary={false}
         onDeveloperSelect={onDeveloperSelect}
@@ -184,14 +195,68 @@ function LocationDevelopersList({
       )}
       <p className="text-muted-foreground px-4 pt-2 text-xs">
         {hasMore
-          ? `Showing ${formatNumber(developers.length)}${totalCount != null ? ` of ${formatNumber(totalCount)}` : ""} developers`
+          ? `Showing ${formatNumber(visibleDevelopers.length)}${totalCount != null ? ` of ${formatNumber(totalCount)}` : ""} developers`
           : totalCount != null
             ? `All ${formatNumber(totalCount)} developers loaded`
-            : `Showing ${formatNumber(developers.length)} developers`}
+            : `Showing ${formatNumber(visibleDevelopers.length)} developers`}
       </p>
     </div>
   );
 }
+
+type LocationPanelStatsProps = {
+  slug: string;
+  sortBy: DeveloperSortKey;
+  countryWide: boolean;
+  location: MapLocation;
+};
+
+const LocationPanelStats = memo(function LocationPanelStats({
+  slug,
+  sortBy,
+  countryWide,
+  location,
+}: LocationPanelStatsProps) {
+  const locationQuery = useLocationDevelopers(slug, sortBy, !countryWide);
+  const countryQuery = useCountryDevelopers(sortBy, countryWide);
+  const activeQuery = countryWide ? countryQuery : locationQuery;
+  const { showInitialSkeleton, isRefreshing } =
+    getFilterListState(activeQuery);
+  const devCount =
+    activeQuery.data?.pages.find((page) => page.devCount != null)?.devCount ??
+    null;
+  const totalContributions =
+    activeQuery.data?.pages.find((page) => page.totalContributions != null)
+      ?.totalContributions ?? null;
+  const showStatsSkeleton =
+    showInitialSkeleton && devCount == null && totalContributions == null;
+
+  return (
+    <div
+      className={cn(
+        "flex min-h-[26px] flex-wrap gap-2 pt-2 transition-opacity duration-150",
+        isRefreshing && "opacity-60",
+      )}
+    >
+      {showStatsSkeleton ? (
+        <>
+          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-5 w-36" />
+        </>
+      ) : (
+        <>
+          <Badge variant="secondary">
+            {formatNumber(devCount ?? location.devCount)} developers
+          </Badge>
+          <Badge variant="outline">
+            {formatNumber(totalContributions ?? location.totalContributions)}{" "}
+            contributions
+          </Badge>
+        </>
+      )}
+    </div>
+  );
+});
 
 export function LocationPanel({
   location,
@@ -207,21 +272,6 @@ export function LocationPanel({
   const { data: facets } = useSearchFacets();
   const slug = location?.slug ?? null;
   const countryWide = location ? isAllChileLocation(location) : false;
-  const locationQuery = useLocationDevelopers(
-    slug ?? "",
-    sortBy,
-    !!slug && !countryWide,
-  );
-  const countryQuery = useCountryDevelopers(sortBy, !!slug && countryWide);
-  const activeQuery = countryWide ? countryQuery : locationQuery;
-  const { showInitialSkeleton, isRefreshing } =
-    getFilterListState(activeQuery);
-  const devCount =
-    activeQuery.data?.pages.find((page) => page.devCount != null)?.devCount ??
-    null;
-  const totalContributions =
-    activeQuery.data?.pages.find((page) => page.totalContributions != null)
-      ?.totalContributions ?? null;
   const { handleOpenChange, blockOutsideDismiss } =
     useStackedSheetDismissGuard(devPanelOpen);
 
@@ -261,26 +311,12 @@ export function LocationPanel({
                   onChange={onRegionChange}
                 />
               )}
-              <div className="flex min-h-[26px] flex-wrap gap-2 pt-2">
-                {showInitialSkeleton || isRefreshing ? (
-                  <>
-                    <Skeleton className="h-5 w-28" />
-                    <Skeleton className="h-5 w-36" />
-                  </>
-                ) : (
-                  <>
-                    <Badge variant="secondary">
-                      {formatNumber(devCount ?? location.devCount)} developers
-                    </Badge>
-                    <Badge variant="outline">
-                      {formatNumber(
-                        totalContributions ?? location.totalContributions,
-                      )}{" "}
-                      contributions
-                    </Badge>
-                  </>
-                )}
-              </div>
+              <LocationPanelStats
+                slug={location.slug}
+                sortBy={sortBy}
+                countryWide={countryWide}
+                location={location}
+              />
               <div
                 className="flex flex-wrap gap-1 pt-2"
                 role="group"

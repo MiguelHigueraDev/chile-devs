@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef } from 'react'
 import { GitFork, Star } from 'lucide-react'
 import { usePromotedReposList, useSearchFacets } from '../api/queries'
 import { ALL_CHILE_SLUG, isAllChileLocation } from '../lib/all-chile-location'
 import { getGitHubAvatarUrl } from '../lib/github'
-import { getFilterListState } from '../lib/filter-list-state'
+import {
+  getFilterListState,
+  getListLoadingPresentation,
+  useStaleWhileRevalidate,
+} from '../lib/filter-list-state'
 import { useStackedSheetDismissGuard } from '../lib/stacked-sheet-dismiss'
 import { toSafeHttpsUrl } from '../lib/safe-url'
 import { formatNumber, cn } from '../lib/utils'
@@ -74,6 +78,13 @@ function RepoListContent({
 
   const totalCount = data?.pages.find((page) => page.total != null)?.total ?? null
   const hasMore = hasNextPage ?? false
+  const { visibleItems: visibleRepos, hasStaleFallback } =
+    useStaleWhileRevalidate(repos)
+  const { showFullSkeleton, isDimmed } = getListLoadingPresentation({
+    showInitialSkeleton,
+    isRefreshing,
+    hasStaleFallback,
+  })
 
   useEffect(() => {
     const sentinel = sentinelRef.current
@@ -83,7 +94,7 @@ function RepoListContent({
     if (
       !sentinel ||
       !scrollRoot ||
-      showInitialSkeleton ||
+      showFullSkeleton ||
       isFetchingNextPage ||
       !hasMore
     ) {
@@ -101,9 +112,9 @@ function RepoListContent({
 
     observer.observe(sentinel)
     return () => observer.disconnect()
-  }, [fetchNextPage, hasMore, isFetchingNextPage, showInitialSkeleton, scrollRootRef])
+  }, [fetchNextPage, hasMore, isFetchingNextPage, showFullSkeleton, scrollRootRef])
 
-  if (showInitialSkeleton) {
+  if (showFullSkeleton) {
     return (
       <div className="space-y-3 px-4 py-2">
         {Array.from({ length: 5 }).map((_, index) => (
@@ -121,13 +132,13 @@ function RepoListContent({
     )
   }
 
-  if (error && repos.length === 0) {
+  if (error && visibleRepos.length === 0) {
     return (
       <p className="text-destructive px-4 py-4 text-sm">{error.message}</p>
     )
   }
 
-  if (repos.length === 0) {
+  if (visibleRepos.length === 0) {
     return (
       <p className="text-muted-foreground px-4 py-4 text-sm">
         No featured repos found for this region.
@@ -139,11 +150,11 @@ function RepoListContent({
     <div
       className={cn(
         'transition-opacity duration-150',
-        isRefreshing && 'pointer-events-none opacity-60',
+        isDimmed && 'pointer-events-none opacity-60',
       )}
     >
       <ul className="divide-border/60 divide-y">
-        {repos.map((repo, index) => {
+        {visibleRepos.map((repo, index) => {
           const avatarUrl =
             toSafeHttpsUrl(repo.owner.avatarUrl) ??
             getGitHubAvatarUrl(repo.owner.login)
@@ -223,14 +234,49 @@ function RepoListContent({
       )}
       <p className="text-muted-foreground px-4 pt-2 pb-3 text-xs">
         {hasMore
-          ? `Showing ${formatNumber(repos.length)}${totalCount != null ? ` of ${formatNumber(totalCount)}` : ''} repos`
+          ? `Showing ${formatNumber(visibleRepos.length)}${totalCount != null ? ` of ${formatNumber(totalCount)}` : ''} repos`
           : totalCount != null
             ? `All ${formatNumber(totalCount)} repos loaded`
-            : `Showing ${formatNumber(repos.length)} repos`}
+            : `Showing ${formatNumber(visibleRepos.length)} repos`}
       </p>
     </div>
   )
 }
+
+type RepoListPanelStatsProps = {
+  regionSlug: string;
+};
+
+const RepoListPanelStats = memo(function RepoListPanelStats({
+  regionSlug,
+}: RepoListPanelStatsProps) {
+  const reposQuery = usePromotedReposList(regionSlug);
+  const { showInitialSkeleton, isRefreshing } = getFilterListState(reposQuery);
+  const totalCount =
+    reposQuery.data?.pages.find((page) => page.total != null)?.total ?? null;
+  const showStatsSkeleton = showInitialSkeleton && totalCount == null;
+
+  if (totalCount == null && !showStatsSkeleton) {
+    return <div className="min-h-[26px] pt-2" />;
+  }
+
+  return (
+    <div
+      className={cn(
+        'flex min-h-[26px] flex-wrap gap-2 pt-2 transition-opacity duration-150',
+        isRefreshing && 'opacity-60',
+      )}
+    >
+      {showStatsSkeleton ? (
+        <Skeleton className="h-5 w-32" />
+      ) : totalCount != null ? (
+        <Badge variant="secondary">
+          {formatNumber(totalCount)} featured repos
+        </Badge>
+      ) : null}
+    </div>
+  );
+});
 
 export function RepoListPanel({
   location,
@@ -244,10 +290,6 @@ export function RepoListPanel({
   const regionSlug = location?.slug ?? null
   const countryWide = location ? isAllChileLocation(location) : false
   const { data: facets } = useSearchFacets()
-  const reposQuery = usePromotedReposList(regionSlug, !!regionSlug)
-  const { showInitialSkeleton, isRefreshing } = getFilterListState(reposQuery)
-  const totalCount =
-    reposQuery.data?.pages.find((page) => page.total != null)?.total ?? null
   const { handleOpenChange, blockOutsideDismiss } =
     useStackedSheetDismissGuard(repoDetailOpen)
 
@@ -279,15 +321,7 @@ export function RepoListPanel({
               <SheetDescription>
                 Featured repos ranked by stars
               </SheetDescription>
-              <div className="flex min-h-[26px] flex-wrap gap-2 pt-2">
-                {showInitialSkeleton || isRefreshing ? (
-                  <Skeleton className="h-5 w-32" />
-                ) : totalCount != null ? (
-                  <Badge variant="secondary">
-                    {formatNumber(totalCount)} featured repos
-                  </Badge>
-                ) : null}
-              </div>
+              <RepoListPanelStats regionSlug={regionSlug} />
               {showRegionPicker && (
                 <RegionScopeSelect
                   id="repo-region-scope"
