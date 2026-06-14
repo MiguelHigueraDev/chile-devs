@@ -113,6 +113,70 @@ export type SearchFacets = {
   zones: Array<{ id: 'north' | 'central' | 'south'; label: string }>;
 };
 
+export type CandidateStatus = 'candidate' | 'promoted' | 'rejected';
+
+export type CandidateScope = 'region' | 'country';
+
+export type CandidateSortKey = 'stars' | 'regionRank' | 'countryRank';
+
+export type Candidate = {
+  login: string;
+  name: string | null;
+  avatarUrl: string;
+  profileUrl: string;
+  totalStars: number;
+  topLanguages: TopLanguage[];
+  rankLevel: string | null;
+  followers: number;
+  contributions: number;
+  regionRank: number | null;
+  countryRank: number | null;
+  totalStarsAtSelection: number;
+  status: CandidateStatus;
+  selectedAt: string;
+  promotedAt: string | null;
+  promotedByLogin: string | null;
+  location: {
+    slug: string;
+    name: string;
+    kind: 'country' | 'region' | 'city';
+  };
+};
+
+export type CandidatesResponse = {
+  candidates: Candidate[];
+  total: number;
+  limit: number;
+  offset: number;
+  nextOffset: number | null;
+  hasMore: boolean;
+  sort: CandidateSortKey;
+};
+
+export type RefreshCandidatesSummary = {
+  perRegion: number;
+  perCountry: number;
+  regionPicks: number;
+  countryPicks: number;
+  totalSelected: number;
+  totalCandidates: number;
+  promotedRetained: number;
+  rejectedRetained: number;
+};
+
+export type AdminMeResponse = {
+  login: string;
+};
+
+export type CandidatesQuery = {
+  status?: CandidateStatus;
+  region?: string;
+  scope?: CandidateScope;
+  sort?: CandidateSortKey;
+  limit?: number;
+  offset?: number;
+};
+
 export const DEFAULT_SEARCH_PARAMS: SearchParams = {
   languages: [],
   languageMode: 'any',
