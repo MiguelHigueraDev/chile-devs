@@ -79,7 +79,7 @@ function RepoListContent({
   const totalCount = data?.pages.find((page) => page.total != null)?.total ?? null
   const hasMore = hasNextPage ?? false
   const { visibleItems: visibleRepos, hasStaleFallback } =
-    useStaleWhileRevalidate(repos)
+    useStaleWhileRevalidate(repos, isPlaceholderData)
   const { showFullSkeleton, isDimmed } = getListLoadingPresentation({
     showInitialSkeleton,
     isRefreshing,

@@ -94,7 +94,7 @@ function LocationDevelopersList({
     data?.pages.find((page) => page.devCount != null)?.devCount ?? null;
   const hasMore = hasNextPage ?? false;
   const { visibleItems: visibleDevelopers, hasStaleFallback } =
-    useStaleWhileRevalidate(developers);
+    useStaleWhileRevalidate(developers, isPlaceholderData);
   const { showFullSkeleton, isDimmed } = getListLoadingPresentation({
     showInitialSkeleton,
     isRefreshing,

@@ -14,7 +14,10 @@ export function getFilterListState(query: FilterListQueryState) {
   };
 }
 
-export function useStaleWhileRevalidate<T>(items: T[]) {
+export function useStaleWhileRevalidate<T>(
+  items: T[],
+  isRevalidating = false,
+) {
   const [staleItems, setStaleItems] = useState<T[]>(() =>
     items.length > 0 ? items : [],
   );
@@ -23,11 +26,12 @@ export function useStaleWhileRevalidate<T>(items: T[]) {
     setStaleItems(items);
   }
 
-  const visibleItems = items.length > 0 ? items : staleItems;
+  const visibleItems =
+    items.length > 0 ? items : isRevalidating ? staleItems : [];
 
   return {
     visibleItems,
-    hasStaleFallback: staleItems.length > 0,
+    hasStaleFallback: isRevalidating && staleItems.length > 0,
   };
 }
 
