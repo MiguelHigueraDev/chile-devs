@@ -3,12 +3,16 @@ import {
   getAuthToken,
 } from '../lib/auth-token';
 import type {
+  AdminMeResponse,
+  CandidatesQuery,
+  CandidatesResponse,
   CountryDevelopersResponse,
   DeveloperDetail,
   DeveloperSortKey,
   LocationDevelopersResponse,
   MapLocation,
   MeResponse,
+  RefreshCandidatesSummary,
   SearchFacets,
   SearchParams,
   SearchResponse,
@@ -249,4 +253,63 @@ export async function optOut(): Promise<{ deletedProfile: boolean }> {
 
 export function getGitHubAuthUrl(): string {
   return `${API_BASE}/auth/github`;
+}
+
+export function fetchAdminMe(): Promise<AdminMeResponse> {
+  return fetchJson<AdminMeResponse>('/admin/me', { auth: true });
+}
+
+export function fetchCandidates(
+  query: CandidatesQuery = {},
+): Promise<CandidatesResponse> {
+  const params = new URLSearchParams();
+  if (query.status) params.set('status', query.status);
+  if (query.region) params.set('region', query.region);
+  if (query.scope) params.set('scope', query.scope);
+  if (query.sort) params.set('sort', query.sort);
+  if (query.limit != null) params.set('limit', String(query.limit));
+  if (query.offset != null) params.set('offset', String(query.offset));
+  const queryString = params.toString();
+  return fetchJson<CandidatesResponse>(
+    `/admin/candidates${queryString ? `?${queryString}` : ''}`,
+    { auth: true },
+  );
+}
+
+export function refreshCandidates(input: {
+  perRegion?: number;
+  perCountry?: number;
+} = {}): Promise<RefreshCandidatesSummary> {
+  return fetchJson<RefreshCandidatesSummary>('/admin/candidates/refresh', {
+    method: 'POST',
+    body: input,
+    auth: true,
+  });
+}
+
+export function promoteCandidate(
+  login: string,
+): Promise<{ login: string; status: 'promoted' }> {
+  return fetchJson(`/admin/candidates/${encodeURIComponent(login)}/promote`, {
+    method: 'POST',
+    auth: true,
+  });
+}
+
+export function rejectCandidate(
+  login: string,
+): Promise<{ login: string; status: 'rejected' }> {
+  return fetchJson(`/admin/candidates/${encodeURIComponent(login)}/reject`, {
+    method: 'POST',
+    auth: true,
+  });
+}
+
+export function resetCandidate(
+  login: string,
+): Promise<{ login: string; status: 'candidate' }> {
+  return fetchJson(`/admin/candidates/${encodeURIComponent(login)}/reset`, {
+    method: 'POST',
+    auth: true,
+  });
 }

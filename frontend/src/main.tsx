@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App.tsx";
+import { AdminApp } from "./admin/AdminApp.tsx";
 import { queryKeys } from "./api/queries";
 import { consumeSessionFromUrlHash, getAuthToken } from "./lib/auth-token";
 import { queryClient } from "./lib/query-client";
@@ -12,11 +13,14 @@ if (consumeSessionFromUrlHash() || getAuthToken()) {
   void queryClient.invalidateQueries({ queryKey: queryKeys.me });
 }
 
+const pathname = window.location.pathname;
+const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <Analytics />
-      <App />
+      {isAdminRoute ? <AdminApp /> : <App />}
     </QueryClientProvider>
   </StrictMode>,
 );

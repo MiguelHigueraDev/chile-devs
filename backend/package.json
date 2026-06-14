@@ -22,6 +22,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
     "db:seed": "tsx src/db/seed.ts",
+    "db:seed-admins": "tsx src/db/seed-admins.ts",
     "db:refresh-rankings": "tsx src/db/refresh-rankings.ts"
   },
   "dependencies": {

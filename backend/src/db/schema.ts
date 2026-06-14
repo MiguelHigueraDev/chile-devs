@@ -28,6 +28,12 @@ export const syncStatusEnum = pgEnum('sync_status', [
   'failed',
 ]);
 
+export const candidateStatusEnum = pgEnum('candidate_status', [
+  'candidate',
+  'promoted',
+  'rejected',
+]);
+
 export const locations = pgTable('locations', {
   id: serial('id').primaryKey(),
   slug: text('slug').notNull().unique(),
@@ -130,8 +136,50 @@ export const syncRuns = pgTable('sync_runs', {
   }),
 });
 
+export const admins = pgTable('admins', {
+  id: serial('id').primaryKey(),
+  login: text('login').notNull().unique(),
+  // Backfilled the first time the admin signs in (logins are known up front,
+  // GitHub numeric ids are not).
+  githubId: text('github_id').unique(),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const candidates = pgTable(
+  'candidates',
+  {
+    developerGithubId: text('developer_github_id')
+      .primaryKey()
+      .references(() => developers.githubId, { onDelete: 'cascade' }),
+    // The developer's classified location (region/city) at selection time.
+    locationId: integer('location_id')
+      .notNull()
+      .references(() => locations.id),
+    // 1-based position within the developer's region by stars; null when the
+    // developer did not qualify as a regional pick.
+    regionRank: integer('region_rank'),
+    // 1-based position nationwide by stars; null when not a country pick.
+    countryRank: integer('country_rank'),
+    totalStarsAtSelection: integer('total_stars_at_selection').notNull(),
+    status: candidateStatusEnum('status').notNull().default('candidate'),
+    selectedAt: timestamp('selected_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    promotedAt: timestamp('promoted_at', { withTimezone: true }),
+    promotedByLogin: text('promoted_by_login'),
+  },
+  (table) => [
+    index('idx_candidates_status').on(table.status),
+    index('idx_candidates_location').on(table.locationId),
+  ],
+);
+
 export type Location = typeof locations.$inferSelect;
 export type ExcludedUser = typeof excludedUsers.$inferSelect;
 export type Developer = typeof developers.$inferSelect;
 export type DeveloperLanguage = typeof developerLanguages.$inferSelect;
 export type SyncRun = typeof syncRuns.$inferSelect;
+export type Admin = typeof admins.$inferSelect;
+export type Candidate = typeof candidates.$inferSelect;
