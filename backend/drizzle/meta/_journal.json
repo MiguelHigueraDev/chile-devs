@@ -78,6 +78,13 @@
       "when": 1781457497697,
       "tag": "0010_orange_skaar",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1781500000000,
+      "tag": "0011_repo_candidates_region_location",
+      "breakpoints": true
     }
   ]
 }

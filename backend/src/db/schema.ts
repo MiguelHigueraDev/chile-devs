@@ -147,22 +147,29 @@ export const admins = pgTable('admins', {
     .defaultNow(),
 });
 
-export const candidates = pgTable(
+export const repoCandidates = pgTable(
   'repo_candidates',
   {
-    developerGithubId: text('developer_github_id')
-      .primaryKey()
+    repoGithubId: text('repo_github_id').primaryKey(),
+    ownerGithubId: text('owner_github_id')
+      .notNull()
       .references(() => developers.githubId, { onDelete: 'cascade' }),
-    // The developer's classified location (region/city) at selection time.
     locationId: integer('location_id')
       .notNull()
       .references(() => locations.id),
-    // 1-based position within the developer's region by stars; null when the
-    // developer did not qualify as a regional pick.
+    regionLocationId: integer('region_location_id').references(
+      () => locations.id,
+    ),
+    nameWithOwner: text('name_with_owner').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    url: text('url').notNull(),
+    primaryLanguage: text('primary_language'),
+    stars: integer('stars').notNull(),
+    forks: integer('forks').notNull().default(0),
     regionRank: integer('region_rank'),
-    // 1-based position nationwide by stars; null when not a country pick.
     countryRank: integer('country_rank'),
-    totalStarsAtSelection: integer('total_stars_at_selection').notNull(),
+    starsAtSelection: integer('stars_at_selection').notNull(),
     status: candidateStatusEnum('status').notNull().default('candidate'),
     selectedAt: timestamp('selected_at', { withTimezone: true })
       .notNull()
@@ -173,6 +180,8 @@ export const candidates = pgTable(
   (table) => [
     index('idx_repo_candidates_status').on(table.status),
     index('idx_repo_candidates_location').on(table.locationId),
+    index('idx_repo_candidates_region_location').on(table.regionLocationId),
+    index('idx_repo_candidates_owner').on(table.ownerGithubId),
   ],
 );
 
@@ -182,4 +191,4 @@ export type Developer = typeof developers.$inferSelect;
 export type DeveloperLanguage = typeof developerLanguages.$inferSelect;
 export type SyncRun = typeof syncRuns.$inferSelect;
 export type Admin = typeof admins.$inferSelect;
-export type Candidate = typeof candidates.$inferSelect;
+export type RepoCandidate = typeof repoCandidates.$inferSelect;

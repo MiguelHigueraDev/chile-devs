@@ -9,6 +9,6 @@ import { SyncService } from './sync.service';
   imports: [ExclusionModule],
   controllers: [SyncController],
   providers: [EnrichmentCacheService, GithubService, SyncService],
-  exports: [SyncService],
+  exports: [SyncService, GithubService],
 })
 export class SyncModule {}

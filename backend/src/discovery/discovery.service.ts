@@ -10,8 +10,11 @@ import {
   sql,
   type SQL,
 } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
-import { candidates, developers, locations } from '../db/schema';
+import { developers, locations, repoCandidates } from '../db/schema';
+import { resolveRegionLocationSlug } from '../search/geo.data';
+import { GithubService } from '../sync/github.service';
 import {
   type CandidateSortKey,
   type ListCandidatesInput,
@@ -21,21 +24,29 @@ import {
 
 const DEFAULT_PER_REGION = 10;
 const DEFAULT_PER_COUNTRY = 50;
+const DEFAULT_TOP_DEVS = 300;
+const DEFAULT_REPOS_PER_DEV = 10;
 const MAX_PER_SCOPE = 500;
+const MAX_TOP_DEVS = 2000;
+const MAX_REPOS_PER_DEV = 100;
 const DEFAULT_LIST_LIMIT = 100;
 const MAX_LIST_LIMIT = 500;
 
-type RankedRow = {
-  github_id: string;
-  location_id: number;
-  total_stars: number;
-  rank: number;
+type FlatRepo = {
+  repoGithubId: string;
+  ownerGithubId: string;
+  locationId: number;
+  regionLocationId: number | null;
+  nameWithOwner: string;
+  name: string;
+  description: string | null;
+  url: string;
+  primaryLanguage: string | null;
+  stars: number;
+  forks: number;
 };
 
-type SelectedCandidate = {
-  developerGithubId: string;
-  locationId: number;
-  totalStarsAtSelection: number;
+type SelectedRepo = FlatRepo & {
   regionRank: number | null;
   countryRank: number | null;
 };
@@ -47,16 +58,14 @@ export class DiscoveryService {
   constructor(
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly configService: ConfigService,
+    private readonly github: GithubService,
   ) {}
 
   private resolvePerRegion(input?: number): number {
     const fallback =
       Number(this.configService.get<string>('DISCOVERY_TOP_PER_REGION')) ||
       DEFAULT_PER_REGION;
-    let value = fallback;
-    if (input !== undefined && Number.isFinite(input)) {
-      value = input;
-    }
+    const value = input ?? fallback;
     return Math.max(1, Math.min(Math.trunc(value), MAX_PER_SCOPE));
   }
 
@@ -64,11 +73,24 @@ export class DiscoveryService {
     const fallback =
       Number(this.configService.get<string>('DISCOVERY_TOP_COUNTRY')) ||
       DEFAULT_PER_COUNTRY;
-    let value = fallback;
-    if (input !== undefined && Number.isFinite(input)) {
-      value = input;
-    }
+    const value = input ?? fallback;
     return Math.max(1, Math.min(Math.trunc(value), MAX_PER_SCOPE));
+  }
+
+  private resolveTopDevs(input?: number): number {
+    const fallback =
+      Number(this.configService.get<string>('DISCOVERY_TOP_DEVS')) ||
+      DEFAULT_TOP_DEVS;
+    const value = input ?? fallback;
+    return Math.max(1, Math.min(Math.trunc(value), MAX_TOP_DEVS));
+  }
+
+  private resolveReposPerDev(input?: number): number {
+    const fallback =
+      Number(this.configService.get<string>('DISCOVERY_REPOS_PER_DEV')) ||
+      DEFAULT_REPOS_PER_DEV;
+    const value = input ?? fallback;
+    return Math.max(1, Math.min(Math.trunc(value), MAX_REPOS_PER_DEV));
   }
 
   async refreshCandidates(
@@ -76,127 +98,143 @@ export class DiscoveryService {
   ): Promise<RefreshCandidatesSummary> {
     const perRegion = this.resolvePerRegion(input.perRegion);
     const perCountry = this.resolvePerCountry(input.perCountry);
+    const topDevs = this.resolveTopDevs(input.topDevs);
+    const reposPerDev = this.resolveReposPerDev(input.reposPerDev);
 
-    const regionRows = await this.db.execute<RankedRow>(sql`
-      SELECT github_id, location_id, total_stars, rank FROM (
-        SELECT
-          d.github_id AS github_id,
-          d.location_id AS location_id,
-          d.total_stars AS total_stars,
-          ROW_NUMBER() OVER (
-            PARTITION BY d.location_id
-            ORDER BY d.total_stars DESC, d.rank_score ASC NULLS LAST, d.github_id ASC
-          ) AS rank
-        FROM developers d
-        JOIN locations l ON l.id = d.location_id
-        WHERE l.kind = 'region'
-      ) ranked
-      WHERE rank <= ${perRegion}
-    `);
+    const locationRows = await this.db
+      .select({ id: locations.id, slug: locations.slug })
+      .from(locations);
+    const locationIdBySlug = new Map(
+      locationRows.map((row) => [row.slug, row.id]),
+    );
 
-    const countryRows = await this.db.execute<RankedRow>(sql`
-      SELECT github_id, location_id, total_stars, rank FROM (
-        SELECT
-          d.github_id AS github_id,
-          d.location_id AS location_id,
-          d.total_stars AS total_stars,
-          ROW_NUMBER() OVER (
-            ORDER BY d.total_stars DESC, d.rank_score ASC NULLS LAST, d.github_id ASC
-          ) AS rank
-        FROM developers d
-      ) ranked
-      WHERE rank <= ${perCountry}
-    `);
+    const devRows = await this.db
+      .select({
+        githubId: developers.githubId,
+        login: developers.login,
+        locationId: developers.locationId,
+        locationSlug: locations.slug,
+        locationKind: locations.kind,
+      })
+      .from(developers)
+      .innerJoin(locations, eq(developers.locationId, locations.id))
+      .orderBy(desc(developers.totalStars), asc(developers.githubId))
+      .limit(topDevs);
 
-    const selected = new Map<string, SelectedCandidate>();
+    const logins = devRows.map((row) => row.login);
+    const reposByLogin = await this.github.fetchTopRepos(logins, reposPerDev);
 
-    for (const row of regionRows) {
-      selected.set(row.github_id, {
-        developerGithubId: row.github_id,
-        locationId: Number(row.location_id),
-        totalStarsAtSelection: Number(row.total_stars),
-        regionRank: Number(row.rank),
-        countryRank: null,
-      });
-    }
+    const flatRepos: FlatRepo[] = [];
+    let reposScanned = 0;
 
-    for (const row of countryRows) {
-      const existing = selected.get(row.github_id);
-      if (existing) {
-        existing.countryRank = Number(row.rank);
-      } else {
-        selected.set(row.github_id, {
-          developerGithubId: row.github_id,
-          locationId: Number(row.location_id),
-          totalStarsAtSelection: Number(row.total_stars),
-          regionRank: null,
-          countryRank: Number(row.rank),
+    for (const dev of devRows) {
+      const repos = reposByLogin.get(dev.login) ?? [];
+      reposScanned += repos.length;
+
+      for (const repo of repos) {
+        const regionSlug = resolveRegionLocationSlug(
+          dev.locationSlug,
+          dev.locationKind,
+        );
+        const regionLocationId = regionSlug
+          ? (locationIdBySlug.get(regionSlug) ?? null)
+          : null;
+
+        flatRepos.push({
+          repoGithubId: repo.repoGithubId,
+          ownerGithubId: dev.githubId,
+          locationId: dev.locationId,
+          regionLocationId,
+          nameWithOwner: repo.nameWithOwner,
+          name: repo.name,
+          description: repo.description,
+          url: repo.url,
+          primaryLanguage: repo.primaryLanguage,
+          stars: repo.stars,
+          forks: repo.forks,
         });
       }
     }
 
+    const selected = this.rankRepos(flatRepos, perRegion, perCountry);
     const selectedRows = [...selected.values()];
-    const selectedIds = selectedRows.map((row) => row.developerGithubId);
+    const selectedIds = selectedRows.map((row) => row.repoGithubId);
 
     await this.db.transaction(async (tx) => {
       if (selectedRows.length > 0) {
-        // Upsert keeps existing `status` untouched on conflict, so already
-        // promoted/rejected developers stay sticky while only their ranks
-        // get refreshed. New rows default to status 'candidate'.
         await tx
-          .insert(candidates)
+          .insert(repoCandidates)
           .values(
             selectedRows.map((row) => ({
-              developerGithubId: row.developerGithubId,
+              repoGithubId: row.repoGithubId,
+              ownerGithubId: row.ownerGithubId,
               locationId: row.locationId,
+              regionLocationId: row.regionLocationId,
+              nameWithOwner: row.nameWithOwner,
+              name: row.name,
+              description: row.description,
+              url: row.url,
+              primaryLanguage: row.primaryLanguage,
+              stars: row.stars,
+              forks: row.forks,
               regionRank: row.regionRank,
               countryRank: row.countryRank,
-              totalStarsAtSelection: row.totalStarsAtSelection,
+              starsAtSelection: row.stars,
             })),
           )
           .onConflictDoUpdate({
-            target: candidates.developerGithubId,
+            target: repoCandidates.repoGithubId,
             set: {
+              ownerGithubId: sql`excluded.owner_github_id`,
               locationId: sql`excluded.location_id`,
+              regionLocationId: sql`excluded.region_location_id`,
+              nameWithOwner: sql`excluded.name_with_owner`,
+              name: sql`excluded.name`,
+              description: sql`excluded.description`,
+              url: sql`excluded.url`,
+              primaryLanguage: sql`excluded.primary_language`,
+              stars: sql`excluded.stars`,
+              forks: sql`excluded.forks`,
               regionRank: sql`excluded.region_rank`,
               countryRank: sql`excluded.country_rank`,
-              totalStarsAtSelection: sql`excluded.total_stars_at_selection`,
+              starsAtSelection: sql`excluded.stars_at_selection`,
               selectedAt: sql`now()`,
             },
           });
       }
 
-      // Drop developers that are no longer selected, but only if they are
-      // still plain candidates. Promoted/rejected rows are retained.
       const dropFilter =
         selectedIds.length > 0
           ? and(
-              eq(candidates.status, 'candidate'),
-              notInArray(candidates.developerGithubId, selectedIds),
+              eq(repoCandidates.status, 'candidate'),
+              notInArray(repoCandidates.repoGithubId, selectedIds),
             )
-          : eq(candidates.status, 'candidate');
+          : eq(repoCandidates.status, 'candidate');
 
-      await tx.delete(candidates).where(dropFilter);
+      await tx.delete(repoCandidates).where(dropFilter);
     });
 
     const [{ totalCandidates }] = await this.db
       .select({ totalCandidates: sql<number>`count(*)::int` })
-      .from(candidates)
-      .where(eq(candidates.status, 'candidate'));
+      .from(repoCandidates)
+      .where(eq(repoCandidates.status, 'candidate'));
 
     const [{ promotedRetained }] = await this.db
       .select({ promotedRetained: sql<number>`count(*)::int` })
-      .from(candidates)
-      .where(eq(candidates.status, 'promoted'));
+      .from(repoCandidates)
+      .where(eq(repoCandidates.status, 'promoted'));
 
     const [{ rejectedRetained }] = await this.db
       .select({ rejectedRetained: sql<number>`count(*)::int` })
-      .from(candidates)
-      .where(eq(candidates.status, 'rejected'));
+      .from(repoCandidates)
+      .where(eq(repoCandidates.status, 'rejected'));
 
     const summary: RefreshCandidatesSummary = {
       perRegion,
       perCountry,
+      topDevs,
+      reposPerDev,
+      reposScanned,
       regionPicks: selectedRows.filter((row) => row.regionRank != null).length,
       countryPicks: selectedRows.filter((row) => row.countryRank != null)
         .length,
@@ -207,31 +245,84 @@ export class DiscoveryService {
     };
 
     this.logger.log(
-      `Candidate refresh complete: ${summary.totalSelected} selected (${summary.regionPicks} regional, ${summary.countryPicks} national), ${summary.promotedRetained} promoted retained`,
+      `Repo candidate refresh complete: scanned ${reposScanned} repos from ${devRows.length} devs, selected ${summary.totalSelected} (${summary.regionPicks} regional, ${summary.countryPicks} national), ${summary.promotedRetained} promoted retained`,
     );
 
     return summary;
+  }
+
+  private rankRepos(
+    repos: FlatRepo[],
+    perRegion: number,
+    perCountry: number,
+  ): Map<string, SelectedRepo> {
+    const selected = new Map<string, SelectedRepo>();
+
+    const byRegion = new Map<number, FlatRepo[]>();
+    for (const repo of repos) {
+      if (repo.regionLocationId == null) {
+        continue;
+      }
+      const list = byRegion.get(repo.regionLocationId) ?? [];
+      list.push(repo);
+      byRegion.set(repo.regionLocationId, list);
+    }
+
+    for (const regionRepos of byRegion.values()) {
+      regionRepos.sort((a, b) => {
+        if (b.stars !== a.stars) return b.stars - a.stars;
+        return a.repoGithubId.localeCompare(b.repoGithubId);
+      });
+
+      regionRepos.slice(0, perRegion).forEach((repo, index) => {
+        selected.set(repo.repoGithubId, {
+          ...repo,
+          regionRank: index + 1,
+          countryRank: null,
+        });
+      });
+    }
+
+    const countrySorted = [...repos].sort((a, b) => {
+      if (b.stars !== a.stars) return b.stars - a.stars;
+      return a.repoGithubId.localeCompare(b.repoGithubId);
+    });
+
+    countrySorted.slice(0, perCountry).forEach((repo, index) => {
+      const existing = selected.get(repo.repoGithubId);
+      if (existing) {
+        existing.countryRank = index + 1;
+      } else {
+        selected.set(repo.repoGithubId, {
+          ...repo,
+          regionRank: null,
+          countryRank: index + 1,
+        });
+      }
+    });
+
+    return selected;
   }
 
   private orderByForSort(sort: CandidateSortKey) {
     switch (sort) {
       case 'regionRank':
         return [
-          sql`${candidates.regionRank} ASC NULLS LAST`,
-          desc(candidates.totalStarsAtSelection),
-          asc(candidates.developerGithubId),
+          sql`${repoCandidates.regionRank} ASC NULLS LAST`,
+          desc(repoCandidates.starsAtSelection),
+          asc(repoCandidates.repoGithubId),
         ];
       case 'countryRank':
         return [
-          sql`${candidates.countryRank} ASC NULLS LAST`,
-          desc(candidates.totalStarsAtSelection),
-          asc(candidates.developerGithubId),
+          sql`${repoCandidates.countryRank} ASC NULLS LAST`,
+          desc(repoCandidates.starsAtSelection),
+          asc(repoCandidates.repoGithubId),
         ];
       case 'stars':
       default:
         return [
-          desc(candidates.totalStarsAtSelection),
-          asc(candidates.developerGithubId),
+          desc(repoCandidates.starsAtSelection),
+          asc(repoCandidates.repoGithubId),
         ];
     }
   }
@@ -248,49 +339,61 @@ export class DiscoveryService {
       offset = Math.max(0, Math.trunc(input.offset));
     }
     const sort = input.sort ?? 'stars';
+    const ownerLocations = alias(locations, 'owner_locations');
+    const regionLocations = alias(locations, 'region_locations');
 
     const filters: SQL[] = [];
     if (input.status) {
-      filters.push(eq(candidates.status, input.status));
+      filters.push(eq(repoCandidates.status, input.status));
     }
     if (input.regionSlug) {
-      filters.push(eq(locations.slug, input.regionSlug));
+      filters.push(eq(regionLocations.slug, input.regionSlug));
     }
     if (input.scope === 'region') {
-      filters.push(isNotNull(candidates.regionRank));
+      filters.push(isNotNull(repoCandidates.regionRank));
     } else if (input.scope === 'country') {
-      filters.push(isNotNull(candidates.countryRank));
+      filters.push(isNotNull(repoCandidates.countryRank));
     }
     const whereClause = filters.length > 0 ? and(...filters) : undefined;
 
     const rows = await this.db
       .select({
-        login: developers.login,
-        name: developers.name,
-        avatarUrl: developers.avatarUrl,
-        profileUrl: developers.profileUrl,
-        totalStars: developers.totalStars,
-        topLanguages: developers.topLanguages,
-        rankLevel: developers.rankLevel,
-        followers: developers.followers,
-        contributions: developers.contributions,
-        regionRank: candidates.regionRank,
-        countryRank: candidates.countryRank,
-        totalStarsAtSelection: candidates.totalStarsAtSelection,
-        status: candidates.status,
-        selectedAt: candidates.selectedAt,
-        promotedAt: candidates.promotedAt,
-        promotedByLogin: candidates.promotedByLogin,
-        locationSlug: locations.slug,
-        locationName: locations.name,
-        locationKind: locations.kind,
+        repoGithubId: repoCandidates.repoGithubId,
+        nameWithOwner: repoCandidates.nameWithOwner,
+        name: repoCandidates.name,
+        description: repoCandidates.description,
+        url: repoCandidates.url,
+        primaryLanguage: repoCandidates.primaryLanguage,
+        stars: repoCandidates.stars,
+        forks: repoCandidates.forks,
+        regionRank: repoCandidates.regionRank,
+        countryRank: repoCandidates.countryRank,
+        starsAtSelection: repoCandidates.starsAtSelection,
+        status: repoCandidates.status,
+        selectedAt: repoCandidates.selectedAt,
+        promotedAt: repoCandidates.promotedAt,
+        promotedByLogin: repoCandidates.promotedByLogin,
+        ownerLogin: developers.login,
+        ownerName: developers.name,
+        ownerAvatarUrl: developers.avatarUrl,
+        ownerProfileUrl: developers.profileUrl,
+        locationSlug: ownerLocations.slug,
+        locationName: ownerLocations.name,
+        locationKind: ownerLocations.kind,
       })
-      .from(candidates)
+      .from(repoCandidates)
       .innerJoin(
         developers,
-        eq(candidates.developerGithubId, developers.githubId),
+        eq(repoCandidates.ownerGithubId, developers.githubId),
       )
-      .innerJoin(locations, eq(candidates.locationId, locations.id))
+      .innerJoin(
+        ownerLocations,
+        eq(repoCandidates.locationId, ownerLocations.id),
+      )
+      .leftJoin(
+        regionLocations,
+        eq(repoCandidates.regionLocationId, regionLocations.id),
+      )
       .where(whereClause)
       .orderBy(...this.orderByForSort(sort))
       .limit(limit + 1)
@@ -301,28 +404,40 @@ export class DiscoveryService {
 
     const [{ total }] = await this.db
       .select({ total: sql<number>`count(*)::int` })
-      .from(candidates)
-      .innerJoin(locations, eq(candidates.locationId, locations.id))
+      .from(repoCandidates)
+      .innerJoin(
+        ownerLocations,
+        eq(repoCandidates.locationId, ownerLocations.id),
+      )
+      .leftJoin(
+        regionLocations,
+        eq(repoCandidates.regionLocationId, regionLocations.id),
+      )
       .where(whereClause);
 
     return {
       candidates: pageRows.map((row) => ({
-        login: row.login,
+        repoGithubId: row.repoGithubId,
+        nameWithOwner: row.nameWithOwner,
         name: row.name,
-        avatarUrl: row.avatarUrl,
-        profileUrl: row.profileUrl,
-        totalStars: row.totalStars,
-        topLanguages: row.topLanguages,
-        rankLevel: row.rankLevel,
-        followers: row.followers,
-        contributions: row.contributions,
+        description: row.description,
+        url: row.url,
+        primaryLanguage: row.primaryLanguage,
+        stars: row.stars,
+        forks: row.forks,
         regionRank: row.regionRank,
         countryRank: row.countryRank,
-        totalStarsAtSelection: row.totalStarsAtSelection,
+        starsAtSelection: row.starsAtSelection,
         status: row.status,
         selectedAt: row.selectedAt.toISOString(),
         promotedAt: row.promotedAt ? row.promotedAt.toISOString() : null,
         promotedByLogin: row.promotedByLogin,
+        owner: {
+          login: row.ownerLogin,
+          name: row.ownerName,
+          avatarUrl: row.ownerAvatarUrl,
+          profileUrl: row.ownerProfileUrl,
+        },
         location: {
           slug: row.locationSlug,
           name: row.locationName,
@@ -338,70 +453,66 @@ export class DiscoveryService {
     };
   }
 
-  private async getCandidateByLogin(login: string) {
+  private async getCandidateByRepoId(repoGithubId: string) {
     const [row] = await this.db
-      .select({ developerGithubId: candidates.developerGithubId })
-      .from(candidates)
-      .innerJoin(
-        developers,
-        eq(candidates.developerGithubId, developers.githubId),
-      )
-      .where(eq(developers.login, login))
+      .select({ repoGithubId: repoCandidates.repoGithubId })
+      .from(repoCandidates)
+      .where(eq(repoCandidates.repoGithubId, repoGithubId))
       .limit(1);
     return row ?? null;
   }
 
-  async promote(login: string, adminLogin: string) {
-    const candidate = await this.getCandidateByLogin(login);
+  async promote(repoGithubId: string, adminLogin: string) {
+    const candidate = await this.getCandidateByRepoId(repoGithubId);
     if (!candidate) {
-      throw new NotFoundException(`Candidate "${login}" not found`);
+      throw new NotFoundException(`Repo candidate "${repoGithubId}" not found`);
     }
 
     await this.db
-      .update(candidates)
+      .update(repoCandidates)
       .set({
         status: 'promoted',
         promotedAt: new Date(),
         promotedByLogin: adminLogin,
       })
-      .where(eq(candidates.developerGithubId, candidate.developerGithubId));
+      .where(eq(repoCandidates.repoGithubId, repoGithubId));
 
-    return { login, status: 'promoted' as const };
+    return { repoGithubId, status: 'promoted' as const };
   }
 
-  async reject(login: string) {
-    const candidate = await this.getCandidateByLogin(login);
+  async reject(repoGithubId: string) {
+    const candidate = await this.getCandidateByRepoId(repoGithubId);
     if (!candidate) {
-      throw new NotFoundException(`Candidate "${login}" not found`);
+      throw new NotFoundException(`Repo candidate "${repoGithubId}" not found`);
     }
 
     await this.db
-      .update(candidates)
+      .update(repoCandidates)
       .set({
         status: 'rejected',
         promotedAt: null,
         promotedByLogin: null,
       })
-      .where(eq(candidates.developerGithubId, candidate.developerGithubId));
+      .where(eq(repoCandidates.repoGithubId, repoGithubId));
 
-    return { login, status: 'rejected' as const };
+    return { repoGithubId, status: 'rejected' as const };
   }
 
-  async reset(login: string) {
-    const candidate = await this.getCandidateByLogin(login);
+  async reset(repoGithubId: string) {
+    const candidate = await this.getCandidateByRepoId(repoGithubId);
     if (!candidate) {
-      throw new NotFoundException(`Candidate "${login}" not found`);
+      throw new NotFoundException(`Repo candidate "${repoGithubId}" not found`);
     }
 
     await this.db
-      .update(candidates)
+      .update(repoCandidates)
       .set({
         status: 'candidate',
         promotedAt: null,
         promotedByLogin: null,
       })
-      .where(eq(candidates.developerGithubId, candidate.developerGithubId));
+      .where(eq(repoCandidates.repoGithubId, repoGithubId));
 
-    return { login, status: 'candidate' as const };
+    return { repoGithubId, status: 'candidate' as const };
   }
 }

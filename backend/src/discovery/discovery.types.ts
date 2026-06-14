@@ -1,4 +1,8 @@
-export const CANDIDATE_STATUSES = ['candidate', 'promoted', 'rejected'] as const;
+export const CANDIDATE_STATUSES = [
+  'candidate',
+  'promoted',
+  'rejected',
+] as const;
 export type CandidateStatus = (typeof CANDIDATE_STATUSES)[number];
 
 export const CANDIDATE_SCOPES = ['region', 'country'] as const;
@@ -14,11 +18,16 @@ export type CandidateSortKey = (typeof CANDIDATE_SORT_KEYS)[number];
 export type RefreshCandidatesInput = {
   perRegion?: number;
   perCountry?: number;
+  topDevs?: number;
+  reposPerDev?: number;
 };
 
 export type RefreshCandidatesSummary = {
   perRegion: number;
   perCountry: number;
+  topDevs: number;
+  reposPerDev: number;
+  reposScanned: number;
   regionPicks: number;
   countryPicks: number;
   totalSelected: number;
@@ -44,7 +53,9 @@ export function parseCandidateStatus(
     : undefined;
 }
 
-export function parseCandidateScope(value?: string): CandidateScope | undefined {
+export function parseCandidateScope(
+  value?: string,
+): CandidateScope | undefined {
   return CANDIDATE_SCOPES.includes(value as CandidateScope)
     ? (value as CandidateScope)
     : undefined;

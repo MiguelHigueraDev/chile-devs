@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   Check,
   ExternalLink,
+  GitFork,
   RefreshCw,
   Star,
   Undo2,
@@ -68,32 +69,46 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
   const reject = useRejectCandidateMutation();
   const reset = useResetCandidateMutation();
 
-  const profileUrl = toSafeHttpsUrl(candidate.profileUrl);
-  const avatarUrl = toSafeHttpsUrl(candidate.avatarUrl);
+  const repoUrl = toSafeHttpsUrl(candidate.url);
+  const ownerProfileUrl = toSafeHttpsUrl(candidate.owner.profileUrl);
+  const ownerAvatarUrl = toSafeHttpsUrl(candidate.owner.avatarUrl);
   const statusBadge = STATUS_BADGE[candidate.status];
   const isMutating =
     promote.isPending || reject.isPending || reset.isPending;
 
   return (
-    <li className="flex items-center gap-3 border-border border-t px-4 py-3 first:border-t-0">
-      <Avatar className="size-9">
-        {avatarUrl ? <AvatarImage src={avatarUrl} alt={candidate.login} /> : null}
+    <li className="flex items-start gap-3 border-border border-t px-4 py-3 first:border-t-0">
+      <Avatar className="size-9 shrink-0">
+        {ownerAvatarUrl ? (
+          <AvatarImage src={ownerAvatarUrl} alt={candidate.owner.login} />
+        ) : null}
         <AvatarFallback>
-          {candidate.login.slice(0, 2).toUpperCase()}
+          {candidate.owner.login.slice(0, 2).toUpperCase()}
         </AvatarFallback>
       </Avatar>
 
       <div className="min-w-0 flex-1">
         <div className="inline-flex flex-wrap items-center gap-1.5">
-          <span className="text-foreground text-sm font-medium">
-            {candidate.login}
-          </span>
-          {profileUrl ? (
+          {repoUrl ? (
             <a
-              href={profileUrl}
+              href={repoUrl}
               target="_blank"
               rel="noreferrer"
-              aria-label={`Open ${candidate.login} on GitHub`}
+              className="text-foreground text-sm font-medium hover:underline"
+            >
+              {candidate.nameWithOwner}
+            </a>
+          ) : (
+            <span className="text-foreground text-sm font-medium">
+              {candidate.nameWithOwner}
+            </span>
+          )}
+          {repoUrl ? (
+            <a
+              href={repoUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label={`Open ${candidate.nameWithOwner} on GitHub`}
               className="text-muted-foreground hover:text-foreground inline-flex transition-colors"
             >
               <ExternalLink className="size-3" />
@@ -101,16 +116,27 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
           ) : null}
           <Badge variant={statusBadge.variant}>{statusBadge.label}</Badge>
         </div>
-        {candidate.name ? (
-          <p className="text-muted-foreground truncate text-xs">
-            {candidate.name}
+
+        {candidate.description ? (
+          <p className="text-muted-foreground mt-0.5 line-clamp-2 text-xs">
+            {candidate.description}
           </p>
         ) : null}
+
         <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
           <span className="text-foreground inline-flex items-center gap-1 font-medium tabular-nums">
             <Star className="size-3 fill-amber-400 text-amber-400" />
-            {formatNumber(candidate.totalStars)}
+            {formatNumber(candidate.stars)}
           </span>
+          {candidate.forks > 0 ? (
+            <span className="inline-flex items-center gap-1 tabular-nums">
+              <GitFork className="size-3" />
+              {formatNumber(candidate.forks)}
+            </span>
+          ) : null}
+          {candidate.primaryLanguage ? (
+            <Badge variant="outline">{candidate.primaryLanguage}</Badge>
+          ) : null}
           <span>{candidate.location.name}</span>
           {candidate.regionRank != null ? (
             <Badge variant="outline">#{candidate.regionRank} region</Badge>
@@ -119,6 +145,26 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
             <Badge variant="outline">#{candidate.countryRank} CL</Badge>
           ) : null}
         </div>
+
+        <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-1 text-[11px]">
+          <span>by</span>
+          {ownerProfileUrl ? (
+            <a
+              href={ownerProfileUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-foreground hover:underline"
+            >
+              {candidate.owner.login}
+            </a>
+          ) : (
+            <span className="text-foreground">{candidate.owner.login}</span>
+          )}
+          {candidate.owner.name ? (
+            <span>({candidate.owner.name})</span>
+          ) : null}
+        </div>
+
         {candidate.status === 'promoted' && candidate.promotedAt ? (
           <p className="text-muted-foreground mt-1 text-[11px]">
             Promoted {formatDateTime(candidate.promotedAt)}
@@ -134,7 +180,7 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
           <>
             <Button
               size="sm"
-              onClick={() => promote.mutate(candidate.login)}
+              onClick={() => promote.mutate(candidate.repoGithubId)}
               disabled={isMutating}
             >
               <Check className="size-3.5" />
@@ -144,7 +190,7 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
               size="sm"
               variant="ghost"
               className="text-muted-foreground hover:text-destructive"
-              onClick={() => reject.mutate(candidate.login)}
+              onClick={() => reject.mutate(candidate.repoGithubId)}
               disabled={isMutating}
             >
               <X className="size-3.5" />
@@ -155,7 +201,7 @@ function CandidateRow({ candidate }: { candidate: Candidate }) {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => reset.mutate(candidate.login)}
+            onClick={() => reset.mutate(candidate.repoGithubId)}
             disabled={isMutating}
           >
             <Undo2 className="size-3.5" />
@@ -196,8 +242,8 @@ export function CandidatesPanel() {
     const seen = new Set<string>();
     return candidates.data.pages.flatMap((page) =>
       page.candidates.filter((candidate) => {
-        if (seen.has(candidate.login)) return false;
-        seen.add(candidate.login);
+        if (seen.has(candidate.repoGithubId)) return false;
+        seen.add(candidate.repoGithubId);
         return true;
       }),
     );
@@ -211,11 +257,11 @@ export function CandidatesPanel() {
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-foreground text-lg font-semibold">
-            Candidate discovery
+            Popular repositories
           </h1>
           <p className="text-muted-foreground text-sm">
-            Top developers by stars per region and nationwide. Promote
-            candidates to surface them later.
+            Most-starred repos from indexed Chilean developers, ranked per
+            region and nationwide. Promote candidates to surface them later.
           </p>
         </div>
         <Button
@@ -226,19 +272,20 @@ export function CandidatesPanel() {
           <RefreshCw
             className={cn('size-3.5', refresh.isPending && 'animate-spin')}
           />
-          {refresh.isPending ? 'Refreshing…' : 'Refresh candidates'}
+          {refresh.isPending ? 'Refreshing…' : 'Refresh repos'}
         </Button>
       </header>
 
       {refresh.isError ? (
         <p className="text-destructive text-sm">
-          Failed to refresh candidates. Please try again.
+          Failed to refresh repositories. Please try again.
         </p>
       ) : null}
       {summary ? (
         <p className="text-muted-foreground rounded-md border border-border bg-card px-3 py-2 text-xs">
-          Selected {formatNumber(summary.totalSelected)} developers (
-          {formatNumber(summary.regionPicks)} regional,{' '}
+          Scanned {formatNumber(summary.reposScanned)} repos from top{' '}
+          {summary.topDevs} devs · selected {formatNumber(summary.totalSelected)}{' '}
+          ({formatNumber(summary.regionPicks)} regional,{' '}
           {formatNumber(summary.countryPicks)} national) · top{' '}
           {summary.perRegion}/region, top {summary.perCountry} nationwide ·{' '}
           {formatNumber(summary.promotedRetained)} promoted retained.
@@ -315,8 +362,8 @@ export function CandidatesPanel() {
               >
                 <Skeleton className="size-9 rounded-full" />
                 <div className="flex-1 space-y-2">
-                  <Skeleton className="h-3.5 w-32" />
-                  <Skeleton className="h-3 w-48" />
+                  <Skeleton className="h-3.5 w-48" />
+                  <Skeleton className="h-3 w-64" />
                 </div>
                 <Skeleton className="h-8 w-20" />
               </li>
@@ -324,13 +371,16 @@ export function CandidatesPanel() {
           </ul>
         ) : candidates.isError ? (
           <p className="text-destructive px-4 py-8 text-center text-sm">
-            Failed to load candidates.
+            Failed to load repositories.
           </p>
         ) : candidateList.length > 0 ? (
           <>
             <ul>
               {candidateList.map((candidate) => (
-                <CandidateRow key={candidate.login} candidate={candidate} />
+                <CandidateRow
+                  key={candidate.repoGithubId}
+                  candidate={candidate}
+                />
               ))}
             </ul>
             {candidates.hasNextPage ? (
@@ -348,7 +398,7 @@ export function CandidatesPanel() {
           </>
         ) : (
           <p className="text-muted-foreground px-4 py-8 text-center text-sm">
-            No candidates match these filters. Try refreshing candidates.
+            No repositories match these filters. Try refreshing repos.
           </p>
         )}
       </div>

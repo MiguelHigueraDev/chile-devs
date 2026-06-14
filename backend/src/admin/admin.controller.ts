@@ -53,6 +53,8 @@ export class AdminController {
     return this.discoveryService.refreshCandidates({
       perRegion: parseOptionalPositiveInt(input.perRegion),
       perCountry: parseOptionalPositiveInt(input.perCountry),
+      topDevs: parseOptionalPositiveInt(input.topDevs),
+      reposPerDev: parseOptionalPositiveInt(input.reposPerDev),
     });
   }
 
@@ -75,21 +77,21 @@ export class AdminController {
     });
   }
 
-  @Post('repo-candidates/:login/promote')
+  @Post('repo-candidates/:repoId/promote')
   promote(
-    @Param('login') login: string,
+    @Param('repoId') repoId: string,
     @Req() request: FastifyRequest & AuthenticatedRequest,
   ) {
-    return this.discoveryService.promote(login, request.session.login);
+    return this.discoveryService.promote(repoId, request.session.login);
   }
 
-  @Post('repo-candidates/:login/reject')
-  reject(@Param('login') login: string) {
-    return this.discoveryService.reject(login);
+  @Post('repo-candidates/:repoId/reject')
+  reject(@Param('repoId') repoId: string) {
+    return this.discoveryService.reject(repoId);
   }
 
-  @Post('repo-candidates/:login/reset')
-  reset(@Param('login') login: string) {
-    return this.discoveryService.reset(login);
+  @Post('repo-candidates/:repoId/reset')
+  reset(@Param('repoId') repoId: string) {
+    return this.discoveryService.reset(repoId);
   }
 }

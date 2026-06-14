@@ -144,6 +144,19 @@ export type GitHubUserResult = GitHubSearchHit & {
   enrichment: GitHubEnrichment | null;
 };
 
+export type GitHubRepo = {
+  repoGithubId: string;
+  nameWithOwner: string;
+  name: string;
+  description: string | null;
+  url: string;
+  primaryLanguage: string | null;
+  stars: number;
+  forks: number;
+};
+
+const REPOS_FETCH_BATCH_SIZE = 10;
+
 @Injectable()
 export class GithubService {
   private readonly logger = new Logger(GithubService.name);
@@ -297,6 +310,82 @@ export class GithubService {
     }
 
     return enrichment;
+  }
+
+  async fetchTopRepos(
+    logins: string[],
+    reposPerUser: number,
+  ): Promise<Map<string, GitHubRepo[]>> {
+    const result = new Map<string, GitHubRepo[]>();
+    if (logins.length === 0 || reposPerUser <= 0) {
+      return result;
+    }
+
+    const perUser = Math.max(1, Math.min(Math.trunc(reposPerUser), 100));
+
+    for (let i = 0; i < logins.length; i += REPOS_FETCH_BATCH_SIZE) {
+      const batch = logins.slice(i, i + REPOS_FETCH_BATCH_SIZE);
+      const query = this.buildTopReposQuery(batch, perUser);
+
+      const response = await this.graphql<{
+        data?: Record<
+          string,
+          {
+            repositories?: {
+              nodes: Array<{
+                databaseId: number;
+                name: string;
+                nameWithOwner: string;
+                description: string | null;
+                url: string;
+                stargazerCount: number;
+                forkCount: number;
+                primaryLanguage: { name: string } | null;
+              } | null>;
+            } | null;
+          } | null
+        > & { rateLimit?: RateLimit };
+        errors?: Array<{ message: string }>;
+      }>(query, {});
+
+      if (response.errors?.length) {
+        this.logger.warn(
+          `Top repos batch failed for ${batch.join(', ')}: ${this.formatGraphqlErrors(response.errors)}`,
+        );
+        continue;
+      }
+
+      batch.forEach((login, index) => {
+        const user = response.data?.[`u${index}`];
+        const nodes = user?.repositories?.nodes ?? [];
+        const repos: GitHubRepo[] = [];
+
+        for (const node of nodes) {
+          if (
+            !node?.databaseId ||
+            !node.nameWithOwner ||
+            !node.name ||
+            !node.url
+          ) {
+            continue;
+          }
+          repos.push({
+            repoGithubId: String(node.databaseId),
+            nameWithOwner: node.nameWithOwner,
+            name: node.name,
+            description: node.description,
+            url: node.url,
+            primaryLanguage: node.primaryLanguage?.name ?? null,
+            stars: node.stargazerCount,
+            forks: node.forkCount,
+          });
+        }
+
+        result.set(login, repos);
+      });
+    }
+
+    return result;
   }
 
   private async searchDateRange(
@@ -461,6 +550,46 @@ export class GithubService {
 
     return `
       query BatchEnrich {
+        ${userFields}
+        rateLimit {
+          remaining
+          resetAt
+        }
+      }
+    `;
+  }
+
+  private buildTopReposQuery(logins: string[], reposPerUser: number): string {
+    const userFields = logins
+      .map(
+        (login, index) => `
+      u${index}: user(login: ${JSON.stringify(login)}) {
+        repositories(
+          ownerAffiliations: OWNER
+          isFork: false
+          privacy: PUBLIC
+          first: ${reposPerUser}
+          orderBy: {field: STARGAZERS, direction: DESC}
+        ) {
+          nodes {
+            databaseId
+            name
+            nameWithOwner
+            description
+            url
+            stargazerCount
+            forkCount
+            primaryLanguage {
+              name
+            }
+          }
+        }
+      }`,
+      )
+      .join('\n');
+
+    return `
+      query BatchTopRepos {
         ${userFields}
         rateLimit {
           remaining
