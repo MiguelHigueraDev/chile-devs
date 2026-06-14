@@ -14,6 +14,7 @@ import {
   fetchLocationDevelopers,
   fetchMapData,
   fetchMe,
+  fetchReposInViewport,
   fetchSearch,
   fetchSearchFacets,
   fetchStats,
@@ -36,6 +37,7 @@ import type { DeveloperSortKey } from "../types/api";
 
 export const queryKeys = {
   map: ["map"] as const,
+  repos: (bbox: string) => ["repos", bbox] as const,
   stats: ["stats"] as const,
   githubStars: ["github", "stars"] as const,
   me: ["auth", "me"] as const,
@@ -55,6 +57,16 @@ export const mapDataQueryOptions = queryOptions({
   queryKey: queryKeys.map,
   queryFn: fetchMapData,
 });
+
+export function reposInViewportQueryOptions(bbox: string | null) {
+  return queryOptions({
+    queryKey: queryKeys.repos(bbox ?? ""),
+    queryFn: () => fetchReposInViewport(bbox!),
+    enabled: bbox != null,
+    placeholderData: (previousData) => previousData,
+    staleTime: 30 * 1000,
+  });
+}
 
 export const statsQueryOptions = queryOptions({
   queryKey: queryKeys.stats,
@@ -110,6 +122,13 @@ export function locationDevelopersInfiniteQueryOptions(
 
 export function useMapData() {
   return useQuery(mapDataQueryOptions);
+}
+
+export function useReposInViewport(bbox: string | null, enabled = true) {
+  return useQuery({
+    ...reposInViewportQueryOptions(bbox),
+    enabled: enabled && bbox != null,
+  });
 }
 
 export function useStats() {
@@ -261,6 +280,10 @@ export function usePromoteCandidateMutation() {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "repo-candidates"],
       });
+      void queryClient.invalidateQueries({
+        queryKey: ["repos"],
+        refetchType: "none",
+      });
     },
   });
 }
@@ -274,6 +297,10 @@ export function useRejectCandidateMutation() {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "repo-candidates"],
       });
+      void queryClient.invalidateQueries({
+        queryKey: ["repos"],
+        refetchType: "none",
+      });
     },
   });
 }
@@ -286,6 +313,10 @@ export function useResetCandidateMutation() {
     onSuccess: () => {
       void queryClient.invalidateQueries({
         queryKey: ["admin", "repo-candidates"],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["repos"],
+        refetchType: "none",
       });
     },
   });

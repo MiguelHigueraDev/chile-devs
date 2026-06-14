@@ -1,3 +1,31 @@
+export type MapMode = 'devs' | 'repos';
+
+export type MapRepo = {
+  repoGithubId: string;
+  nameWithOwner: string;
+  name: string;
+  description: string | null;
+  url: string;
+  primaryLanguage: string | null;
+  stars: number;
+  forks: number;
+  regionRank: number | null;
+  countryRank: number | null;
+  scope: 'regional' | 'national';
+  lat: number;
+  lng: number;
+  owner: {
+    login: string;
+    name: string | null;
+    avatarUrl: string;
+    profileUrl: string;
+  };
+  region: {
+    slug: string;
+    name: string;
+  } | null;
+};
+
 export type MapLocation = {
   slug: string;
   name: string;

@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { OptOutConfirmDialog } from './OptOutConfirmDialog'
 
 type StatsHeaderProps = {
+  filtersDisabled?: boolean
   onViewAllDevelopers: (location: MapLocation) => void
   onOpenFilters: () => void
   activeFilterCount?: number
@@ -20,6 +21,7 @@ type StatsHeaderProps = {
 }
 
 export function StatsHeader({
+  filtersDisabled = false,
   onViewAllDevelopers,
   onOpenFilters,
   activeFilterCount = 0,
@@ -81,6 +83,7 @@ export function StatsHeader({
           size="sm"
           className="h-8 min-w-0 flex-1 sm:flex-none"
           onClick={onOpenFilters}
+          disabled={filtersDisabled}
         >
           <SlidersHorizontal className="size-3.5 shrink-0" />
           <span>Filters</span>

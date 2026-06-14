@@ -2,6 +2,7 @@ import { ALL_CHILE_SLUG, createAllChileLocation } from './all-chile-location';
 import type {
   DeveloperSortKey,
   MapLocation,
+  MapMode,
   SearchParams,
   SearchSortKey,
   StatsResponse,
@@ -10,6 +11,7 @@ import { DEFAULT_DEVELOPER_SORT, DEFAULT_SEARCH_PARAMS } from '../types/api';
 
 export const APP_URL_PARAMS = {
   location: 'location',
+  mode: 'mode',
   langs: 'langs',
   langMode: 'langMode',
   locs: 'locs',
@@ -38,10 +40,15 @@ export const VALID_SEARCH_SORTS = new Set<SearchSortKey>([
 
 export type AppUrlState = {
   locationSlug: string | null;
+  mapMode: MapMode;
   searchParams: SearchParams | null;
   sort: DeveloperSortKey | null;
   devLogin: string | null;
 };
+
+export function parseMapModeParam(value: string | null): MapMode {
+  return value === 'repos' ? 'repos' : 'devs';
+}
 
 function parseCsvParam(value: string | null): string[] {
   if (!value?.trim()) {
@@ -114,6 +121,7 @@ export function readAppUrlState(): AppUrlState {
 
   return {
     locationSlug: searchParams ? null : locationSlug || null,
+    mapMode: parseMapModeParam(params.get(APP_URL_PARAMS.mode)),
     searchParams,
     sort: searchParams
       ? null
@@ -161,6 +169,9 @@ export function buildSearchUrlParams(params: SearchParams): URLSearchParams {
 export function buildAppUrlSearchParams(state: AppUrlState): URLSearchParams {
   if (state.searchParams) {
     const params = buildSearchUrlParams(state.searchParams);
+    if (state.mapMode === 'repos') {
+      params.set(APP_URL_PARAMS.mode, 'repos');
+    }
     if (state.devLogin) {
       params.set(APP_URL_PARAMS.dev, state.devLogin);
     }
@@ -168,6 +179,10 @@ export function buildAppUrlSearchParams(state: AppUrlState): URLSearchParams {
   }
 
   const params = new URLSearchParams();
+
+  if (state.mapMode === 'repos') {
+    params.set(APP_URL_PARAMS.mode, 'repos');
+  }
 
   if (state.locationSlug) {
     params.set(APP_URL_PARAMS.location, state.locationSlug);

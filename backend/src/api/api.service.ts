@@ -13,8 +13,11 @@ import {
   desc,
   eq,
   gt,
+  gte,
+  isNotNull,
   isNull,
   lt,
+  lte,
   ne,
   or,
   sql,
@@ -22,8 +25,10 @@ import {
   type AnyColumn,
   type SQL,
 } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
-import { developers, locations, syncRuns } from '../db/schema';
+import { developers, locations, repoCandidates, syncRuns } from '../db/schema';
+import type { ReposViewportInput } from './repos.dto';
 import type { UpdateProfileInput } from './update-profile.dto';
 
 const MAX_DEVELOPERS_PAGE_SIZE = 10;
@@ -579,5 +584,83 @@ export class ApiService {
             }
           : null,
     };
+  }
+
+  async getPromotedReposInViewport(input: ReposViewportInput) {
+    const { bbox, limit } = input;
+    const regionLocations = alias(locations, 'region_locations');
+
+    const rows = await this.db
+      .select({
+        repoGithubId: repoCandidates.repoGithubId,
+        nameWithOwner: repoCandidates.nameWithOwner,
+        name: repoCandidates.name,
+        description: repoCandidates.description,
+        url: repoCandidates.url,
+        primaryLanguage: repoCandidates.primaryLanguage,
+        stars: repoCandidates.stars,
+        forks: repoCandidates.forks,
+        regionRank: repoCandidates.regionRank,
+        countryRank: repoCandidates.countryRank,
+        scatterLat: repoCandidates.scatterLat,
+        scatterLng: repoCandidates.scatterLng,
+        ownerLogin: developers.login,
+        ownerName: developers.name,
+        ownerAvatarUrl: developers.avatarUrl,
+        ownerProfileUrl: developers.profileUrl,
+        regionSlug: regionLocations.slug,
+        regionName: regionLocations.name,
+      })
+      .from(repoCandidates)
+      .innerJoin(
+        developers,
+        eq(repoCandidates.ownerGithubId, developers.githubId),
+      )
+      .leftJoin(
+        regionLocations,
+        eq(repoCandidates.regionLocationId, regionLocations.id),
+      )
+      .where(
+        and(
+          eq(repoCandidates.status, 'promoted'),
+          isNotNull(repoCandidates.scatterLat),
+          isNotNull(repoCandidates.scatterLng),
+          gte(repoCandidates.scatterLng, bbox.minLng),
+          lte(repoCandidates.scatterLng, bbox.maxLng),
+          gte(repoCandidates.scatterLat, bbox.minLat),
+          lte(repoCandidates.scatterLat, bbox.maxLat),
+        ),
+      )
+      .orderBy(desc(repoCandidates.stars), asc(repoCandidates.repoGithubId))
+      .limit(limit);
+
+    return rows.map((row) => ({
+      repoGithubId: row.repoGithubId,
+      nameWithOwner: row.nameWithOwner,
+      name: row.name,
+      description: row.description,
+      url: row.url,
+      primaryLanguage: row.primaryLanguage,
+      stars: row.stars,
+      forks: row.forks,
+      regionRank: row.regionRank,
+      countryRank: row.countryRank,
+      scope: row.regionRank != null ? ('regional' as const) : ('national' as const),
+      lat: row.scatterLat!,
+      lng: row.scatterLng!,
+      owner: {
+        login: row.ownerLogin,
+        name: row.ownerName,
+        avatarUrl: row.ownerAvatarUrl,
+        profileUrl: row.ownerProfileUrl,
+      },
+      region:
+        row.regionSlug && row.regionName
+          ? {
+              slug: row.regionSlug,
+              name: row.regionName,
+            }
+          : null,
+    }));
   }
 }

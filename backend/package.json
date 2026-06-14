@@ -24,7 +24,9 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:seed-admins": "tsx src/db/seed-admins.ts",
     "db:drop-old-discovery": "tsx src/db/drop-old-discovery-tables.ts",
-    "db:refresh-rankings": "tsx src/db/refresh-rankings.ts"
+    "db:refresh-rankings": "tsx src/db/refresh-rankings.ts",
+    "db:backfill-repo-scatter": "tsx src/db/backfill-repo-scatter-coords.ts",
+    "geo:build-regions": "tsx scripts/build-chile-regions-geojson.ts"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.80",

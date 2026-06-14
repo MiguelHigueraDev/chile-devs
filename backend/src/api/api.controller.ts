@@ -14,6 +14,7 @@ import type { FastifyRequest } from 'fastify';
 import { AuthGuard } from '../auth/auth.guard';
 import type { AuthenticatedRequest } from '../auth/auth.types';
 import { ApiService, parseDeveloperSort } from './api.service';
+import { parseReposViewportQuery } from './repos.dto';
 import { parseUpdateProfileInput } from './update-profile.dto';
 
 @Controller('api')
@@ -23,6 +24,15 @@ export class ApiController {
   @Get('map')
   getMap() {
     return this.apiService.getMapData();
+  }
+
+  @Get('repos')
+  getRepos(
+    @Query('bbox') bbox?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const input = parseReposViewportQuery({ bbox, limit });
+    return this.apiService.getPromotedReposInViewport(input);
   }
 
   @Get('stats')

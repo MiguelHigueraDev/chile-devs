@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   and,
@@ -14,6 +20,10 @@ import { alias } from 'drizzle-orm/pg-core';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
 import { developers, locations, repoCandidates } from '../db/schema';
 import { resolveRegionLocationSlug } from '../search/geo.data';
+import {
+  scatterRepoCoordinate,
+  warmScatterRegionIndex,
+} from '../search/scatter';
 import { GithubService } from '../sync/github.service';
 import {
   type CandidateSortKey,
@@ -52,7 +62,7 @@ type SelectedRepo = FlatRepo & {
 };
 
 @Injectable()
-export class DiscoveryService {
+export class DiscoveryService implements OnModuleInit {
   private readonly logger = new Logger(DiscoveryService.name);
 
   constructor(
@@ -60,6 +70,10 @@ export class DiscoveryService {
     private readonly configService: ConfigService,
     private readonly github: GithubService,
   ) {}
+
+  onModuleInit(): void {
+    warmScatterRegionIndex();
+  }
 
   private resolvePerRegion(input?: number): number {
     const fallback =
@@ -453,20 +467,35 @@ export class DiscoveryService {
     };
   }
 
-  private async getCandidateByRepoId(repoGithubId: string) {
+  private async getCandidateForPromotion(repoGithubId: string) {
+    const regionLocations = alias(locations, 'region_locations');
     const [row] = await this.db
-      .select({ repoGithubId: repoCandidates.repoGithubId })
+      .select({
+        repoGithubId: repoCandidates.repoGithubId,
+        regionSlug: regionLocations.slug,
+      })
       .from(repoCandidates)
+      .leftJoin(
+        regionLocations,
+        eq(repoCandidates.regionLocationId, regionLocations.id),
+      )
       .where(eq(repoCandidates.repoGithubId, repoGithubId))
       .limit(1);
+
     return row ?? null;
   }
 
   async promote(repoGithubId: string, adminLogin: string) {
-    const candidate = await this.getCandidateByRepoId(repoGithubId);
+    const candidate = await this.getCandidateForPromotion(repoGithubId);
     if (!candidate) {
       throw new NotFoundException(`Repo candidate "${repoGithubId}" not found`);
     }
+
+    const regionSlug = candidate.regionSlug ?? null;
+    const coordinate = scatterRepoCoordinate({
+      repoGithubId,
+      regionSlug,
+    });
 
     await this.db
       .update(repoCandidates)
@@ -474,6 +503,8 @@ export class DiscoveryService {
         status: 'promoted',
         promotedAt: new Date(),
         promotedByLogin: adminLogin,
+        scatterLat: coordinate.lat,
+        scatterLng: coordinate.lng,
       })
       .where(eq(repoCandidates.repoGithubId, repoGithubId));
 
@@ -481,7 +512,7 @@ export class DiscoveryService {
   }
 
   async reject(repoGithubId: string) {
-    const candidate = await this.getCandidateByRepoId(repoGithubId);
+    const candidate = await this.getCandidateForPromotion(repoGithubId);
     if (!candidate) {
       throw new NotFoundException(`Repo candidate "${repoGithubId}" not found`);
     }
@@ -492,6 +523,8 @@ export class DiscoveryService {
         status: 'rejected',
         promotedAt: null,
         promotedByLogin: null,
+        scatterLat: null,
+        scatterLng: null,
       })
       .where(eq(repoCandidates.repoGithubId, repoGithubId));
 
@@ -499,7 +532,7 @@ export class DiscoveryService {
   }
 
   async reset(repoGithubId: string) {
-    const candidate = await this.getCandidateByRepoId(repoGithubId);
+    const candidate = await this.getCandidateForPromotion(repoGithubId);
     if (!candidate) {
       throw new NotFoundException(`Repo candidate "${repoGithubId}" not found`);
     }
@@ -510,6 +543,8 @@ export class DiscoveryService {
         status: 'candidate',
         promotedAt: null,
         promotedByLogin: null,
+        scatterLat: null,
+        scatterLng: null,
       })
       .where(eq(repoCandidates.repoGithubId, repoGithubId));
 

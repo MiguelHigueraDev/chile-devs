@@ -3,6 +3,7 @@ import { useMapData, useStats } from "./api/queries";
 import { ChileMap } from "./components/ChileMap";
 import { DeveloperProfilePanel } from "./components/DeveloperProfilePanel";
 import { LocationPanel } from "./components/LocationPanel";
+import { RepoPanel } from "./components/RepoPanel";
 import { SearchFilterSheet } from "./components/SearchFilterSheet";
 import { SearchResultsPanel } from "./components/SearchResultsPanel";
 import { StatsFooter } from "./components/StatsFooter";
@@ -21,6 +22,8 @@ import {
 import {
   DEFAULT_SEARCH_PARAMS,
   type MapLocation,
+  type MapMode,
+  type MapRepo,
   type SearchParams,
 } from "./types/api";
 import { cn } from "@/lib/utils";
@@ -31,6 +34,9 @@ function App() {
   const { data: stats } = useStats();
   const [sortBy, setSortBy] = useDeveloperSortPreference();
   const [initialUrlState] = useState(() => readAppUrlState());
+  const [mapMode, setMapMode] = useState<MapMode>(
+    () => initialUrlState.mapMode,
+  );
   const [locationSlug, setLocationSlug] = useState<string | null>(
     () => initialUrlState.locationSlug,
   );
@@ -49,6 +55,7 @@ function App() {
   const [devLogin, setDevLogin] = useState<string | null>(
     () => initialUrlState.devLogin,
   );
+  const [selectedRepo, setSelectedRepo] = useState<MapRepo | null>(null);
   const [profileEditMode, setProfileEditMode] = useState(false);
 
   const urlSearchParams = useMemo(() => {
@@ -91,7 +98,9 @@ function App() {
       }
 
       if (urlState.searchParams) {
+        setMapMode(urlState.mapMode);
         setLocationSlug(null);
+        setSelectedRepo(null);
         setDraftFilters(urlState.searchParams);
         setCommittedFilters(urlState.searchParams);
         setFilterSheetOpen(true);
@@ -104,7 +113,9 @@ function App() {
       setCommittedFilters(null);
       setFilterSheetOpen(false);
       setResultsOpen(false);
+      setMapMode(urlState.mapMode);
       setLocationSlug(urlState.locationSlug);
+      setSelectedRepo(null);
       setDevLogin(urlState.devLogin);
     },
     [setSortBy],
@@ -113,6 +124,7 @@ function App() {
   useEffect(() => {
     const nextState = {
       locationSlug,
+      mapMode,
       searchParams: urlSearchParams,
       sort: locationSlug ? sortBy : null,
       devLogin,
@@ -126,7 +138,7 @@ function App() {
 
     syncAppUrlState(nextState, isInitialSync || !panelChanged);
     urlSyncRef.current = nextState;
-  }, [locationSlug, urlSearchParams, sortBy, devLogin]);
+  }, [locationSlug, mapMode, urlSearchParams, sortBy, devLogin]);
 
   useEffect(() => {
     const handlePopState = () => {
@@ -138,14 +150,38 @@ function App() {
   }, [applyUrlState]);
 
   const panelOpen =
-    selectedLocation || filterSheetOpen || resultsOpen || devLogin;
+    selectedLocation ||
+    filterSheetOpen ||
+    resultsOpen ||
+    devLogin ||
+    selectedRepo;
+
+  const handleMapModeChange = useCallback((nextMode: MapMode) => {
+    setMapMode(nextMode);
+    setLocationSlug(null);
+    setSelectedRepo(null);
+    setDraftFilters(DEFAULT_SEARCH_PARAMS);
+    setCommittedFilters(null);
+    setFilterSheetOpen(false);
+    setResultsOpen(false);
+  }, []);
 
   const handleLocationSelect = useCallback((location: MapLocation) => {
     setDraftFilters(DEFAULT_SEARCH_PARAMS);
     setCommittedFilters(null);
     setFilterSheetOpen(false);
     setResultsOpen(false);
+    setSelectedRepo(null);
     setLocationSlug(location.slug);
+  }, []);
+
+  const handleRepoSelect = useCallback((repo: MapRepo) => {
+    setLocationSlug(null);
+    setDraftFilters(DEFAULT_SEARCH_PARAMS);
+    setCommittedFilters(null);
+    setFilterSheetOpen(false);
+    setResultsOpen(false);
+    setSelectedRepo(repo);
   }, []);
 
   const handleOpenFilters = useCallback(() => {
@@ -185,6 +221,7 @@ function App() {
         )}
       >
         <StatsHeader
+          filtersDisabled={mapMode === 'repos'}
           onViewAllDevelopers={handleLocationSelect}
           onOpenFilters={handleOpenFilters}
           activeFilterCount={activeFilterCount}
@@ -199,11 +236,17 @@ function App() {
         />
         <div className="flex min-h-0 flex-1 flex-col gap-1 px-3 py-2 sm:px-4">
           <div className="border-border relative min-h-0 flex-1 overflow-hidden rounded-lg border">
-            <ChileMap onLocationSelect={handleLocationSelect} />
+            <ChileMap
+              mode={mapMode}
+              onMapModeChange={handleMapModeChange}
+              onLocationSelect={handleLocationSelect}
+              onRepoSelect={handleRepoSelect}
+            />
           </div>
           <StatsFooter />
         </div>
       </div>
+      <RepoPanel repo={selectedRepo} onClose={() => setSelectedRepo(null)} />
       <LocationPanel
         location={selectedLocation}
         sortBy={sortBy}

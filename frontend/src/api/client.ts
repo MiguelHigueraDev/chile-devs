@@ -11,6 +11,7 @@ import type {
   DeveloperSortKey,
   LocationDevelopersResponse,
   MapLocation,
+  MapRepo,
   MeResponse,
   RefreshCandidatesSummary,
   SearchFacets,
@@ -98,6 +99,11 @@ async function fetchJson<T>(
 
 export function fetchMapData(): Promise<MapLocation[]> {
   return fetchJson<MapLocation[]>('/map');
+}
+
+export function fetchReposInViewport(bbox: string): Promise<MapRepo[]> {
+  const params = new URLSearchParams({ bbox });
+  return fetchJson<MapRepo[]>(`/repos?${params.toString()}`);
 }
 
 export function fetchStats(): Promise<StatsResponse> {
