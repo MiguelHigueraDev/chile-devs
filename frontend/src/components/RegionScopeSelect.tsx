@@ -18,10 +18,7 @@ export function RegionScopeSelect({
     facets?.locations.filter((location) => location.kind === 'region') ?? []
 
   return (
-    <div
-      className="pt-2"
-      onPointerDown={(event) => event.stopPropagation()}
-    >
+    <div className="pt-2">
       <label htmlFor={id} className="text-muted-foreground mb-1.5 block text-xs">
         Region
       </label>
