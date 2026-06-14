@@ -21,6 +21,12 @@ export const REGION_TO_CITIES: Record<string, string[]> = {
   magallanes: ['punta-arenas'],
 };
 
+export const CITY_TO_REGION: Record<string, string> = Object.fromEntries(
+  Object.entries(REGION_TO_CITIES).flatMap(([region, cities]) =>
+    cities.map((city) => [city, region] as const),
+  ),
+);
+
 export const ZONES: Record<GeoZone, string[]> = {
   north: [
     'arica-y-parinacota',
@@ -47,6 +53,19 @@ export const LOCATION_CATALOG = LOCATION_SEEDS.map((location) => ({
   name: location.name,
   kind: location.kind,
 }));
+
+export function resolveRegionLocationSlug(
+  locationSlug: string,
+  kind: 'country' | 'region' | 'city',
+): string | null {
+  if (kind === 'region') {
+    return locationSlug;
+  }
+  if (kind === 'city') {
+    return CITY_TO_REGION[locationSlug] ?? null;
+  }
+  return null;
+}
 
 export function expandLocationSlugs(slugs: string[]): Set<string> {
   const expanded = new Set<string>();

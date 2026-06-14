@@ -157,6 +157,9 @@ export const repoCandidates = pgTable(
     locationId: integer('location_id')
       .notNull()
       .references(() => locations.id),
+    regionLocationId: integer('region_location_id').references(
+      () => locations.id,
+    ),
     nameWithOwner: text('name_with_owner').notNull(),
     name: text('name').notNull(),
     description: text('description'),
@@ -177,6 +180,7 @@ export const repoCandidates = pgTable(
   (table) => [
     index('idx_repo_candidates_status').on(table.status),
     index('idx_repo_candidates_location').on(table.locationId),
+    index('idx_repo_candidates_region_location').on(table.regionLocationId),
     index('idx_repo_candidates_owner').on(table.ownerGithubId),
   ],
 );

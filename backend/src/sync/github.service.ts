@@ -361,7 +361,12 @@ export class GithubService {
         const repos: GitHubRepo[] = [];
 
         for (const node of nodes) {
-          if (!node?.databaseId || !node.nameWithOwner) {
+          if (
+            !node?.databaseId ||
+            !node.nameWithOwner ||
+            !node.name ||
+            !node.url
+          ) {
             continue;
           }
           repos.push({

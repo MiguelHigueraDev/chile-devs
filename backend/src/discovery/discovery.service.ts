@@ -10,8 +10,10 @@ import {
   sql,
   type SQL,
 } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
 import { developers, locations, repoCandidates } from '../db/schema';
+import { resolveRegionLocationSlug } from '../search/geo.data';
 import { GithubService } from '../sync/github.service';
 import {
   type CandidateSortKey,
@@ -34,7 +36,7 @@ type FlatRepo = {
   repoGithubId: string;
   ownerGithubId: string;
   locationId: number;
-  locationKind: 'country' | 'region' | 'city';
+  regionLocationId: number | null;
   nameWithOwner: string;
   name: string;
   description: string | null;
@@ -99,11 +101,19 @@ export class DiscoveryService {
     const topDevs = this.resolveTopDevs(input.topDevs);
     const reposPerDev = this.resolveReposPerDev(input.reposPerDev);
 
+    const locationRows = await this.db
+      .select({ id: locations.id, slug: locations.slug })
+      .from(locations);
+    const locationIdBySlug = new Map(
+      locationRows.map((row) => [row.slug, row.id]),
+    );
+
     const devRows = await this.db
       .select({
         githubId: developers.githubId,
         login: developers.login,
         locationId: developers.locationId,
+        locationSlug: locations.slug,
         locationKind: locations.kind,
       })
       .from(developers)
@@ -122,11 +132,19 @@ export class DiscoveryService {
       reposScanned += repos.length;
 
       for (const repo of repos) {
+        const regionSlug = resolveRegionLocationSlug(
+          dev.locationSlug,
+          dev.locationKind,
+        );
+        const regionLocationId = regionSlug
+          ? (locationIdBySlug.get(regionSlug) ?? null)
+          : null;
+
         flatRepos.push({
           repoGithubId: repo.repoGithubId,
           ownerGithubId: dev.githubId,
           locationId: dev.locationId,
-          locationKind: dev.locationKind,
+          regionLocationId,
           nameWithOwner: repo.nameWithOwner,
           name: repo.name,
           description: repo.description,
@@ -151,6 +169,7 @@ export class DiscoveryService {
               repoGithubId: row.repoGithubId,
               ownerGithubId: row.ownerGithubId,
               locationId: row.locationId,
+              regionLocationId: row.regionLocationId,
               nameWithOwner: row.nameWithOwner,
               name: row.name,
               description: row.description,
@@ -168,6 +187,7 @@ export class DiscoveryService {
             set: {
               ownerGithubId: sql`excluded.owner_github_id`,
               locationId: sql`excluded.location_id`,
+              regionLocationId: sql`excluded.region_location_id`,
               nameWithOwner: sql`excluded.name_with_owner`,
               name: sql`excluded.name`,
               description: sql`excluded.description`,
@@ -240,12 +260,12 @@ export class DiscoveryService {
 
     const byRegion = new Map<number, FlatRepo[]>();
     for (const repo of repos) {
-      if (repo.locationKind !== 'region') {
+      if (repo.regionLocationId == null) {
         continue;
       }
-      const list = byRegion.get(repo.locationId) ?? [];
+      const list = byRegion.get(repo.regionLocationId) ?? [];
       list.push(repo);
-      byRegion.set(repo.locationId, list);
+      byRegion.set(repo.regionLocationId, list);
     }
 
     for (const regionRepos of byRegion.values()) {
@@ -319,13 +339,15 @@ export class DiscoveryService {
       offset = Math.max(0, Math.trunc(input.offset));
     }
     const sort = input.sort ?? 'stars';
+    const ownerLocations = alias(locations, 'owner_locations');
+    const regionLocations = alias(locations, 'region_locations');
 
     const filters: SQL[] = [];
     if (input.status) {
       filters.push(eq(repoCandidates.status, input.status));
     }
     if (input.regionSlug) {
-      filters.push(eq(locations.slug, input.regionSlug));
+      filters.push(eq(regionLocations.slug, input.regionSlug));
     }
     if (input.scope === 'region') {
       filters.push(isNotNull(repoCandidates.regionRank));
@@ -355,16 +377,23 @@ export class DiscoveryService {
         ownerName: developers.name,
         ownerAvatarUrl: developers.avatarUrl,
         ownerProfileUrl: developers.profileUrl,
-        locationSlug: locations.slug,
-        locationName: locations.name,
-        locationKind: locations.kind,
+        locationSlug: ownerLocations.slug,
+        locationName: ownerLocations.name,
+        locationKind: ownerLocations.kind,
       })
       .from(repoCandidates)
       .innerJoin(
         developers,
         eq(repoCandidates.ownerGithubId, developers.githubId),
       )
-      .innerJoin(locations, eq(repoCandidates.locationId, locations.id))
+      .innerJoin(
+        ownerLocations,
+        eq(repoCandidates.locationId, ownerLocations.id),
+      )
+      .leftJoin(
+        regionLocations,
+        eq(repoCandidates.regionLocationId, regionLocations.id),
+      )
       .where(whereClause)
       .orderBy(...this.orderByForSort(sort))
       .limit(limit + 1)
@@ -376,7 +405,14 @@ export class DiscoveryService {
     const [{ total }] = await this.db
       .select({ total: sql<number>`count(*)::int` })
       .from(repoCandidates)
-      .innerJoin(locations, eq(repoCandidates.locationId, locations.id))
+      .innerJoin(
+        ownerLocations,
+        eq(repoCandidates.locationId, ownerLocations.id),
+      )
+      .leftJoin(
+        regionLocations,
+        eq(repoCandidates.regionLocationId, regionLocations.id),
+      )
       .where(whereClause);
 
     return {
