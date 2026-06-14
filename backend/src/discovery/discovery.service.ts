@@ -11,6 +11,7 @@ import {
   asc,
   desc,
   eq,
+  inArray,
   isNotNull,
   notInArray,
   sql,
@@ -121,6 +122,9 @@ export class DiscoveryService implements OnModuleInit {
     const locationIdBySlug = new Map(
       locationRows.map((row) => [row.slug, row.id]),
     );
+    const slugByLocationId = new Map(
+      locationRows.map((row) => [row.id, row.slug]),
+    );
 
     const devRows = await this.db
       .select({
@@ -215,6 +219,43 @@ export class DiscoveryService implements OnModuleInit {
               selectedAt: sql`now()`,
             },
           });
+
+        const promotedRows = await tx
+          .select({ repoGithubId: repoCandidates.repoGithubId })
+          .from(repoCandidates)
+          .where(
+            and(
+              eq(repoCandidates.status, 'promoted'),
+              inArray(repoCandidates.repoGithubId, selectedIds),
+            ),
+          );
+
+        const selectedById = new Map(
+          selectedRows.map((row) => [row.repoGithubId, row]),
+        );
+
+        for (const { repoGithubId } of promotedRows) {
+          const row = selectedById.get(repoGithubId);
+          if (!row) {
+            continue;
+          }
+
+          const regionSlug = row.regionLocationId
+            ? (slugByLocationId.get(row.regionLocationId) ?? null)
+            : null;
+          const coordinate = scatterRepoCoordinate({
+            repoGithubId,
+            regionSlug,
+          });
+
+          await tx
+            .update(repoCandidates)
+            .set({
+              scatterLat: coordinate.lat,
+              scatterLng: coordinate.lng,
+            })
+            .where(eq(repoCandidates.repoGithubId, repoGithubId));
+        }
       }
 
       const dropFilter =
