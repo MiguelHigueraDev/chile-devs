@@ -41,6 +41,18 @@ export class ApiController {
     return this.apiService.getPromotedReposList(input);
   }
 
+  @Get('repos/activity')
+  async getRepoActivity(@Query('nameWithOwner') nameWithOwner?: string) {
+    const trimmed = nameWithOwner?.trim() ?? '';
+    if (!trimmed) {
+      throw new BadRequestException(
+        'Missing required query parameter: nameWithOwner',
+      );
+    }
+
+    return this.apiService.getRepoActivity(trimmed);
+  }
+
   @Get('repos/by-name')
   async getRepoByName(@Query('nameWithOwner') nameWithOwner?: string) {
     const trimmed = nameWithOwner?.trim() ?? '';
@@ -84,6 +96,11 @@ export class ApiController {
       cursor,
       parseDeveloperSort(sort),
     );
+  }
+
+  @Get('developers/:login/activity')
+  async getDeveloperActivity(@Param('login') login: string) {
+    return this.apiService.getDeveloperActivity(login);
   }
 
   @Get('developers/:login')

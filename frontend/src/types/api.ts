@@ -81,6 +81,26 @@ export type DeveloperDetail = DeveloperSummary & {
   claimed: boolean;
 };
 
+export type ContributionDay = {
+  date: string;
+  count: number;
+};
+
+export type ContributionActivity = {
+  totalContributions: number;
+  weeks: ContributionDay[][];
+};
+
+export type RepoCommitWeek = {
+  weekStart: string;
+  total: number;
+  days: number[];
+};
+
+export type RepoCommitActivity = {
+  weeks: RepoCommitWeek[];
+};
+
 export type MeResponse = {
   login: string;
   avatarUrl: string | null;

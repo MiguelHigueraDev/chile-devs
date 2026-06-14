@@ -9,6 +9,8 @@ import type {
   CountryDevelopersResponse,
   DeveloperDetail,
   DeveloperSortKey,
+  ContributionActivity,
+  RepoCommitActivity,
   LocationDevelopersResponse,
   MapLocation,
   MapRepo,
@@ -220,6 +222,21 @@ export function fetchSearchFacets(): Promise<SearchFacets> {
 
 export function fetchDeveloper(login: string): Promise<DeveloperDetail> {
   return fetchJson<DeveloperDetail>(`/developers/${encodeURIComponent(login)}`);
+}
+
+export function fetchDeveloperActivity(
+  login: string,
+): Promise<ContributionActivity> {
+  return fetchJson<ContributionActivity>(
+    `/developers/${encodeURIComponent(login)}/activity`,
+  );
+}
+
+export function fetchRepoActivity(
+  nameWithOwner: string,
+): Promise<RepoCommitActivity> {
+  const params = new URLSearchParams({ nameWithOwner });
+  return fetchJson<RepoCommitActivity>(`/repos/activity?${params.toString()}`);
 }
 
 export async function fetchMe(): Promise<MeResponse | null> {

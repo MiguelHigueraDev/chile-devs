@@ -2,13 +2,14 @@ import { useState } from "react";
 import { ExternalLink, Globe, HelpCircle, LogIn, Pencil } from "lucide-react";
 import {
   useDeveloper,
+  useDeveloperActivity,
   useMe,
   useUpdateProfileMutation,
 } from "../api/queries";
 import { getGitHubAuthUrl } from "../api/client";
 import { formatNumber } from "../lib/utils";
 import { toSafeHttpsUrl } from "../lib/safe-url";
-import type { DeveloperDetail } from "../types/api";
+import type { DeveloperDetail, ContributionActivity } from "../types/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,7 @@ import { ExternalLinkWarningDialog } from "./ExternalLinkWarningDialog";
 import { RankHelpDialog } from "./RankHelpDialog";
 import { TopLanguagesBar } from "./TopLanguagesBar";
 import { RankBadge } from "./RankBadge";
+import { ContributionGraph } from "./ContributionGraph";
 import { hasRankData, RANK_SECTION_LABEL, formatCountryRank, formatLocationRank } from "../lib/rank";
 
 type DeveloperProfilePanelProps = {
@@ -80,10 +82,16 @@ function ProfileView({
   developer,
   isOwner,
   onEdit,
+  activityPending,
+  activityError,
+  activity,
 }: {
   developer: DeveloperDetail;
   isOwner: boolean;
   onEdit: () => void;
+  activityPending: boolean;
+  activityError: Error | null;
+  activity?: ContributionActivity;
 }) {
   const [portfolioWarningOpen, setPortfolioWarningOpen] = useState(false);
   const [rankHelpOpen, setRankHelpOpen] = useState(false);
@@ -98,7 +106,7 @@ function ProfileView({
   const countryRank = formatCountryRank(developer.rankCountry);
 
   return (
-    <div className="space-y-5 px-4 py-4">
+    <div className="min-w-0 space-y-5 px-4 py-4">
       <div className="flex items-start gap-4">
         <Avatar className="size-16">
           {avatarUrl ? (
@@ -140,6 +148,12 @@ function ProfileView({
       )}
 
       <ProfileStats developer={developer} />
+
+      <ContributionGraph
+        activity={activity}
+        isPending={activityPending}
+        error={activityError}
+      />
 
       {hasRankData(developer) && (
         <div className="space-y-3 text-center">
@@ -333,6 +347,11 @@ export function DeveloperProfilePanel({
   onEditModeChange,
 }: DeveloperProfilePanelProps) {
   const { data: developer, error, isPending } = useDeveloper(login);
+  const {
+    data: activity,
+    error: activityError,
+    isPending: activityPending,
+  } = useDeveloperActivity(login);
   const { data: me } = useMe();
 
   const isEditing = editMode;
@@ -360,6 +379,7 @@ export function DeveloperProfilePanel({
             </SheetHeader>
 
             <ScrollArea className="min-h-0 flex-1">
+              <div className="min-w-0 max-w-full overflow-x-hidden">
               {isPending && (
                 <div className="space-y-4 px-4 py-4">
                   <div className="flex items-center gap-4">
@@ -400,6 +420,9 @@ export function DeveloperProfilePanel({
                       developer={developer}
                       isOwner={canEditProfile}
                       onEdit={() => onEditModeChange?.(true)}
+                      activity={activity}
+                      activityPending={activityPending}
+                      activityError={activityError}
                     />
                   )}
 
@@ -425,6 +448,7 @@ export function DeveloperProfilePanel({
                   )}
                 </>
               )}
+              </div>
             </ScrollArea>
 
             <Separator className="shrink-0" />

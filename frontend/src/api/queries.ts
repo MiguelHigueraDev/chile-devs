@@ -12,11 +12,13 @@ import {
   fetchCandidates,
   fetchCountryDevelopers,
   fetchDeveloper,
+  fetchDeveloperActivity,
   fetchLocationDevelopers,
   fetchMapData,
   fetchMe,
   fetchPromotedReposList,
   fetchRepo,
+  fetchRepoActivity,
   fetchReposInViewport,
   fetchSearch,
   fetchSearchFacets,
@@ -44,10 +46,14 @@ export const queryKeys = {
   repos: (bbox: string) => ["repos", bbox] as const,
   reposList: (regionSlug: string) => ["repos", "list", regionSlug] as const,
   repo: (nameWithOwner: string) => ["repos", "by-name", nameWithOwner] as const,
+  repoActivity: (nameWithOwner: string) =>
+    ["repos", nameWithOwner, "activity"] as const,
   stats: ["stats"] as const,
   githubStars: ["github", "stars"] as const,
   me: ["auth", "me"] as const,
   developer: (login: string) => ["developers", login] as const,
+  developerActivity: (login: string) =>
+    ["developers", login, "activity"] as const,
   search: (params: SearchParams) => ["search", params] as const,
   searchFacets: ["search", "facets"] as const,
   countryDevelopers: (sort: DeveloperSortKey) =>
@@ -232,6 +238,24 @@ export function useDeveloper(login: string | null) {
     queryFn: () => fetchDeveloper(login!),
     enabled: !!login,
     staleTime: 60 * 1000,
+  });
+}
+
+export function useDeveloperActivity(login: string | null) {
+  return useQuery({
+    queryKey: queryKeys.developerActivity(login ?? ""),
+    queryFn: () => fetchDeveloperActivity(login!),
+    enabled: !!login,
+    staleTime: 30 * 60 * 1000,
+  });
+}
+
+export function useRepoActivity(nameWithOwner: string | null) {
+  return useQuery({
+    queryKey: queryKeys.repoActivity(nameWithOwner ?? ""),
+    queryFn: () => fetchRepoActivity(nameWithOwner!),
+    enabled: !!nameWithOwner,
+    staleTime: 30 * 60 * 1000,
   });
 }
 

@@ -1,5 +1,5 @@
 import { ExternalLink, GitFork, Star } from 'lucide-react'
-import { useRepo } from '../api/queries'
+import { useRepo, useRepoActivity } from '../api/queries'
 import { getGitHubAvatarUrl } from '../lib/github'
 import { toSafeHttpsUrl } from '../lib/safe-url'
 import { formatNumber } from '../lib/utils'
@@ -14,6 +14,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Skeleton } from '@/components/ui/skeleton'
+import { RepoCommitActivityChart } from './RepoCommitActivity'
 
 type RepoPanelProps = {
   nameWithOwner: string | null
@@ -33,6 +34,11 @@ function RepoPanelSkeleton() {
 
 export function RepoPanel({ nameWithOwner, onClose }: RepoPanelProps) {
   const { data: repo, error, isPending } = useRepo(nameWithOwner)
+  const {
+    data: activity,
+    error: activityError,
+    isPending: activityPending,
+  } = useRepoActivity(nameWithOwner)
   const avatarUrl =
     toSafeHttpsUrl(repo?.owner.avatarUrl) ??
     (repo?.owner.login ? getGitHubAvatarUrl(repo.owner.login) : null)
@@ -169,6 +175,12 @@ export function RepoPanel({ nameWithOwner, onClose }: RepoPanelProps) {
                     </p>
                   )}
                 </div>
+
+                <RepoCommitActivityChart
+                  activity={activity}
+                  isPending={activityPending}
+                  error={activityError}
+                />
 
                 {repoUrl ? (
                   <Button asChild className="mt-auto w-full">
