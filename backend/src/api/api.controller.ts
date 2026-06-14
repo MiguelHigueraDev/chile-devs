@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -42,14 +43,17 @@ export class ApiController {
 
   @Get('repos/by-name')
   async getRepoByName(@Query('nameWithOwner') nameWithOwner?: string) {
-    const repo = await this.apiService.getPromotedRepoByNameWithOwner(
-      nameWithOwner?.trim() ?? '',
-    );
+    const trimmed = nameWithOwner?.trim() ?? '';
+    if (!trimmed) {
+      throw new BadRequestException(
+        'Missing required query parameter: nameWithOwner',
+      );
+    }
+
+    const repo = await this.apiService.getPromotedRepoByNameWithOwner(trimmed);
 
     if (!repo) {
-      throw new NotFoundException(
-        `Repo "${nameWithOwner?.trim() ?? ''}" not found`,
-      );
+      throw new NotFoundException(`Repo "${trimmed}" not found`);
     }
 
     return repo;

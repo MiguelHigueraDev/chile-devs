@@ -121,8 +121,18 @@ function perpendicularDistance(
   return Math.hypot(x - projX, y - projY);
 }
 
-function simplifyRing(ring: Ring, tolerance: number): Ring {
-  if (ring.length <= 4) {
+function isClosedRing(ring: Ring): boolean {
+  if (ring.length < 2) {
+    return false;
+  }
+
+  const [x0, y0] = ring[0];
+  const [x1, y1] = ring[ring.length - 1];
+  return x0 === x1 && y0 === y1;
+}
+
+function simplifyOpenRing(ring: Ring, tolerance: number): Ring {
+  if (ring.length <= 2) {
     return ring;
   }
 
@@ -140,12 +150,36 @@ function simplifyRing(ring: Ring, tolerance: number): Ring {
   }
 
   if (maxDistance > tolerance) {
-    const left = simplifyRing(ring.slice(0, index + 1), tolerance);
-    const right = simplifyRing(ring.slice(index), tolerance);
+    const left = simplifyOpenRing(ring.slice(0, index + 1), tolerance);
+    const right = simplifyOpenRing(ring.slice(index), tolerance);
     return [...left.slice(0, -1), ...right];
   }
 
   return [first, last];
+}
+
+function simplifyRing(ring: Ring, tolerance: number): Ring {
+  if (ring.length <= 4) {
+    return ring;
+  }
+
+  if (!isClosedRing(ring)) {
+    return simplifyOpenRing(ring, tolerance);
+  }
+
+  const openRing = ring.slice(0, -1);
+  const simplified = simplifyOpenRing(openRing, tolerance);
+
+  if (simplified.length < 3) {
+    return ring;
+  }
+
+  const closed: Ring = [...simplified, simplified[0]];
+  if (closed.length < 4) {
+    return ring;
+  }
+
+  return closed;
 }
 
 function simplifyGeometry(

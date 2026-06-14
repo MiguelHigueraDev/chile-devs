@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type FilterListQueryState = {
   isPending: boolean;
@@ -22,9 +22,13 @@ export function useStaleWhileRevalidate<T>(
     items.length > 0 ? items : [],
   );
 
-  if (items.length > 0 && items !== staleItems) {
-    setStaleItems(items);
-  }
+  // Cache the last non-empty items for stale-while-revalidate fallback.
+  useEffect(() => {
+    if (items.length > 0 && items !== staleItems) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- sync prop-derived cache after render
+      setStaleItems(items);
+    }
+  }, [items, staleItems]);
 
   const visibleItems =
     items.length > 0 ? items : isRevalidating ? staleItems : [];

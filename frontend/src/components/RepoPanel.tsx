@@ -36,6 +36,8 @@ export function RepoPanel({ nameWithOwner, onClose }: RepoPanelProps) {
   const avatarUrl =
     toSafeHttpsUrl(repo?.owner.avatarUrl) ??
     (repo?.owner.login ? getGitHubAvatarUrl(repo.owner.login) : null)
+  const ownerProfileUrl = toSafeHttpsUrl(repo?.owner.profileUrl)
+  const repoUrl = toSafeHttpsUrl(repo?.url)
 
   return (
     <Sheet
@@ -122,14 +124,20 @@ export function RepoPanel({ nameWithOwner, onClose }: RepoPanelProps) {
                   <div className="space-y-2 text-sm">
                     <p>
                       <span className="text-muted-foreground">Owner: </span>
-                      <a
-                        href={repo.owner.profileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-medium hover:underline"
-                      >
-                        {repo.owner.name ?? repo.owner.login}
-                      </a>
+                      {ownerProfileUrl ? (
+                        <a
+                          href={ownerProfileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-medium hover:underline"
+                        >
+                          {repo.owner.name ?? repo.owner.login}
+                        </a>
+                      ) : (
+                        <span className="font-medium">
+                          {repo.owner.name ?? repo.owner.login}
+                        </span>
+                      )}
                     </p>
                     {repo.regionRank != null && (
                       <p>
@@ -145,12 +153,14 @@ export function RepoPanel({ nameWithOwner, onClose }: RepoPanelProps) {
                     )}
                   </div>
 
-                  <Button asChild className="mt-auto w-full">
-                    <a href={repo.url} target="_blank" rel="noreferrer">
-                      Open on GitHub
-                      <ExternalLink className="size-4" />
-                    </a>
-                  </Button>
+                  {repoUrl ? (
+                    <Button asChild className="mt-auto w-full">
+                      <a href={repoUrl} target="_blank" rel="noreferrer">
+                        Open on GitHub
+                        <ExternalLink className="size-4" />
+                      </a>
+                    </Button>
+                  ) : null}
                 </div>
               </>
             ) : null}

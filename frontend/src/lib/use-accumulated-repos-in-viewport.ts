@@ -73,6 +73,12 @@ export function useAccumulatedReposInViewport(
         mergeReposIntoMap(accumulatedRepoCache, repos);
         accumulatedFetchedBboxes.push(chileViewport);
         setCacheRevision((revision) => revision + 1);
+      })
+      .catch(() => {
+        if (cancelled) return;
+
+        accumulatedFetchedBboxes.push(chileViewport);
+        setCacheRevision((revision) => revision + 1);
       });
 
     return () => {

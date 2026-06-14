@@ -47,4 +47,14 @@ describe('repo pagination cursors', () => {
   it('rejects malformed repo cursors', () => {
     expect(decodeRepoCursor('not-a-cursor')).toBeNull();
   });
+
+  it('rejects negative star cursors', () => {
+    const cursor = Buffer.from('stars:-1:repo-456').toString('base64url');
+    expect(decodeRepoCursor(cursor)).toBeNull();
+  });
+
+  it('rejects decimal star cursors', () => {
+    const cursor = Buffer.from('stars:12.5:repo-456').toString('base64url');
+    expect(decodeRepoCursor(cursor)).toBeNull();
+  });
 });

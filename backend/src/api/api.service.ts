@@ -167,7 +167,12 @@ export function decodeRepoCursor(cursor: string): RepoCursor | null {
     const sort = decoded.slice(0, firstSep);
     const stars = Number(decoded.slice(firstSep + 1, lastSep));
     const repoGithubId = decoded.slice(lastSep + 1);
-    if (sort !== 'stars' || !Number.isFinite(stars) || !repoGithubId) {
+    if (
+      sort !== 'stars' ||
+      !Number.isInteger(stars) ||
+      stars < 0 ||
+      !repoGithubId
+    ) {
       return null;
     }
 
@@ -774,7 +779,11 @@ export class ApiService {
     }
 
     const regionLocations = alias(locations, 'region_locations');
-    const filters: SQL[] = [eq(repoCandidates.status, 'promoted')];
+    const filters: SQL[] = [
+      eq(repoCandidates.status, 'promoted'),
+      isNotNull(repoCandidates.scatterLat),
+      isNotNull(repoCandidates.scatterLng),
+    ];
 
     if (input.regionSlug) {
       const [region] = await this.db
@@ -916,6 +925,8 @@ export class ApiService {
       .where(
         and(
           eq(repoCandidates.status, 'promoted'),
+          isNotNull(repoCandidates.scatterLat),
+          isNotNull(repoCandidates.scatterLng),
           eq(repoCandidates.nameWithOwner, trimmed),
         ),
       )
