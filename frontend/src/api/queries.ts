@@ -7,6 +7,8 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import {
+  fetchAdminMe,
+  fetchCandidates,
   fetchCountryDevelopers,
   fetchDeveloper,
   fetchLocationDevelopers,
@@ -17,10 +19,15 @@ import {
   fetchStats,
   logout,
   optOut,
+  promoteCandidate,
+  refreshCandidates,
+  rejectCandidate,
+  resetCandidate,
   updateMyProfile,
 } from './client'
 import {
   DEFAULT_SEARCH_PARAMS,
+  type CandidatesQuery,
   type SearchParams,
   type UpdateProfileInput,
 } from '../types/api'
@@ -39,6 +46,8 @@ export const queryKeys = {
     ['country', 'developers', sort] as const,
   locationDevelopers: (slug: string, sort: DeveloperSortKey) =>
     ['locations', slug, 'developers', sort] as const,
+  adminMe: ['admin', 'me'] as const,
+  candidates: (query: CandidatesQuery) => ['admin', 'candidates', query] as const,
 }
 
 export const mapDataQueryOptions = queryOptions({
@@ -204,6 +213,68 @@ export function useOptOutMutation() {
       await queryClient.invalidateQueries({ queryKey: ['country'] })
       await queryClient.invalidateQueries({ queryKey: ['locations'] })
       await queryClient.invalidateQueries({ queryKey: ['developers'] })
+    },
+  })
+}
+
+export function useAdminMe() {
+  return useQuery({
+    queryKey: queryKeys.adminMe,
+    queryFn: fetchAdminMe,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useCandidates(query: CandidatesQuery, enabled = true) {
+  return useQuery({
+    queryKey: queryKeys.candidates(query),
+    queryFn: () => fetchCandidates(query),
+    enabled,
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useRefreshCandidatesMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: refreshCandidates,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'candidates'] })
+    },
+  })
+}
+
+export function usePromoteCandidateMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: promoteCandidate,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'candidates'] })
+    },
+  })
+}
+
+export function useRejectCandidateMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: rejectCandidate,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'candidates'] })
+    },
+  })
+}
+
+export function useResetCandidateMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: resetCandidate,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'candidates'] })
     },
   })
 }
