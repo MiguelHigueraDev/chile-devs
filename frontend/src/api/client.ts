@@ -271,7 +271,7 @@ export function fetchCandidates(
   if (query.offset != null) params.set('offset', String(query.offset));
   const queryString = params.toString();
   return fetchJson<CandidatesResponse>(
-    `/admin/candidates${queryString ? `?${queryString}` : ''}`,
+    `/admin/repo-candidates${queryString ? `?${queryString}` : ''}`,
     { auth: true },
   );
 }
@@ -280,7 +280,7 @@ export function refreshCandidates(input: {
   perRegion?: number;
   perCountry?: number;
 } = {}): Promise<RefreshCandidatesSummary> {
-  return fetchJson<RefreshCandidatesSummary>('/admin/candidates/refresh', {
+  return fetchJson<RefreshCandidatesSummary>('/admin/repo-candidates/refresh', {
     method: 'POST',
     body: input,
     auth: true,
@@ -290,7 +290,7 @@ export function refreshCandidates(input: {
 export function promoteCandidate(
   login: string,
 ): Promise<{ login: string; status: 'promoted' }> {
-  return fetchJson(`/admin/candidates/${encodeURIComponent(login)}/promote`, {
+  return fetchJson(`/admin/repo-candidates/${encodeURIComponent(login)}/promote`, {
     method: 'POST',
     auth: true,
   });
@@ -299,7 +299,7 @@ export function promoteCandidate(
 export function rejectCandidate(
   login: string,
 ): Promise<{ login: string; status: 'rejected' }> {
-  return fetchJson(`/admin/candidates/${encodeURIComponent(login)}/reject`, {
+  return fetchJson(`/admin/repo-candidates/${encodeURIComponent(login)}/reject`, {
     method: 'POST',
     auth: true,
   });
@@ -308,7 +308,7 @@ export function rejectCandidate(
 export function resetCandidate(
   login: string,
 ): Promise<{ login: string; status: 'candidate' }> {
-  return fetchJson(`/admin/candidates/${encodeURIComponent(login)}/reset`, {
+  return fetchJson(`/admin/repo-candidates/${encodeURIComponent(login)}/reset`, {
     method: 'POST',
     auth: true,
   });

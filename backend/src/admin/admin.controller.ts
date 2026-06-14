@@ -47,7 +47,7 @@ export class AdminController {
     return { login: request.session.login };
   }
 
-  @Post('candidates/refresh')
+  @Post('repo-candidates/refresh')
   refreshCandidates(@Body() body: unknown) {
     const input = (body ?? {}) as Record<string, unknown>;
     return this.discoveryService.refreshCandidates({
@@ -56,7 +56,7 @@ export class AdminController {
     });
   }
 
-  @Get('candidates')
+  @Get('repo-candidates')
   listCandidates(
     @Query('status') status?: string,
     @Query('region') region?: string,
@@ -75,7 +75,7 @@ export class AdminController {
     });
   }
 
-  @Post('candidates/:login/promote')
+  @Post('repo-candidates/:login/promote')
   promote(
     @Param('login') login: string,
     @Req() request: FastifyRequest & AuthenticatedRequest,
@@ -83,12 +83,12 @@ export class AdminController {
     return this.discoveryService.promote(login, request.session.login);
   }
 
-  @Post('candidates/:login/reject')
+  @Post('repo-candidates/:login/reject')
   reject(@Param('login') login: string) {
     return this.discoveryService.reject(login);
   }
 
-  @Post('candidates/:login/reset')
+  @Post('repo-candidates/:login/reset')
   reset(@Param('login') login: string) {
     return this.discoveryService.reset(login);
   }

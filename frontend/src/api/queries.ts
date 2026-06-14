@@ -5,7 +5,7 @@ import {
   useMutation,
   useQuery,
   useQueryClient,
-} from '@tanstack/react-query'
+} from "@tanstack/react-query";
 import {
   fetchAdminMe,
   fetchCandidates,
@@ -24,53 +24,54 @@ import {
   rejectCandidate,
   resetCandidate,
   updateMyProfile,
-} from './client'
+} from "./client";
 import {
   DEFAULT_SEARCH_PARAMS,
   type CandidatesQuery,
   type SearchParams,
   type UpdateProfileInput,
-} from '../types/api'
-import { fetchGithubStars } from '../lib/github'
-import type { DeveloperSortKey } from '../types/api'
+} from "../types/api";
+import { fetchGithubStars } from "../lib/github";
+import type { DeveloperSortKey } from "../types/api";
 
 export const queryKeys = {
-  map: ['map'] as const,
-  stats: ['stats'] as const,
-  githubStars: ['github', 'stars'] as const,
-  me: ['auth', 'me'] as const,
-  developer: (login: string) => ['developers', login] as const,
-  search: (params: SearchParams) => ['search', params] as const,
-  searchFacets: ['search', 'facets'] as const,
+  map: ["map"] as const,
+  stats: ["stats"] as const,
+  githubStars: ["github", "stars"] as const,
+  me: ["auth", "me"] as const,
+  developer: (login: string) => ["developers", login] as const,
+  search: (params: SearchParams) => ["search", params] as const,
+  searchFacets: ["search", "facets"] as const,
   countryDevelopers: (sort: DeveloperSortKey) =>
-    ['country', 'developers', sort] as const,
+    ["country", "developers", sort] as const,
   locationDevelopers: (slug: string, sort: DeveloperSortKey) =>
-    ['locations', slug, 'developers', sort] as const,
-  adminMe: ['admin', 'me'] as const,
-  candidates: (query: CandidatesQuery) => ['admin', 'candidates', query] as const,
-}
+    ["locations", slug, "developers", sort] as const,
+  adminMe: ["admin", "me"] as const,
+  candidates: (query: CandidatesQuery) =>
+    ["admin", "repo-candidates", query] as const,
+};
 
 export const mapDataQueryOptions = queryOptions({
   queryKey: queryKeys.map,
   queryFn: fetchMapData,
-})
+});
 
 export const statsQueryOptions = queryOptions({
   queryKey: queryKeys.stats,
   queryFn: fetchStats,
-})
+});
 
 export const githubStarsQueryOptions = queryOptions({
   queryKey: queryKeys.githubStars,
   queryFn: fetchGithubStars,
   staleTime: 30 * 60 * 1000,
-})
+});
 
 export const searchFacetsQueryOptions = queryOptions({
   queryKey: queryKeys.searchFacets,
   queryFn: fetchSearchFacets,
   staleTime: 10 * 60 * 1000,
-})
+});
 
 type DevelopersPage = {
   hasMore: boolean;
@@ -83,11 +84,10 @@ function buildDevelopersInfiniteQueryOptions<TPage extends DevelopersPage>(
 ) {
   return infiniteQueryOptions({
     queryKey,
-    queryFn: ({ pageParam }) =>
-      fetchPage(pageParam as string | undefined),
+    queryFn: ({ pageParam }) => fetchPage(pageParam as string | undefined),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) =>
-      lastPage.hasMore ? lastPage.nextCursor ?? undefined : undefined,
+      lastPage.hasMore ? (lastPage.nextCursor ?? undefined) : undefined,
   });
 }
 
@@ -109,26 +109,26 @@ export function locationDevelopersInfiniteQueryOptions(
 }
 
 export function useMapData() {
-  return useQuery(mapDataQueryOptions)
+  return useQuery(mapDataQueryOptions);
 }
 
 export function useStats() {
-  return useQuery(statsQueryOptions)
+  return useQuery(statsQueryOptions);
 }
 
 export function useGithubStars() {
-  return useQuery(githubStarsQueryOptions)
+  return useQuery(githubStarsQueryOptions);
 }
 
 export function useSearchFacets() {
-  return useQuery(searchFacetsQueryOptions)
+  return useQuery(searchFacetsQueryOptions);
 }
 
 export function useCountryDevelopers(sort: DeveloperSortKey, enabled = true) {
   return useInfiniteQuery({
     ...countryDevelopersInfiniteQueryOptions(sort),
     enabled,
-  })
+  });
 }
 
 export function useLocationDevelopers(
@@ -139,17 +139,17 @@ export function useLocationDevelopers(
   return useInfiniteQuery({
     ...locationDevelopersInfiniteQueryOptions(slug, sort),
     enabled,
-  })
+  });
 }
 
 export function useSearch(params: SearchParams | null, enabled = true) {
-  const effectiveParams = params ?? DEFAULT_SEARCH_PARAMS
+  const effectiveParams = params ?? DEFAULT_SEARCH_PARAMS;
   return useQuery({
     queryKey: queryKeys.search(effectiveParams),
     queryFn: () => fetchSearch(effectiveParams),
     enabled: enabled && params != null,
     staleTime: 5 * 60 * 1000,
-  })
+  });
 }
 
 export const meQueryOptions = queryOptions({
@@ -157,64 +157,61 @@ export const meQueryOptions = queryOptions({
   queryFn: fetchMe,
   retry: false,
   staleTime: 5 * 60 * 1000,
-})
+});
 
 export function useMe() {
-  return useQuery(meQueryOptions)
+  return useQuery(meQueryOptions);
 }
 
 export function useDeveloper(login: string | null) {
   return useQuery({
-    queryKey: queryKeys.developer(login ?? ''),
+    queryKey: queryKeys.developer(login ?? ""),
     queryFn: () => fetchDeveloper(login!),
     enabled: !!login,
     staleTime: 60 * 1000,
-  })
+  });
 }
 
 export function useUpdateProfileMutation() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (input: UpdateProfileInput) => updateMyProfile(input),
     onSuccess: (developer) => {
-      queryClient.setQueryData(
-        queryKeys.developer(developer.login),
-        developer,
-      )
-      void queryClient.invalidateQueries({ queryKey: queryKeys.me })
+      queryClient.setQueryData(queryKeys.developer(developer.login), developer);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.me });
     },
-  })
+  });
 }
 
 export function useLogoutMutation() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: logout,
     onSuccess: async () => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.me })
-      queryClient.setQueryData(queryKeys.me, null)
+      await queryClient.cancelQueries({ queryKey: queryKeys.me });
+      queryClient.setQueryData(queryKeys.me, null);
     },
-  })
+  });
 }
 
 export function useOptOutMutation() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: optOut,
     onSuccess: async () => {
-      await queryClient.cancelQueries({ queryKey: queryKeys.me })
-      queryClient.setQueryData(queryKeys.me, null)
-      await queryClient.invalidateQueries({ queryKey: queryKeys.map })
-      await queryClient.invalidateQueries({ queryKey: queryKeys.stats })
-      await queryClient.invalidateQueries({ queryKey: ['search'] })
-      await queryClient.invalidateQueries({ queryKey: ['country'] })
-      await queryClient.invalidateQueries({ queryKey: ['locations'] })
-      await queryClient.invalidateQueries({ queryKey: ['developers'] })
+      await queryClient.cancelQueries({ queryKey: queryKeys.me });
+      queryClient.setQueryData(queryKeys.me, null);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.map });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.stats });
+      await queryClient.invalidateQueries({ queryKey: ["search"] });
+      await queryClient.invalidateQueries({ queryKey: ["country"] });
+      await queryClient.invalidateQueries({ queryKey: ["locations"] });
+      await queryClient.invalidateQueries({ queryKey: ["developers"] });
     },
-  })
+  });
 }
 
 export function useAdminMe() {
@@ -223,11 +220,11 @@ export function useAdminMe() {
     queryFn: fetchAdminMe,
     retry: false,
     staleTime: 5 * 60 * 1000,
-  })
+  });
 }
 
 export function useCandidatesInfinite(
-  query: Omit<CandidatesQuery, 'offset'>,
+  query: Omit<CandidatesQuery, "offset">,
   enabled = true,
 ) {
   return useInfiniteQuery({
@@ -239,49 +236,57 @@ export function useCandidatesInfinite(
       lastPage.hasMore ? (lastPage.nextOffset ?? undefined) : undefined,
     enabled,
     staleTime: 30 * 1000,
-  })
+  });
 }
 
 export function useRefreshCandidatesMutation() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: refreshCandidates,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['admin', 'candidates'] })
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "repo-candidates"],
+      });
     },
-  })
+  });
 }
 
 export function usePromoteCandidateMutation() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: promoteCandidate,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['admin', 'candidates'] })
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "repo-candidates"],
+      });
     },
-  })
+  });
 }
 
 export function useRejectCandidateMutation() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: rejectCandidate,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['admin', 'candidates'] })
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "repo-candidates"],
+      });
     },
-  })
+  });
 }
 
 export function useResetCandidateMutation() {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: resetCandidate,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['admin', 'candidates'] })
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "repo-candidates"],
+      });
     },
-  })
+  });
 }

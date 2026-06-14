@@ -148,7 +148,7 @@ export const admins = pgTable('admins', {
 });
 
 export const candidates = pgTable(
-  'candidates',
+  'repo_candidates',
   {
     developerGithubId: text('developer_github_id')
       .primaryKey()
@@ -171,8 +171,8 @@ export const candidates = pgTable(
     promotedByLogin: text('promoted_by_login'),
   },
   (table) => [
-    index('idx_candidates_status').on(table.status),
-    index('idx_candidates_location').on(table.locationId),
+    index('idx_repo_candidates_status').on(table.status),
+    index('idx_repo_candidates_location').on(table.locationId),
   ],
 );
 
