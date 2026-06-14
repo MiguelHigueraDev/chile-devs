@@ -1,5 +1,6 @@
 import {
   infiniteQueryOptions,
+  keepPreviousData,
   queryOptions,
   useInfiniteQuery,
   useMutation,
@@ -14,6 +15,7 @@ import {
   fetchLocationDevelopers,
   fetchMapData,
   fetchMe,
+  fetchPromotedReposList,
   fetchReposInViewport,
   fetchSearch,
   fetchSearchFacets,
@@ -38,6 +40,7 @@ import type { DeveloperSortKey } from "../types/api";
 export const queryKeys = {
   map: ["map"] as const,
   repos: (bbox: string) => ["repos", bbox] as const,
+  reposList: (regionSlug: string) => ["repos", "list", regionSlug] as const,
   stats: ["stats"] as const,
   githubStars: ["github", "stars"] as const,
   me: ["auth", "me"] as const,
@@ -100,6 +103,7 @@ function buildDevelopersInfiniteQueryOptions<TPage extends DevelopersPage>(
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage) =>
       lastPage.hasMore ? (lastPage.nextCursor ?? undefined) : undefined,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -128,6 +132,34 @@ export function useReposInViewport(bbox: string | null, enabled = true) {
   return useQuery({
     ...reposInViewportQueryOptions(bbox),
     enabled: enabled && bbox != null,
+  });
+}
+
+function buildReposListInfiniteQueryOptions(regionSlug: string | null) {
+  const apiRegion =
+    regionSlug && regionSlug !== '__all__' ? regionSlug : undefined;
+
+  return infiniteQueryOptions({
+    queryKey: queryKeys.reposList(regionSlug ?? '__all__'),
+    queryFn: ({ pageParam }) =>
+      fetchPromotedReposList({
+        region: apiRegion,
+        cursor: pageParam as string | undefined,
+      }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) =>
+      lastPage.hasMore ? (lastPage.nextCursor ?? undefined) : undefined,
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function usePromotedReposList(
+  regionSlug: string | null,
+  enabled = true,
+) {
+  return useInfiniteQuery({
+    ...buildReposListInfiniteQueryOptions(regionSlug),
+    enabled: enabled && regionSlug != null,
   });
 }
 

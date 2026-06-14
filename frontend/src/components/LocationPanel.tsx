@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef } from "react";
-import { useCountryDevelopers, useLocationDevelopers } from "../api/queries";
-import { isAllChileLocation } from "../lib/all-chile-location";
+import { useCountryDevelopers, useLocationDevelopers, useSearchFacets } from "../api/queries";
+import { ALL_CHILE_SLUG, isAllChileLocation } from "../lib/all-chile-location";
+import { getFilterListState } from "../lib/filter-list-state";
 import { useStackedSheetDismissGuard } from "../lib/stacked-sheet-dismiss";
-import { formatNumber } from "../lib/utils";
+import { cn, formatNumber } from "../lib/utils";
 import { RANK_SORT_LABEL } from "../lib/rank";
 import type { DeveloperSortKey, MapLocation } from "../types/api";
 import { DeveloperList } from "./DeveloperList";
+import { RegionScopeSelect } from "./RegionScopeSelect";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -22,7 +24,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 type LocationPanelProps = {
   location: MapLocation | null;
   sortBy: DeveloperSortKey;
+  showRegionPicker?: boolean;
   onSortChange: (sort: DeveloperSortKey) => void;
+  onRegionChange: (slug: string) => void;
   onClose: () => void;
   onDeveloperSelect?: (login: string) => void;
   devPanelOpen?: boolean;
@@ -59,8 +63,16 @@ function LocationDevelopersList({
     hasNextPage,
     isFetchingNextPage,
     isPending,
+    isFetching,
+    isPlaceholderData,
   } = countryWide ? countryQuery : locationQuery;
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const { showInitialSkeleton, isRefreshing } = getFilterListState({
+    isPending,
+    isFetching,
+    isPlaceholderData,
+    data,
+  });
 
   const developers = useMemo(() => {
     if (!data) return [];
@@ -86,7 +98,7 @@ function LocationDevelopersList({
     if (
       !sentinel ||
       !scrollRoot ||
-      isPending ||
+      showInitialSkeleton ||
       isFetchingNextPage ||
       !hasMore
     ) {
@@ -104,9 +116,9 @@ function LocationDevelopersList({
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [fetchNextPage, hasMore, isFetchingNextPage, isPending, scrollRootRef]);
+  }, [fetchNextPage, hasMore, isFetchingNextPage, showInitialSkeleton, scrollRootRef]);
 
-  if (isPending) {
+  if (showInitialSkeleton) {
     return (
       <div className="space-y-3 px-4 py-2">
         {Array.from({ length: 5 }).map((_, index) => (
@@ -139,7 +151,12 @@ function LocationDevelopersList({
   }
 
   return (
-    <>
+    <div
+      className={cn(
+        "transition-opacity duration-150",
+        isRefreshing && "pointer-events-none opacity-60",
+      )}
+    >
       <DeveloperList
         developers={developers}
         sortBy={sortBy}
@@ -172,21 +189,39 @@ function LocationDevelopersList({
             ? `All ${formatNumber(totalCount)} developers loaded`
             : `Showing ${formatNumber(developers.length)} developers`}
       </p>
-    </>
+    </div>
   );
 }
 
 export function LocationPanel({
   location,
   sortBy,
+  showRegionPicker = false,
   onSortChange,
+  onRegionChange,
   onClose,
   onDeveloperSelect,
   devPanelOpen = false,
 }: LocationPanelProps) {
   const scrollRootRef = useRef<HTMLDivElement>(null);
+  const { data: facets } = useSearchFacets();
   const slug = location?.slug ?? null;
   const countryWide = location ? isAllChileLocation(location) : false;
+  const locationQuery = useLocationDevelopers(
+    slug ?? "",
+    sortBy,
+    !!slug && !countryWide,
+  );
+  const countryQuery = useCountryDevelopers(sortBy, !!slug && countryWide);
+  const activeQuery = countryWide ? countryQuery : locationQuery;
+  const { showInitialSkeleton, isRefreshing } =
+    getFilterListState(activeQuery);
+  const devCount =
+    activeQuery.data?.pages.find((page) => page.devCount != null)?.devCount ??
+    null;
+  const totalContributions =
+    activeQuery.data?.pages.find((page) => page.totalContributions != null)
+      ?.totalContributions ?? null;
   const { handleOpenChange, blockOutsideDismiss } =
     useStackedSheetDismissGuard(devPanelOpen);
 
@@ -216,17 +251,35 @@ export function LocationPanel({
             <SheetHeader className="shrink-0 border-b pb-4">
               <SheetTitle className="text-lg">{location.name}</SheetTitle>
               <SheetDescription>
-                {countryWide
-                  ? "All developers in Chile"
-                  : "Top developers in this location"}
+                Developers in this scope, ranked by your selected sort
               </SheetDescription>
-              <div className="flex flex-wrap gap-2 pt-2">
-                <Badge variant="secondary">
-                  {formatNumber(location.devCount)} developers
-                </Badge>
-                <Badge variant="outline">
-                  {formatNumber(location.totalContributions)} contributions
-                </Badge>
+              {showRegionPicker && slug && (
+                <RegionScopeSelect
+                  id="dev-region-scope"
+                  value={countryWide ? ALL_CHILE_SLUG : slug}
+                  facets={facets}
+                  onChange={onRegionChange}
+                />
+              )}
+              <div className="flex min-h-[26px] flex-wrap gap-2 pt-2">
+                {showInitialSkeleton || isRefreshing ? (
+                  <>
+                    <Skeleton className="h-5 w-28" />
+                    <Skeleton className="h-5 w-36" />
+                  </>
+                ) : (
+                  <>
+                    <Badge variant="secondary">
+                      {formatNumber(devCount ?? location.devCount)} developers
+                    </Badge>
+                    <Badge variant="outline">
+                      {formatNumber(
+                        totalContributions ?? location.totalContributions,
+                      )}{" "}
+                      contributions
+                    </Badge>
+                  </>
+                )}
               </div>
               <div
                 className="flex flex-wrap gap-1 pt-2"
@@ -250,7 +303,6 @@ export function LocationPanel({
 
             <ScrollArea ref={scrollRootRef} className="min-h-0 flex-1">
               <LocationDevelopersList
-                key={`${location.slug}-${sortBy}`}
                 slug={location.slug}
                 sortBy={sortBy}
                 scrollRootRef={scrollRootRef}

@@ -26,6 +26,14 @@ export type MapRepo = {
   } | null;
 };
 
+export type ReposListResponse = {
+  repos: MapRepo[];
+  nextCursor: string | null;
+  hasMore: boolean;
+  total?: number;
+  region?: { slug: string; name: string } | null;
+};
+
 export type MapLocation = {
   slug: string;
   name: string;

@@ -13,6 +13,7 @@ import type {
   MapLocation,
   MapRepo,
   MeResponse,
+  ReposListResponse,
   RefreshCandidatesSummary,
   SearchFacets,
   SearchParams,
@@ -104,6 +105,29 @@ export function fetchMapData(): Promise<MapLocation[]> {
 export function fetchReposInViewport(bbox: string): Promise<MapRepo[]> {
   const params = new URLSearchParams({ bbox });
   return fetchJson<MapRepo[]>(`/repos?${params.toString()}`);
+}
+
+export type FetchPromotedReposListOptions = {
+  region?: string;
+  cursor?: string;
+  limit?: number;
+};
+
+export function fetchPromotedReposList(
+  options: FetchPromotedReposListOptions = {},
+): Promise<ReposListResponse> {
+  const params = new URLSearchParams();
+  if (options.region) {
+    params.set('region', options.region);
+  }
+  if (options.cursor) {
+    params.set('cursor', options.cursor);
+  }
+  if (options.limit != null) {
+    params.set('limit', String(options.limit));
+  }
+  const query = params.toString();
+  return fetchJson<ReposListResponse>(`/repos/list${query ? `?${query}` : ''}`);
 }
 
 export function fetchStats(): Promise<StatsResponse> {

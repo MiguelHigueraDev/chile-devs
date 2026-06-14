@@ -221,16 +221,41 @@ export function syncAppUrlState(state: AppUrlState, replace = true): void {
   }
 }
 
+type LocationCatalogEntry = {
+  slug: string;
+  name: string;
+  kind: MapLocation['kind'];
+};
+
 export function resolveLocationFromSlug(
   slug: string,
   locations: MapLocation[],
   stats: StatsResponse | undefined,
+  catalog: LocationCatalogEntry[] = [],
 ): MapLocation | null {
   if (slug === ALL_CHILE_SLUG) {
     return stats ? createAllChileLocation(stats) : null;
   }
 
-  return locations.find((location) => location.slug === slug) ?? null;
+  const fromMap = locations.find((location) => location.slug === slug);
+  if (fromMap) {
+    return fromMap;
+  }
+
+  const fromCatalog = catalog.find((entry) => entry.slug === slug);
+  if (fromCatalog) {
+    return {
+      slug: fromCatalog.slug,
+      name: fromCatalog.name,
+      kind: fromCatalog.kind,
+      lat: 0,
+      lng: 0,
+      devCount: 0,
+      totalContributions: 0,
+    };
+  }
+
+  return null;
 }
 
 export function countActiveSearchFilters(params: SearchParams): number {

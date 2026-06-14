@@ -49,12 +49,48 @@ export function parseReposViewportQuery(query: {
 }): ReposViewportInput {
   const parsed = bboxSchema.safeParse(query);
   if (!parsed.success) {
-    const message = parsed.error.issues.map((issue) => issue.message).join(', ');
+    const message = parsed.error.issues
+      .map((issue) => issue.message)
+      .join(', ');
     throw new BadRequestException(message);
   }
 
   return {
     bbox: parsed.data.bbox,
     limit: parsed.data.limit ?? DEFAULT_REPOS_LIMIT,
+  };
+}
+
+const reposListSchema = z.object({
+  region: z.string().trim().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(10).optional(),
+  cursor: z.string().trim().min(1).optional(),
+});
+
+export type ReposListInput = {
+  regionSlug?: string;
+  limit: number;
+  cursor?: string;
+};
+
+const DEFAULT_REPOS_LIST_LIMIT = 10;
+
+export function parseReposListQuery(query: {
+  region?: string;
+  limit?: string;
+  cursor?: string;
+}): ReposListInput {
+  const parsed = reposListSchema.safeParse(query);
+  if (!parsed.success) {
+    const message = parsed.error.issues
+      .map((issue) => issue.message)
+      .join(', ');
+    throw new BadRequestException(message);
+  }
+
+  return {
+    regionSlug: parsed.data.region,
+    limit: parsed.data.limit ?? DEFAULT_REPOS_LIST_LIMIT,
+    cursor: parsed.data.cursor,
   };
 }

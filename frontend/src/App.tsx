@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useMapData, useStats } from "./api/queries";
+import { useMapData, useSearchFacets, useStats } from "./api/queries";
 import { ChileMap } from "./components/ChileMap";
 import { DeveloperProfilePanel } from "./components/DeveloperProfilePanel";
 import { LocationPanel } from "./components/LocationPanel";
+import { RepoListPanel } from "./components/RepoListPanel";
 import { RepoPanel } from "./components/RepoPanel";
 import { SearchFilterSheet } from "./components/SearchFilterSheet";
 import { SearchResultsPanel } from "./components/SearchResultsPanel";
@@ -15,6 +16,7 @@ import {
   resolveLocationFromSlug,
   syncAppUrlState,
 } from "./lib/app-url-state";
+import { ALL_CHILE_SLUG } from "./lib/all-chile-location";
 import {
   setDeveloperSortPreference,
   useDeveloperSortPreference,
@@ -31,6 +33,7 @@ import { cn } from "@/lib/utils";
 function App() {
   const urlSyncRef = useRef<ReturnType<typeof readAppUrlState> | null>(null);
   const { data: locations = [] } = useMapData();
+  const { data: facets } = useSearchFacets();
   const { data: stats } = useStats();
   const [sortBy, setSortBy] = useDeveloperSortPreference();
   const [initialUrlState] = useState(() => readAppUrlState());
@@ -57,6 +60,15 @@ function App() {
   );
   const [selectedRepo, setSelectedRepo] = useState<MapRepo | null>(null);
   const [profileEditMode, setProfileEditMode] = useState(false);
+  const [viewAllBrowse, setViewAllBrowse] = useState(() => {
+    if (initialUrlState.searchParams || !initialUrlState.locationSlug) {
+      return false;
+    }
+    if (initialUrlState.locationSlug === ALL_CHILE_SLUG) {
+      return true;
+    }
+    return initialUrlState.mapMode === "repos";
+  });
 
   const urlSearchParams = useMemo(() => {
     if (locationSlug) {
@@ -77,9 +89,14 @@ function App() {
   const selectedLocation = useMemo(
     () =>
       locationSlug
-        ? resolveLocationFromSlug(locationSlug, locations, stats)
+        ? resolveLocationFromSlug(
+            locationSlug,
+            locations,
+            stats,
+            facets?.locations ?? [],
+          )
         : null,
-    [locationSlug, locations, stats],
+    [locationSlug, locations, stats, facets?.locations],
   );
 
   const activeFilterCount = useMemo(() => {
@@ -116,6 +133,12 @@ function App() {
       setMapMode(urlState.mapMode);
       setLocationSlug(urlState.locationSlug);
       setSelectedRepo(null);
+      setViewAllBrowse(
+        urlState.searchParams == null &&
+          urlState.locationSlug != null &&
+          (urlState.locationSlug === ALL_CHILE_SLUG ||
+            urlState.mapMode === "repos"),
+      );
       setDevLogin(urlState.devLogin);
     },
     [setSortBy],
@@ -160,6 +183,7 @@ function App() {
     setMapMode(nextMode);
     setLocationSlug(null);
     setSelectedRepo(null);
+    setViewAllBrowse(false);
     setDraftFilters(DEFAULT_SEARCH_PARAMS);
     setCommittedFilters(null);
     setFilterSheetOpen(false);
@@ -172,15 +196,40 @@ function App() {
     setFilterSheetOpen(false);
     setResultsOpen(false);
     setSelectedRepo(null);
+    setViewAllBrowse(false);
     setLocationSlug(location.slug);
   }, []);
 
-  const handleRepoSelect = useCallback((repo: MapRepo) => {
-    setLocationSlug(null);
-    setDraftFilters(DEFAULT_SEARCH_PARAMS);
-    setCommittedFilters(null);
-    setFilterSheetOpen(false);
-    setResultsOpen(false);
+  const handleViewAll = useCallback(
+    (location: MapLocation) => {
+      setDraftFilters(DEFAULT_SEARCH_PARAMS);
+      setCommittedFilters(null);
+      setFilterSheetOpen(false);
+      setResultsOpen(false);
+      setSelectedRepo(null);
+      setViewAllBrowse(true);
+      setLocationSlug(location.slug);
+    },
+    [],
+  );
+
+  const handleRegionChange = useCallback(
+    (slug: string) => {
+      setViewAllBrowse(true);
+      setLocationSlug(slug);
+    },
+    [],
+  );
+
+  const handleRepoSelect = useCallback((repo: MapRepo, keepListOpen = false) => {
+    if (!keepListOpen) {
+      setLocationSlug(null);
+      setViewAllBrowse(false);
+      setDraftFilters(DEFAULT_SEARCH_PARAMS);
+      setCommittedFilters(null);
+      setFilterSheetOpen(false);
+      setResultsOpen(false);
+    }
     setSelectedRepo(repo);
   }, []);
 
@@ -221,8 +270,9 @@ function App() {
         )}
       >
         <StatsHeader
+          mapMode={mapMode}
           filtersDisabled={mapMode === 'repos'}
-          onViewAllDevelopers={handleLocationSelect}
+          onViewAll={handleViewAll}
           onOpenFilters={handleOpenFilters}
           activeFilterCount={activeFilterCount}
           onOpenMyProfile={(login) => {
@@ -247,14 +297,34 @@ function App() {
         </div>
       </div>
       <RepoPanel repo={selectedRepo} onClose={() => setSelectedRepo(null)} />
-      <LocationPanel
-        location={selectedLocation}
-        sortBy={sortBy}
-        onSortChange={setSortBy}
-        onClose={() => setLocationSlug(null)}
-        onDeveloperSelect={setDevLogin}
-        devPanelOpen={!!devLogin}
-      />
+      {mapMode === "devs" && (
+        <LocationPanel
+          location={selectedLocation}
+          sortBy={sortBy}
+          showRegionPicker={viewAllBrowse}
+          onSortChange={setSortBy}
+          onRegionChange={handleRegionChange}
+          onClose={() => {
+            setLocationSlug(null);
+            setViewAllBrowse(false);
+          }}
+          onDeveloperSelect={setDevLogin}
+          devPanelOpen={!!devLogin}
+        />
+      )}
+      {mapMode === "repos" && (
+        <RepoListPanel
+          location={selectedLocation}
+          showRegionPicker={viewAllBrowse}
+          onRegionChange={handleRegionChange}
+          onClose={() => {
+            setLocationSlug(null);
+            setViewAllBrowse(false);
+          }}
+          onRepoSelect={(repo) => handleRepoSelect(repo, true)}
+          repoDetailOpen={selectedRepo != null}
+        />
+      )}
       <SearchFilterSheet
         open={filterSheetOpen}
         params={draftFilters}
