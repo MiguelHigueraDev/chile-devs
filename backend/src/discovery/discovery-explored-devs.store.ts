@@ -10,8 +10,12 @@ export class DiscoveryExploredDevsStore implements OnModuleDestroy {
   private readonly redis: Redis;
   private readonly ttlSeconds: number;
 
-  constructor(private readonly config: ConfigService) {
-    this.redis = new Redis(this.config.getOrThrow<string>('REDIS_URL'));
+  constructor(
+    private readonly config: ConfigService,
+    redisClient?: Redis,
+  ) {
+    this.redis =
+      redisClient ?? new Redis(this.config.getOrThrow<string>('REDIS_URL'));
     this.ttlSeconds = this.getTtlSeconds();
   }
 
@@ -32,7 +36,14 @@ export class DiscoveryExploredDevsStore implements OnModuleDestroy {
     const pipeline = this.redis.pipeline();
     pipeline.sadd(EXPLORED_DEVS_KEY, ...githubIds);
     pipeline.expire(EXPLORED_DEVS_KEY, this.ttlSeconds);
-    await pipeline.exec();
+    const results = await pipeline.exec();
+    if (results) {
+      for (const [error] of results) {
+        if (error) {
+          throw error;
+        }
+      }
+    }
   }
 
   async reset(): Promise<void> {

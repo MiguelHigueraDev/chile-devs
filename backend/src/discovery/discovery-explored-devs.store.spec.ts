@@ -48,10 +48,11 @@ function createRedisMock(): {
           return pipeline;
         },
         exec: async () => {
+          const results: [null, unknown][] = [];
           for (const command of commands) {
-            await command();
+            results.push([null, await command()]);
           }
-          return [];
+          return results;
         },
       };
       return pipeline;
@@ -67,9 +68,7 @@ function createStore(client: Redis): DiscoveryExploredDevsStore {
     getOrThrow: () => 'redis://localhost:6379',
     get: (_key: string, fallback?: string) => fallback,
   };
-  const store = new DiscoveryExploredDevsStore(config as never);
-  (store as unknown as { redis: Redis }).redis = client;
-  return store;
+  return new DiscoveryExploredDevsStore(config as never, client);
 }
 
 describe('DiscoveryExploredDevsStore', () => {

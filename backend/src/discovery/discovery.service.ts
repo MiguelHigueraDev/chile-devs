@@ -391,8 +391,16 @@ export class DiscoveryService implements OnModuleInit {
       await tx.delete(repoCandidates).where(dropFilter);
     });
 
-    await this.exploredDevsStore.add(devRows.map((dev) => dev.githubId));
-    const exploredTotal = await this.exploredDevsStore.count();
+    let exploredTotal = exploredCount + devRows.length;
+    try {
+      await this.exploredDevsStore.add(devRows.map((dev) => dev.githubId));
+      exploredTotal = await this.exploredDevsStore.count();
+    } catch (error) {
+      this.logger.warn(
+        'Failed to update explored devs in Redis after candidate refresh',
+        error instanceof Error ? error.stack : error,
+      );
+    }
 
     const [{ totalCandidates }] = await this.db
       .select({ totalCandidates: sql<number>`count(*)::int` })

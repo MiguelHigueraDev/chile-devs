@@ -48,12 +48,14 @@ export function shouldResetExploredDevs(
   return threshold > 0 && exploredCount >= threshold;
 }
 
+const UNKNOWN_REGION_PROMOTED_COUNT = Number.MAX_SAFE_INTEGER;
+
 export function getRegionPromotedCount(
   regionLocationId: number | null,
   regionPromotedCount: Map<number, number>,
 ): number {
   if (regionLocationId == null) {
-    return 0;
+    return UNKNOWN_REGION_PROMOTED_COUNT;
   }
   return regionPromotedCount.get(regionLocationId) ?? 0;
 }

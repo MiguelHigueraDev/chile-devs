@@ -73,6 +73,20 @@ describe('selectDevsForBatch', () => {
     expect(selected.map((dev) => dev.githubId)).toEqual(['b']);
   });
 
+  it('deprioritizes devs with unknown region in pass 1', () => {
+    const pool = [makeDev('unknown', null, 500), makeDev('under', 2, 100)];
+
+    const selected = selectDevsForBatch({
+      pool,
+      exclusionGithubIds: new Set(),
+      regionPromotedCount,
+      batchSize: 1,
+      regionCount: 2,
+    });
+
+    expect(selected.map((dev) => dev.githubId)).toEqual(['under']);
+  });
+
   it('favors devs from regions with fewer promoted repos in pass 1', () => {
     const pool = [
       makeDev('popular', 1, 500),

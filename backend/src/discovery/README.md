@@ -102,7 +102,7 @@ Output: up to `DISCOVERY_TOP_DEVS` developers, chosen in two passes.
    - Then `totalStars` (descending)
    - Then `githubId` (stable tie-break)
 2. Walk the sorted list. For each dev, accept them only if their region has not hit the **per-region cap**:
-   ```
+   ```javascript
    perRegionCap = ceil(batchSize / regionCount)
    ```
    With defaults (`300` devs, ~16 regions), that is ~19 devs per region in pass 1.
@@ -191,7 +191,7 @@ The API returns a `RefreshCandidatesSummary` shown in the admin banner:
 
 Think of each refresh as three layered filters:
 
-```
+```text
 Full dev pool (~44k)
   → minus explored + featured devs
   → select ~300 devs (regional bias, then star backfill)
