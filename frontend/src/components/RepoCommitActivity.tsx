@@ -40,6 +40,21 @@ export function RepoCommitActivityChart({
     );
   }
 
+  const hasCommitActivity = activity.weeks.some((week) => week.total > 0);
+
+  if (!hasCommitActivity) {
+    return (
+      <div className="space-y-2">
+        <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+          Commit activity
+        </p>
+        <p className="text-muted-foreground flex h-24 items-center justify-center text-sm">
+          No recent commit activity.
+        </p>
+      </div>
+    );
+  }
+
   const maxTotal = Math.max(...activity.weeks.map((week) => week.total), 1);
 
   return (
@@ -53,9 +68,7 @@ export function RepoCommitActivityChart({
           <div className="flex h-24 min-w-full items-end gap-[3px]">
             {activity.weeks.map((week) => {
               const heightPct =
-                week.total > 0
-                  ? Math.max((week.total / maxTotal) * 100, 4)
-                  : 0;
+                week.total > 0 ? Math.max((week.total / maxTotal) * 100, 4) : 0;
 
               return (
                 <Tooltip key={week.weekStart}>
