@@ -174,7 +174,19 @@ export class DiscoveryService implements OnModuleInit {
       }
     }
 
-    const selected = this.rankRepos(flatRepos, perRegion, perCountry);
+    const excludedRows = await this.db
+      .select({ repoGithubId: repoCandidates.repoGithubId })
+      .from(repoCandidates)
+      .where(inArray(repoCandidates.status, ['promoted', 'rejected']));
+
+    const excludedRepoIds = new Set(
+      excludedRows.map((row) => row.repoGithubId),
+    );
+    const eligibleRepos = flatRepos.filter(
+      (repo) => !excludedRepoIds.has(repo.repoGithubId),
+    );
+
+    const selected = this.rankRepos(eligibleRepos, perRegion, perCountry);
     const selectedRows = [...selected.values()];
     const selectedIds = selectedRows.map((row) => row.repoGithubId);
 
@@ -300,7 +312,7 @@ export class DiscoveryService implements OnModuleInit {
     };
 
     this.logger.log(
-      `Repo candidate refresh complete: scanned ${reposScanned} repos from ${devRows.length} devs, selected ${summary.totalSelected} (${summary.regionPicks} regional, ${summary.countryPicks} national), ${summary.promotedRetained} promoted retained`,
+      `Repo candidate refresh complete: scanned ${reposScanned} repos from ${devRows.length} devs, excluded ${excludedRepoIds.size} promoted/rejected, selected ${summary.totalSelected} (${summary.regionPicks} regional, ${summary.countryPicks} national), ${summary.totalCandidates} awaiting review, ${summary.promotedRetained} promoted retained`,
     );
 
     return summary;

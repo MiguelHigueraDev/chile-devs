@@ -261,7 +261,8 @@ export function CandidatesPanel() {
           </h1>
           <p className="text-muted-foreground text-sm">
             Most-starred repos from indexed Chilean developers, ranked per
-            region and nationwide. Promote candidates to surface them later.
+            region and nationwide. Refresh skips repos you already promoted or
+            rejected and fills slots with the next best matches.
           </p>
         </div>
         <Button
@@ -288,7 +289,11 @@ export function CandidatesPanel() {
           ({formatNumber(summary.regionPicks)} regional,{' '}
           {formatNumber(summary.countryPicks)} national) · top{' '}
           {summary.perRegion}/region, top {summary.perCountry} nationwide ·{' '}
+          {formatNumber(summary.totalCandidates)} awaiting review ·{' '}
           {formatNumber(summary.promotedRetained)} promoted retained.
+          {summary.rejectedRetained > 0
+            ? ` · ${formatNumber(summary.rejectedRetained)} rejected retained.`
+            : '.'}
         </p>
       ) : null}
 
