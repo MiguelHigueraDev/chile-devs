@@ -1,4 +1,4 @@
-import { Injectable, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleDestroy, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
@@ -12,7 +12,7 @@ export class DiscoveryExploredDevsStore implements OnModuleDestroy {
 
   constructor(
     private readonly config: ConfigService,
-    redisClient?: Redis,
+    @Optional() redisClient?: Redis,
   ) {
     this.redis =
       redisClient ?? new Redis(this.config.getOrThrow<string>('REDIS_URL'));
