@@ -34,6 +34,11 @@ export type RefreshCandidatesSummary = {
   totalCandidates: number;
   promotedRetained: number;
   rejectedRetained: number;
+  devsSelected: number;
+  devsExcludedFeatured: number;
+  exploredTotal: number;
+  exploredResetThreshold: number;
+  rotationReset: boolean;
 };
 
 export type ListCandidatesInput = {

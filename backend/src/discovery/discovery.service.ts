@@ -9,8 +9,10 @@ import { ConfigService } from '@nestjs/config';
 import {
   and,
   asc,
+  count,
   desc,
   eq,
+  gte,
   inArray,
   isNotNull,
   notInArray,
@@ -26,6 +28,15 @@ import {
   warmScatterRegionIndex,
 } from '../search/scatter';
 import { GithubService } from '../sync/github.service';
+import { DiscoveryExploredDevsStore } from './discovery-explored-devs.store';
+import {
+  type FlatRepo,
+  type PoolDev,
+  computeResetThreshold,
+  rankReposWithRegionBias,
+  selectDevsForBatch,
+  shouldResetExploredDevs,
+} from './discovery-ranking';
 import {
   type CandidateSortKey,
   type ListCandidatesInput,
@@ -37,30 +48,13 @@ const DEFAULT_PER_REGION = 10;
 const DEFAULT_PER_COUNTRY = 50;
 const DEFAULT_TOP_DEVS = 300;
 const DEFAULT_REPOS_PER_DEV = 10;
+const DEFAULT_DEV_ROTATION_FRACTION = 0.2;
+const DEFAULT_FEATURED_REPO_CAP = 2;
 const MAX_PER_SCOPE = 500;
 const MAX_TOP_DEVS = 2000;
 const MAX_REPOS_PER_DEV = 100;
 const DEFAULT_LIST_LIMIT = 100;
 const MAX_LIST_LIMIT = 500;
-
-type FlatRepo = {
-  repoGithubId: string;
-  ownerGithubId: string;
-  locationId: number;
-  regionLocationId: number | null;
-  nameWithOwner: string;
-  name: string;
-  description: string | null;
-  url: string;
-  primaryLanguage: string | null;
-  stars: number;
-  forks: number;
-};
-
-type SelectedRepo = FlatRepo & {
-  regionRank: number | null;
-  countryRank: number | null;
-};
 
 @Injectable()
 export class DiscoveryService implements OnModuleInit {
@@ -70,6 +64,7 @@ export class DiscoveryService implements OnModuleInit {
     @Inject(DRIZZLE) private readonly db: DrizzleDB,
     private readonly configService: ConfigService,
     private readonly github: GithubService,
+    private readonly exploredDevsStore: DiscoveryExploredDevsStore,
   ) {}
 
   onModuleInit(): void {
@@ -108,6 +103,26 @@ export class DiscoveryService implements OnModuleInit {
     return Math.max(1, Math.min(Math.trunc(value), MAX_REPOS_PER_DEV));
   }
 
+  private resolveDevRotationFraction(): number {
+    const configured = Number(
+      this.configService.get<string>('DISCOVERY_DEV_ROTATION_FRACTION'),
+    );
+    if (Number.isFinite(configured) && configured > 0 && configured <= 1) {
+      return configured;
+    }
+    return DEFAULT_DEV_ROTATION_FRACTION;
+  }
+
+  private resolveFeaturedRepoCap(): number {
+    const configured = Number(
+      this.configService.get<string>('DISCOVERY_FEATURED_REPO_CAP'),
+    );
+    if (Number.isFinite(configured) && configured >= 1) {
+      return Math.trunc(configured);
+    }
+    return DEFAULT_FEATURED_REPO_CAP;
+  }
+
   async refreshCandidates(
     input: RefreshCandidatesInput = {},
   ): Promise<RefreshCandidatesSummary> {
@@ -115,9 +130,11 @@ export class DiscoveryService implements OnModuleInit {
     const perCountry = this.resolvePerCountry(input.perCountry);
     const topDevs = this.resolveTopDevs(input.topDevs);
     const reposPerDev = this.resolveReposPerDev(input.reposPerDev);
+    const rotationFraction = this.resolveDevRotationFraction();
+    const featuredRepoCap = this.resolveFeaturedRepoCap();
 
     const locationRows = await this.db
-      .select({ id: locations.id, slug: locations.slug })
+      .select({ id: locations.id, slug: locations.slug, kind: locations.kind })
       .from(locations);
     const locationIdBySlug = new Map(
       locationRows.map((row) => [row.slug, row.id]),
@@ -125,19 +142,115 @@ export class DiscoveryService implements OnModuleInit {
     const slugByLocationId = new Map(
       locationRows.map((row) => [row.id, row.slug]),
     );
+    const regionCount = locationRows.filter(
+      (row) => row.kind === 'region',
+    ).length;
 
-    const devRows = await this.db
+    const [{ totalDeveloperCount }] = await this.db
+      .select({ totalDeveloperCount: count() })
+      .from(developers);
+
+    const totalDevs = Number(totalDeveloperCount);
+    const exploredResetThreshold = computeResetThreshold(
+      totalDevs,
+      rotationFraction,
+    );
+
+    let exploredCount = await this.exploredDevsStore.count();
+    const rotationReset = shouldResetExploredDevs(
+      exploredCount,
+      totalDevs,
+      rotationFraction,
+    );
+    if (rotationReset) {
+      await this.exploredDevsStore.reset();
+      exploredCount = 0;
+    }
+
+    const exploredGithubIds = await this.exploredDevsStore.getAll();
+
+    const featuredOwnerRows = await this.db
+      .select({
+        ownerGithubId: repoCandidates.ownerGithubId,
+        promotedCount: sql<number>`count(*)::int`,
+      })
+      .from(repoCandidates)
+      .where(eq(repoCandidates.status, 'promoted'))
+      .groupBy(repoCandidates.ownerGithubId)
+      .having(gte(sql`count(*)`, featuredRepoCap));
+
+    const featuredGithubIds = new Set(
+      featuredOwnerRows.map((row) => row.ownerGithubId),
+    );
+
+    const exclusionGithubIds = new Set([
+      ...exploredGithubIds,
+      ...featuredGithubIds,
+    ]);
+
+    const regionPromotedRows = await this.db
+      .select({
+        regionLocationId: repoCandidates.regionLocationId,
+        promotedCount: sql<number>`count(*)::int`,
+      })
+      .from(repoCandidates)
+      .where(
+        and(
+          eq(repoCandidates.status, 'promoted'),
+          isNotNull(repoCandidates.regionLocationId),
+        ),
+      )
+      .groupBy(repoCandidates.regionLocationId);
+
+    const regionPromotedCount = new Map<number, number>(
+      regionPromotedRows
+        .filter((row) => row.regionLocationId != null)
+        .map((row) => [row.regionLocationId!, Number(row.promotedCount)]),
+    );
+
+    const allDevRows = await this.db
       .select({
         githubId: developers.githubId,
         login: developers.login,
         locationId: developers.locationId,
         locationSlug: locations.slug,
         locationKind: locations.kind,
+        totalStars: developers.totalStars,
       })
       .from(developers)
       .innerJoin(locations, eq(developers.locationId, locations.id))
-      .orderBy(desc(developers.totalStars), asc(developers.githubId))
-      .limit(topDevs);
+      .orderBy(desc(developers.totalStars), asc(developers.githubId));
+
+    const devPool: PoolDev[] = allDevRows.map((dev) => {
+      const regionSlug = resolveRegionLocationSlug(
+        dev.locationSlug,
+        dev.locationKind,
+      );
+      const regionLocationId = regionSlug
+        ? (locationIdBySlug.get(regionSlug) ?? null)
+        : null;
+
+      return {
+        githubId: dev.githubId,
+        login: dev.login,
+        locationId: dev.locationId,
+        locationSlug: dev.locationSlug,
+        locationKind: dev.locationKind,
+        totalStars: dev.totalStars,
+        regionLocationId,
+      };
+    });
+
+    const devRows = selectDevsForBatch({
+      pool: devPool,
+      exclusionGithubIds,
+      regionPromotedCount,
+      batchSize: topDevs,
+      regionCount,
+    });
+    const devsExcludedFeatured = devPool.filter((dev) =>
+      featuredGithubIds.has(dev.githubId),
+    ).length;
 
     const logins = devRows.map((row) => row.login);
     const reposByLogin = await this.github.fetchTopRepos(logins, reposPerDev);
@@ -150,19 +263,11 @@ export class DiscoveryService implements OnModuleInit {
       reposScanned += repos.length;
 
       for (const repo of repos) {
-        const regionSlug = resolveRegionLocationSlug(
-          dev.locationSlug,
-          dev.locationKind,
-        );
-        const regionLocationId = regionSlug
-          ? (locationIdBySlug.get(regionSlug) ?? null)
-          : null;
-
         flatRepos.push({
           repoGithubId: repo.repoGithubId,
           ownerGithubId: dev.githubId,
           locationId: dev.locationId,
-          regionLocationId,
+          regionLocationId: dev.regionLocationId,
           nameWithOwner: repo.nameWithOwner,
           name: repo.name,
           description: repo.description,
@@ -186,7 +291,12 @@ export class DiscoveryService implements OnModuleInit {
       (repo) => !excludedRepoIds.has(repo.repoGithubId),
     );
 
-    const selected = this.rankRepos(eligibleRepos, perRegion, perCountry);
+    const selected = rankReposWithRegionBias(
+      eligibleRepos,
+      perRegion,
+      perCountry,
+      regionPromotedCount,
+    );
     const selectedRows = [...selected.values()];
     const selectedIds = selectedRows.map((row) => row.repoGithubId);
 
@@ -281,6 +391,17 @@ export class DiscoveryService implements OnModuleInit {
       await tx.delete(repoCandidates).where(dropFilter);
     });
 
+    let exploredTotal = exploredCount + devRows.length;
+    try {
+      await this.exploredDevsStore.add(devRows.map((dev) => dev.githubId));
+      exploredTotal = await this.exploredDevsStore.count();
+    } catch (error) {
+      this.logger.warn(
+        'Failed to update explored devs in Redis after candidate refresh',
+        error instanceof Error ? error.stack : error,
+      );
+    }
+
     const [{ totalCandidates }] = await this.db
       .select({ totalCandidates: sql<number>`count(*)::int` })
       .from(repoCandidates)
@@ -309,66 +430,18 @@ export class DiscoveryService implements OnModuleInit {
       totalCandidates: Number(totalCandidates),
       promotedRetained: Number(promotedRetained),
       rejectedRetained: Number(rejectedRetained),
+      devsSelected: devRows.length,
+      devsExcludedFeatured,
+      exploredTotal,
+      exploredResetThreshold,
+      rotationReset,
     };
 
     this.logger.log(
-      `Repo candidate refresh complete: scanned ${reposScanned} repos from ${devRows.length} devs, excluded ${excludedRepoIds.size} promoted/rejected, selected ${summary.totalSelected} (${summary.regionPicks} regional, ${summary.countryPicks} national), ${summary.totalCandidates} awaiting review, ${summary.promotedRetained} promoted retained`,
+      `Repo candidate refresh complete: scanned ${reposScanned} repos from ${devRows.length} devs (${exploredTotal}/${exploredResetThreshold} explored, reset=${rotationReset}), excluded ${excludedRepoIds.size} promoted/rejected repos and ${devsExcludedFeatured} featured devs, selected ${summary.totalSelected} (${summary.regionPicks} regional, ${summary.countryPicks} national), ${summary.totalCandidates} awaiting review, ${summary.promotedRetained} promoted retained`,
     );
 
     return summary;
-  }
-
-  private rankRepos(
-    repos: FlatRepo[],
-    perRegion: number,
-    perCountry: number,
-  ): Map<string, SelectedRepo> {
-    const selected = new Map<string, SelectedRepo>();
-
-    const byRegion = new Map<number, FlatRepo[]>();
-    for (const repo of repos) {
-      if (repo.regionLocationId == null) {
-        continue;
-      }
-      const list = byRegion.get(repo.regionLocationId) ?? [];
-      list.push(repo);
-      byRegion.set(repo.regionLocationId, list);
-    }
-
-    for (const regionRepos of byRegion.values()) {
-      regionRepos.sort((a, b) => {
-        if (b.stars !== a.stars) return b.stars - a.stars;
-        return a.repoGithubId.localeCompare(b.repoGithubId);
-      });
-
-      regionRepos.slice(0, perRegion).forEach((repo, index) => {
-        selected.set(repo.repoGithubId, {
-          ...repo,
-          regionRank: index + 1,
-          countryRank: null,
-        });
-      });
-    }
-
-    const countrySorted = [...repos].sort((a, b) => {
-      if (b.stars !== a.stars) return b.stars - a.stars;
-      return a.repoGithubId.localeCompare(b.repoGithubId);
-    });
-
-    countrySorted.slice(0, perCountry).forEach((repo, index) => {
-      const existing = selected.get(repo.repoGithubId);
-      if (existing) {
-        existing.countryRank = index + 1;
-      } else {
-        selected.set(repo.repoGithubId, {
-          ...repo,
-          regionRank: null,
-          countryRank: index + 1,
-        });
-      }
-    });
-
-    return selected;
   }
 
   private orderByForSort(sort: CandidateSortKey) {

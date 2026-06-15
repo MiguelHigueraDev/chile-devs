@@ -261,8 +261,9 @@ export function CandidatesPanel() {
           </h1>
           <p className="text-muted-foreground text-sm">
             Most-starred repos from indexed Chilean developers, ranked per
-            region and nationwide. Refresh skips repos you already promoted or
-            rejected and fills slots with the next best matches.
+            region and nationwide. Refresh rotates through the full dev pool,
+            favors underrepresented regions, and skips devs you already
+            explored or who already have 2+ promoted repos.
           </p>
         </div>
         <Button
@@ -284,15 +285,21 @@ export function CandidatesPanel() {
       ) : null}
       {summary ? (
         <p className="text-muted-foreground rounded-md border border-border bg-card px-3 py-2 text-xs">
-          Scanned {formatNumber(summary.reposScanned)} repos from top{' '}
-          {summary.topDevs} devs · selected {formatNumber(summary.totalSelected)}{' '}
-          ({formatNumber(summary.regionPicks)} regional,{' '}
-          {formatNumber(summary.countryPicks)} national) · top{' '}
+          Scanned {formatNumber(summary.reposScanned)} repos from{' '}
+          {formatNumber(summary.devsSelected)} devs · selected{' '}
+          {formatNumber(summary.totalSelected)} ({formatNumber(summary.regionPicks)}{' '}
+          regional, {formatNumber(summary.countryPicks)} national) · top{' '}
           {summary.perRegion}/region, top {summary.perCountry} nationwide ·{' '}
           {formatNumber(summary.totalCandidates)} awaiting review ·{' '}
-          {formatNumber(summary.promotedRetained)} promoted retained.
+          {formatNumber(summary.promotedRetained)} promoted retained · explored{' '}
+          {formatNumber(summary.exploredTotal)}/
+          {formatNumber(summary.exploredResetThreshold)} devs
+          {summary.rotationReset ? ' · rotation reset' : ''}
+          {summary.devsExcludedFeatured > 0
+            ? ` · ${formatNumber(summary.devsExcludedFeatured)} featured devs skipped`
+            : ''}
           {summary.rejectedRetained > 0
-            ? ` · ${formatNumber(summary.rejectedRetained)} rejected retained.`
+            ? ` · ${formatNumber(summary.rejectedRetained)} rejected retained`
             : '.'}
         </p>
       ) : null}

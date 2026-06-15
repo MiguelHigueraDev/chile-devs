@@ -1,4 +1,4 @@
-export type MapMode = 'devs' | 'repos';
+export type MapMode = "devs" | "repos";
 
 export type MapRepo = {
   repoGithubId: string;
@@ -11,7 +11,7 @@ export type MapRepo = {
   forks: number;
   regionRank: number | null;
   countryRank: number | null;
-  scope: 'regional' | 'national';
+  scope: "regional" | "national";
   lat: number;
   lng: number;
   owner: {
@@ -37,18 +37,18 @@ export type ReposListResponse = {
 export type MapLocation = {
   slug: string;
   name: string;
-  kind: 'country' | 'region' | 'city';
+  kind: "country" | "region" | "city";
   lat: number;
   lng: number;
   devCount: number;
   totalContributions: number;
 };
 
-export type DeveloperSortKey = 'contributions' | 'followers' | 'stars' | 'rank';
+export type DeveloperSortKey = "contributions" | "followers" | "stars" | "rank";
 
-export const DEFAULT_DEVELOPER_SORT: DeveloperSortKey = 'rank';
+export const DEFAULT_DEVELOPER_SORT: DeveloperSortKey = "rank";
 
-export type SearchSortKey = DeveloperSortKey | 'languageShare';
+export type SearchSortKey = DeveloperSortKey | "languageShare";
 
 export type TopLanguage = {
   name: string;
@@ -74,7 +74,7 @@ export type DeveloperSummary = {
 
 export type DeveloperDetail = DeveloperSummary & {
   locationName: string;
-  locationKind: MapLocation['kind'];
+  locationKind: MapLocation["kind"];
   portfolioUrl: string | null;
   description: string | null;
   role: string | null;
@@ -145,9 +145,9 @@ export type StatsResponse = {
 
 export type SearchParams = {
   languages: string[];
-  languageMode: 'any' | 'all';
+  languageMode: "any" | "all";
   locationSlugs: string[];
-  zone: 'north' | 'central' | 'south' | null;
+  zone: "north" | "central" | "south" | null;
   username: string | null;
   displayName: string | null;
   sort: SearchSortKey;
@@ -165,15 +165,15 @@ export type SearchResponse = {
 
 export type SearchFacets = {
   languages: Array<{ name: string; count: number }>;
-  locations: Array<{ slug: string; name: string; kind: 'region' | 'city' }>;
-  zones: Array<{ id: 'north' | 'central' | 'south'; label: string }>;
+  locations: Array<{ slug: string; name: string; kind: "region" | "city" }>;
+  zones: Array<{ id: "north" | "central" | "south"; label: string }>;
 };
 
-export type CandidateStatus = 'candidate' | 'promoted' | 'rejected';
+export type CandidateStatus = "candidate" | "promoted" | "rejected";
 
-export type CandidateScope = 'region' | 'country';
+export type CandidateScope = "region" | "country";
 
-export type CandidateSortKey = 'stars' | 'regionRank' | 'countryRank';
+export type CandidateSortKey = "stars" | "regionRank" | "countryRank";
 
 export type Candidate = {
   repoGithubId: string;
@@ -200,7 +200,7 @@ export type Candidate = {
   location: {
     slug: string;
     name: string;
-    kind: 'country' | 'region' | 'city';
+    kind: "country" | "region" | "city";
   };
 };
 
@@ -226,6 +226,11 @@ export type RefreshCandidatesSummary = {
   totalCandidates: number;
   promotedRetained: number;
   rejectedRetained: number;
+  devsSelected: number;
+  devsExcludedFeatured: number;
+  exploredTotal: number;
+  exploredResetThreshold: number;
+  rotationReset: boolean;
 };
 
 export type AdminMeResponse = {
@@ -243,7 +248,7 @@ export type CandidatesQuery = {
 
 export const DEFAULT_SEARCH_PARAMS: SearchParams = {
   languages: [],
-  languageMode: 'any',
+  languageMode: "any",
   locationSlugs: [],
   zone: null,
   username: null,
