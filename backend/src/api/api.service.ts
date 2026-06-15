@@ -30,6 +30,8 @@ import { alias } from 'drizzle-orm/pg-core';
 import { DRIZZLE, type DrizzleDB } from '../db/db.module';
 import { developers, locations, repoCandidates, syncRuns } from '../db/schema';
 import { expandLocationSlugs } from '../search/geo.data';
+import { ActivityCacheService } from '../sync/activity-cache.service';
+import { GithubService } from '../sync/github.service';
 import type { ReposListInput, ReposViewportInput } from './repos.dto';
 import type { UpdateProfileInput } from './update-profile.dto';
 
@@ -250,7 +252,11 @@ function buildRepoCursorFilter(decodedCursor: RepoCursor): SQL {
 export class ApiService {
   private readonly logger = new Logger(ApiService.name);
 
-  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDB) {}
+  constructor(
+    @Inject(DRIZZLE) private readonly db: DrizzleDB,
+    private readonly github: GithubService,
+    private readonly activityCache: ActivityCacheService,
+  ) {}
 
   async getMapData() {
     const rows = await this.db
@@ -787,10 +793,17 @@ export class ApiService {
 
     if (input.regionSlug) {
       const [region] = await this.db
-        .select({ id: locations.id, slug: locations.slug, name: locations.name })
+        .select({
+          id: locations.id,
+          slug: locations.slug,
+          name: locations.name,
+        })
         .from(locations)
         .where(
-          and(eq(locations.slug, input.regionSlug), eq(locations.kind, 'region')),
+          and(
+            eq(locations.slug, input.regionSlug),
+            eq(locations.kind, 'region'),
+          ),
         )
         .limit(1);
 
@@ -938,5 +951,83 @@ export class ApiService {
     }
 
     return mapPromotedRepoRow(row);
+  }
+
+  async getDeveloperActivity(login: string) {
+    const trimmed = login.trim();
+    if (!trimmed) {
+      throw new BadRequestException('Missing developer login');
+    }
+
+    const developer = await this.getDeveloperByLogin(trimmed);
+    if (!developer) {
+      throw new NotFoundException(`Developer "${trimmed}" not found`);
+    }
+
+    const cached = await this.activityCache
+      .getUserActivity(trimmed)
+      .catch((error) => {
+        this.logger.warn(
+          `Activity cache read failed for user "${trimmed}", fetching from GitHub`,
+          error instanceof Error ? error.message : error,
+        );
+        return null;
+      });
+    if (cached) {
+      return cached;
+    }
+
+    const activity = await this.github.fetchContributionActivity(trimmed);
+    if (!activity) {
+      throw new NotFoundException(
+        `Contribution activity for "${trimmed}" not found`,
+      );
+    }
+
+    await this.activityCache
+      .setUserActivity(trimmed, activity)
+      .catch((error) => {
+        this.logger.warn(
+          `Activity cache write failed for user "${trimmed}"`,
+          error instanceof Error ? error.message : error,
+        );
+      });
+    return activity;
+  }
+
+  async getRepoActivity(nameWithOwner: string) {
+    const trimmed = nameWithOwner.trim();
+    if (!trimmed) {
+      throw new BadRequestException('Missing nameWithOwner');
+    }
+
+    const repo = await this.getPromotedRepoByNameWithOwner(trimmed);
+    if (!repo) {
+      throw new NotFoundException(`Repo "${trimmed}" not found`);
+    }
+
+    const cached = await this.activityCache
+      .getRepoActivity(trimmed)
+      .catch((error) => {
+        this.logger.warn(
+          `Activity cache read failed for repo "${trimmed}", fetching from GitHub`,
+          error instanceof Error ? error.message : error,
+        );
+        return null;
+      });
+    if (cached) {
+      return cached;
+    }
+
+    const activity = await this.github.fetchRepoCommitActivity(trimmed);
+    await this.activityCache
+      .setRepoActivity(trimmed, activity)
+      .catch((error) => {
+        this.logger.warn(
+          `Activity cache write failed for repo "${trimmed}"`,
+          error instanceof Error ? error.message : error,
+        );
+      });
+    return activity;
   }
 }

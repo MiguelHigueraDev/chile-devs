@@ -2,13 +2,14 @@ import { useState } from "react";
 import { ExternalLink, Globe, HelpCircle, LogIn, Pencil } from "lucide-react";
 import {
   useDeveloper,
+  useDeveloperActivity,
   useMe,
   useUpdateProfileMutation,
 } from "../api/queries";
 import { getGitHubAuthUrl } from "../api/client";
 import { formatNumber } from "../lib/utils";
 import { toSafeHttpsUrl } from "../lib/safe-url";
-import type { DeveloperDetail } from "../types/api";
+import type { DeveloperDetail, ContributionActivity } from "../types/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,7 +30,13 @@ import { ExternalLinkWarningDialog } from "./ExternalLinkWarningDialog";
 import { RankHelpDialog } from "./RankHelpDialog";
 import { TopLanguagesBar } from "./TopLanguagesBar";
 import { RankBadge } from "./RankBadge";
-import { hasRankData, RANK_SECTION_LABEL, formatCountryRank, formatLocationRank } from "../lib/rank";
+import { ContributionGraph } from "./ContributionGraph";
+import {
+  hasRankData,
+  RANK_SECTION_LABEL,
+  formatCountryRank,
+  formatLocationRank,
+} from "../lib/rank";
 
 type DeveloperProfilePanelProps = {
   login: string | null;
@@ -80,10 +87,16 @@ function ProfileView({
   developer,
   isOwner,
   onEdit,
+  activityPending,
+  activityError,
+  activity,
 }: {
   developer: DeveloperDetail;
   isOwner: boolean;
   onEdit: () => void;
+  activityPending: boolean;
+  activityError: Error | null;
+  activity?: ContributionActivity;
 }) {
   const [portfolioWarningOpen, setPortfolioWarningOpen] = useState(false);
   const [rankHelpOpen, setRankHelpOpen] = useState(false);
@@ -98,7 +111,7 @@ function ProfileView({
   const countryRank = formatCountryRank(developer.rankCountry);
 
   return (
-    <div className="space-y-5 px-4 py-4">
+    <div className="min-w-0 space-y-5 px-4 py-4">
       <div className="flex items-start gap-4">
         <Avatar className="size-16">
           {avatarUrl ? (
@@ -111,9 +124,7 @@ function ProfileView({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-semibold">{developer.login}</h2>
-            {developer.claimed && (
-              <Badge variant="secondary">Claimed</Badge>
-            )}
+            {developer.claimed && <Badge variant="secondary">Claimed</Badge>}
           </div>
           {developer.name && (
             <p className="text-muted-foreground text-sm">{developer.name}</p>
@@ -140,6 +151,12 @@ function ProfileView({
       )}
 
       <ProfileStats developer={developer} />
+
+      <ContributionGraph
+        activity={activity}
+        isPending={activityPending}
+        error={activityError}
+      />
 
       {hasRankData(developer) && (
         <div className="space-y-3 text-center">
@@ -305,7 +322,9 @@ function ProfileEditForm({
       </div>
 
       {updateProfile.error && (
-        <p className="text-destructive text-sm">{updateProfile.error.message}</p>
+        <p className="text-destructive text-sm">
+          {updateProfile.error.message}
+        </p>
       )}
 
       <div className="flex gap-2">
@@ -333,6 +352,11 @@ export function DeveloperProfilePanel({
   onEditModeChange,
 }: DeveloperProfilePanelProps) {
   const { data: developer, error, isPending } = useDeveloper(login);
+  const {
+    data: activity,
+    error: activityError,
+    isPending: activityPending,
+  } = useDeveloperActivity(login);
   const { data: me } = useMe();
 
   const isEditing = editMode;
@@ -356,75 +380,82 @@ export function DeveloperProfilePanel({
           <>
             <SheetHeader className="shrink-0 border-b pb-4">
               <SheetTitle className="text-lg">Developer profile</SheetTitle>
-              <SheetDescription>Public GitHub stats and profile</SheetDescription>
+              <SheetDescription>
+                Public GitHub stats and profile
+              </SheetDescription>
             </SheetHeader>
 
             <ScrollArea className="min-h-0 flex-1">
-              {isPending && (
-                <div className="space-y-4 px-4 py-4">
-                  <div className="flex items-center gap-4">
-                    <Skeleton className="size-16 rounded-full" />
-                    <div className="flex-1 space-y-2">
-                      <Skeleton className="h-5 w-32" />
-                      <Skeleton className="h-4 w-24" />
+              <div className="min-w-0 max-w-full overflow-x-hidden">
+                {isPending && (
+                  <div className="space-y-4 px-4 py-4">
+                    <div className="flex items-center gap-4">
+                      <Skeleton className="size-16 rounded-full" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-5 w-32" />
+                        <Skeleton className="h-4 w-24" />
+                      </div>
                     </div>
+                    <Skeleton className="h-20 w-full" />
+                    <Skeleton className="h-16 w-full" />
                   </div>
-                  <Skeleton className="h-20 w-full" />
-                  <Skeleton className="h-16 w-full" />
-                </div>
-              )}
+                )}
 
-              {error && !isPending && (
-                <p className="text-destructive px-4 py-4 text-sm">
-                  {error.message}
-                </p>
-              )}
+                {error && !isPending && (
+                  <p className="text-destructive px-4 py-4 text-sm">
+                    {error.message}
+                  </p>
+                )}
 
-              {developer && !isPending && (
-                <>
-                  {isOwner && !me?.hasProfile && (
-                    <p className="text-muted-foreground border-b px-4 py-3 text-sm">
-                      Your GitHub account is connected, but your profile is not
-                      indexed yet. Check back after the next sync.
-                    </p>
-                  )}
-
-                  {canEditProfile && isEditing ? (
-                    <ProfileEditForm
-                      key={developer.login}
-                      developer={developer}
-                      onCancel={() => onEditModeChange?.(false)}
-                    />
-                  ) : (
-                    <ProfileView
-                      developer={developer}
-                      isOwner={canEditProfile}
-                      onEdit={() => onEditModeChange?.(true)}
-                    />
-                  )}
-
-                  {showClaimCta && (
-                    <div className="border-border/60 bg-muted/20 mx-4 mb-4 rounded-md border px-4 py-3">
-                      <p className="text-sm font-medium">Is this you?</p>
-                      <p className="text-muted-foreground mt-1 text-sm">
-                        Sign in with GitHub to claim this profile and add your
-                        portfolio, role, and description.
+                {developer && !isPending && (
+                  <>
+                    {isOwner && !me?.hasProfile && (
+                      <p className="text-muted-foreground border-b px-4 py-3 text-sm">
+                        Your GitHub account is connected, but your profile is
+                        not indexed yet. Check back after the next sync.
                       </p>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="mt-3"
-                        onClick={() => {
-                          window.location.href = getGitHubAuthUrl();
-                        }}
-                      >
-                        <LogIn className="size-3.5" />
-                        Sign in with GitHub
-                      </Button>
-                    </div>
-                  )}
-                </>
-              )}
+                    )}
+
+                    {canEditProfile && isEditing ? (
+                      <ProfileEditForm
+                        key={developer.login}
+                        developer={developer}
+                        onCancel={() => onEditModeChange?.(false)}
+                      />
+                    ) : (
+                      <ProfileView
+                        developer={developer}
+                        isOwner={canEditProfile}
+                        onEdit={() => onEditModeChange?.(true)}
+                        activity={activity}
+                        activityPending={activityPending}
+                        activityError={activityError}
+                      />
+                    )}
+
+                    {showClaimCta && (
+                      <div className="border-border/60 bg-muted/20 mx-4 mb-4 rounded-md border px-4 py-3">
+                        <p className="text-sm font-medium">Is this you?</p>
+                        <p className="text-muted-foreground mt-1 text-sm">
+                          Sign in with GitHub to claim this profile and add your
+                          portfolio, role, and description.
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="mt-3"
+                          onClick={() => {
+                            window.location.href = getGitHubAuthUrl();
+                          }}
+                        >
+                          <LogIn className="size-3.5" />
+                          Sign in with GitHub
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </ScrollArea>
 
             <Separator className="shrink-0" />

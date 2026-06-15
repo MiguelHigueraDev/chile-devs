@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { fetchWithTimeout } from '../lib/fetch-with-timeout';
 import { LOCATION_SEEDS } from '../db/locations.data';
 import { EnrichmentCacheService } from './enrichment-cache.service';
 import type { Location, TopLanguage } from '../db/schema';
@@ -91,6 +92,28 @@ const USER_QUERY = `
   }
 `;
 
+const CONTRIBUTION_ACTIVITY_QUERY = `
+  query ContributionActivity($login: String!) {
+    user(login: $login) {
+      contributionsCollection {
+        contributionCalendar {
+          totalContributions
+          weeks {
+            contributionDays {
+              date
+              contributionCount
+            }
+          }
+        }
+      }
+    }
+    rateLimit {
+      remaining
+      resetAt
+    }
+  }
+`;
+
 const SEARCH_QUERY = `
   query SearchUsers($query: String!, $cursor: String) {
     search(type: USER, query: $query, first: ${SEARCH_PAGE_SIZE}, after: $cursor) {
@@ -140,6 +163,26 @@ export type GitHubEnrichment = {
   topLanguages: TopLanguage[];
 };
 
+export type ContributionDay = {
+  date: string;
+  count: number;
+};
+
+export type ContributionActivity = {
+  totalContributions: number;
+  weeks: ContributionDay[][];
+};
+
+export type RepoCommitWeek = {
+  weekStart: string;
+  total: number;
+  days: number[];
+};
+
+export type RepoCommitActivity = {
+  weeks: RepoCommitWeek[];
+};
+
 export type GitHubUserResult = GitHubSearchHit & {
   enrichment: GitHubEnrichment | null;
 };
@@ -156,6 +199,22 @@ export type GitHubRepo = {
 };
 
 const REPOS_FETCH_BATCH_SIZE = 10;
+const MAX_REST_RETRIES = 5;
+const REST_202_BACKOFF_MS = 1500;
+
+function parseRetryAfterMs(retryAfter: string): number {
+  const numericSeconds = Number(retryAfter);
+  if (Number.isFinite(numericSeconds)) {
+    return numericSeconds * 1000 + 1000;
+  }
+
+  const retryAt = Date.parse(retryAfter);
+  if (Number.isFinite(retryAt)) {
+    return Math.max(0, retryAt - Date.now());
+  }
+
+  return 5000;
+}
 
 @Injectable()
 export class GithubService {
@@ -168,6 +227,78 @@ export class GithubService {
     private readonly enrichmentCache: EnrichmentCacheService,
   ) {
     this.token = this.config.getOrThrow<string>('GITHUB_TOKEN');
+  }
+
+  async fetchContributionActivity(
+    login: string,
+  ): Promise<ContributionActivity | null> {
+    const response = await this.graphql<{
+      data?: {
+        user: {
+          contributionsCollection: {
+            contributionCalendar: {
+              totalContributions: number;
+              weeks: Array<{
+                contributionDays: Array<{
+                  date: string;
+                  contributionCount: number;
+                }>;
+              }>;
+            } | null;
+          } | null;
+        } | null;
+        rateLimit?: RateLimit;
+      };
+      errors?: Array<{ message: string }>;
+    }>(CONTRIBUTION_ACTIVITY_QUERY, { login });
+
+    if (response.errors?.length) {
+      throw new Error(this.formatGraphqlErrors(response.errors));
+    }
+
+    const calendar =
+      response.data?.user?.contributionsCollection?.contributionCalendar;
+    if (!calendar) {
+      return null;
+    }
+
+    const weeks = calendar.weeks.map((week) =>
+      week.contributionDays.map((day) => ({
+        date: day.date,
+        count: day.contributionCount,
+      })),
+    );
+
+    return {
+      totalContributions: calendar.totalContributions,
+      weeks,
+    };
+  }
+
+  async fetchRepoCommitActivity(
+    nameWithOwner: string,
+  ): Promise<RepoCommitActivity> {
+    const [owner, ...nameParts] = nameWithOwner.split('/');
+    const repo = nameParts.join('/');
+    if (!owner || !repo) {
+      throw new Error(`Invalid nameWithOwner: ${nameWithOwner}`);
+    }
+
+    const path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/stats/commit_activity`;
+    const rawWeeks =
+      await this.restGet<
+        Array<{ week: number; total: number; days: number[] }>
+      >(path);
+
+    const weeks = rawWeeks
+      .filter((week) => week.week > 0)
+      .map((week) => ({
+        weekStart: new Date(week.week * 1000).toISOString().slice(0, 10),
+        total: week.total,
+        days: week.days,
+      }));
+
+    return { weeks };
   }
 
   async fetchUserByLogin(login: string): Promise<GitHubUserResult | null> {
@@ -782,6 +913,69 @@ export class GithubService {
     }
   }
 
+  private async restGet<T>(path: string, attempt = 0): Promise<T> {
+    await this.paceBeforeRequest();
+
+    const response = await fetchWithTimeout(`https://api.github.com${path}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'chile-devs',
+      },
+    });
+
+    const remaining = response.headers.get('x-ratelimit-remaining');
+    const resetAt = response.headers.get('x-ratelimit-reset');
+    if (remaining != null && resetAt != null) {
+      this.updateRateLimit({
+        remaining: Number(remaining),
+        resetAt: new Date(Number(resetAt) * 1000).toISOString(),
+      });
+    }
+
+    if (response.status === 202 && attempt < MAX_REST_RETRIES) {
+      const backoffMs = REST_202_BACKOFF_MS * (attempt + 1);
+      this.logger.warn(
+        `GitHub stats still computing for ${path}, retrying in ${backoffMs}ms (attempt ${attempt + 1}/${MAX_REST_RETRIES})`,
+      );
+      await this.sleep(backoffMs);
+      return this.restGet(path, attempt + 1);
+    }
+
+    if (
+      (response.status === 403 || response.status === 429) &&
+      attempt < MAX_REST_RETRIES
+    ) {
+      const retryAfter = response.headers.get('retry-after');
+      if (retryAfter) {
+        const waitMs = parseRetryAfterMs(retryAfter);
+        await this.sleep(waitMs);
+        return this.restGet(path, attempt + 1);
+      }
+
+      if (resetAt) {
+        await this.waitForRateLimit(
+          new Date(Number(resetAt) * 1000).toISOString(),
+        );
+        return this.restGet(path, attempt + 1);
+      }
+    }
+
+    if (response.status >= 500 && attempt < MAX_REST_RETRIES) {
+      const backoffMs = Math.min(1000 * 2 ** attempt, 10_000);
+      await this.sleep(backoffMs);
+      return this.restGet(path, attempt + 1);
+    }
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`GitHub REST error ${response.status}: ${text}`);
+    }
+
+    return (await response.json()) as T;
+  }
+
   private async graphql<T>(
     query: string,
     variables: Record<string, unknown>,
@@ -789,7 +983,7 @@ export class GithubService {
   ): Promise<T> {
     await this.paceBeforeRequest();
 
-    const response = await fetch('https://api.github.com/graphql', {
+    const response = await fetchWithTimeout('https://api.github.com/graphql', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${this.token}`,
@@ -805,7 +999,7 @@ export class GithubService {
     ) {
       const retryAfter = response.headers.get('retry-after');
       if (retryAfter) {
-        const waitMs = Number(retryAfter) * 1000 + 1000;
+        const waitMs = parseRetryAfterMs(retryAfter);
         this.logger.warn(
           `Secondary rate limit hit (HTTP ${response.status}), waiting ${Math.ceil(waitMs / 1000)}s before retry (attempt ${attempt + 1}/${MAX_GRAPHQL_RETRIES})`,
         );
