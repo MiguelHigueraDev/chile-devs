@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMapData, useSearchFacets, useStats } from "./api/queries";
-import { ChileMap } from "./components/ChileMap";
-import { DeveloperProfilePanel } from "./components/DeveloperProfilePanel";
-import { LocationPanel } from "./components/LocationPanel";
-import { RepoListPanel } from "./components/RepoListPanel";
-import { RepoPanel } from "./components/RepoPanel";
-import { SearchFilterSheet } from "./components/SearchFilterSheet";
-import { SearchResultsPanel } from "./components/SearchResultsPanel";
-import { StatsFooter } from "./components/StatsFooter";
-import { StatsHeader } from "./components/StatsHeader";
+import { ChileMap } from "./components/chile-map";
+import { DeveloperProfilePanel } from "./components/developer-profile-panel";
+import { LocationPanel } from "./components/location-panel";
+import { RepoListPanel } from "./components/repo-list-panel";
+import { RepoPanel } from "./components/repo-panel";
+import { SearchFilterSheet } from "./components/search-filter-sheet";
+import { SearchResultsPanel } from "./components/search-results-panel";
+import { StatsFooter } from "./components/stats-footer";
+import { StatsHeader } from "./components/stats-header";
 import {
   countActiveSearchFilters,
   isDefaultSearchParams,

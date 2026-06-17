@@ -3,8 +3,8 @@ import { formatNumber } from "../lib/utils";
 import { toSafeHttpsUrl } from "../lib/safe-url";
 import type { DeveloperSortKey, DeveloperSummary } from "../types/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { TopLanguagesBar } from "./TopLanguagesBar";
-import { RankBadge } from "./RankBadge";
+import { TopLanguagesBar } from "./top-languages-bar";
+import { RankBadge } from "./rank-badge";
 import { hasRankData, RANK_SORT_SUMMARY_LABEL } from "../lib/rank";
 import { cn } from "@/lib/utils";
 

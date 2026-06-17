@@ -3,7 +3,7 @@ import { useSearch } from "../api/queries";
 import { useStackedSheetDismissGuard } from "../lib/stacked-sheet-dismiss";
 import { RANK_SORT_SUMMARY_LABEL } from "../lib/rank";
 import type { SearchInterpretation, SearchParams } from "../types/api";
-import { DeveloperList } from "./DeveloperList";
+import { DeveloperList } from "./developer-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";

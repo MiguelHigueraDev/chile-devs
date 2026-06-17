@@ -26,11 +26,11 @@ import {
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { ExternalLinkWarningDialog } from "./ExternalLinkWarningDialog";
-import { RankHelpDialog } from "./RankHelpDialog";
-import { TopLanguagesBar } from "./TopLanguagesBar";
-import { RankBadge } from "./RankBadge";
-import { ContributionGraph } from "./ContributionGraph";
+import { ExternalLinkWarningDialog } from "./external-link-warning-dialog";
+import { RankHelpDialog } from "./rank-help-dialog";
+import { TopLanguagesBar } from "./top-languages-bar";
+import { RankBadge } from "./rank-badge";
+import { ContributionGraph } from "./contribution-graph";
 import {
   hasRankData,
   RANK_SECTION_LABEL,
