@@ -1,5 +1,6 @@
 import type { RepoCommitActivity } from "../types/api";
 import { formatWeekTooltip } from "../lib/contribution-levels";
+import { formatNumber } from "../lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Tooltip,
@@ -21,6 +22,31 @@ function RepoCommitActivitySkeleton() {
       <Skeleton className="h-24 w-full" />
     </div>
   );
+}
+
+function formatDateRange(
+  firstWeek: string,
+  lastWeek: string,
+): string {
+  const start = new Date(`${firstWeek}T00:00:00`);
+  const end = new Date(`${lastWeek}T00:00:00`);
+  end.setDate(end.getDate() + 6);
+
+  const sameYear = start.getFullYear() === end.getFullYear();
+
+  const optsStart: Intl.DateTimeFormatOptions = {
+    month: "short",
+    day: "numeric",
+    year: sameYear ? undefined : "numeric",
+  };
+
+  const optsEnd: Intl.DateTimeFormatOptions = {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  };
+
+  return `${start.toLocaleDateString(undefined, optsStart)} – ${end.toLocaleDateString(undefined, optsEnd)}`;
 }
 
 export function RepoCommitActivityChart({
@@ -55,13 +81,22 @@ export function RepoCommitActivityChart({
     );
   }
 
+  const totalCommits = activity.weeks.reduce((sum, w) => sum + w.total, 0);
+  const firstWeek = activity.weeks[0].weekStart;
+  const lastWeek = activity.weeks[activity.weeks.length - 1].weekStart;
+  const dateRange = formatDateRange(firstWeek, lastWeek);
   const maxTotal = Math.max(...activity.weeks.map((week) => week.total), 1);
 
   return (
     <div className="space-y-2">
-      <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-        Commit activity
-      </p>
+      <div className="flex items-baseline justify-between">
+        <p className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
+          Commit activity
+        </p>
+        <p className="text-muted-foreground text-[10px] tabular-nums">
+          {formatNumber(totalCommits)} in the last year
+        </p>
+      </div>
 
       <div className="overflow-x-auto pb-1">
         <TooltipProvider>
@@ -89,6 +124,10 @@ export function RepoCommitActivityChart({
           </div>
         </TooltipProvider>
       </div>
+
+      <p className="text-muted-foreground text-[10px] tabular-nums text-right">
+        {dateRange}
+      </p>
     </div>
   );
 }
