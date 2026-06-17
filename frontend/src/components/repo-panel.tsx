@@ -14,7 +14,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RepoCommitActivityChart } from "./RepoCommitActivity";
+import { RepoCommitActivityChart } from "./repo-commit-activity";
 
 type RepoPanelProps = {
   nameWithOwner: string | null;

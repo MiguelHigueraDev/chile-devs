@@ -18,7 +18,7 @@ import {
 } from "@/lib/map-styles";
 import { formatNumber, truncateText } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
-import { MapLegend } from "./MapLegend";
+import { MapLegend } from "./map-legend";
 
 const CHILE_CENTER: [number, number] = [-71.543, -35.675];
 const MAX_ZOOM = 12;
