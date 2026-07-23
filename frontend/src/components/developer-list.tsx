@@ -16,6 +16,13 @@ type DeveloperListProps = {
   shareLanguage?: string | null;
   showSummary?: boolean;
   onDeveloperSelect?: (login: string) => void;
+  /**
+   * Resolves the ranking position shown for each row. Defaults to the row's
+   * position in the list (`index + 1`). Search results pass the developer's
+   * true precomputed standing (rankLocation / rankCountry) so a match deep in
+   * the list still shows the correct number. Return `null` for "unranked".
+   */
+  getRank?: (developer: DeveloperSummary, index: number) => number | null;
 };
 
 const SORT_LABELS: Record<DeveloperMetricKey, string> = {
@@ -75,6 +82,7 @@ export function DeveloperList({
   shareLanguage,
   showSummary = true,
   onDeveloperSelect,
+  getRank = (_developer, index) => index + 1,
 }: DeveloperListProps) {
   const sortLabel =
     sortBy === "languageShare" && shareLanguage
@@ -84,9 +92,11 @@ export function DeveloperList({
   return (
     <ul>
       {developers.map((dev, index) => {
-        const rank = index + 1;
-        const podiumStyle =
-          rank <= 3 ? PODIUM_ROW_STYLES[rank as 1 | 2 | 3] : undefined;
+        const rank = getRank(dev, index);
+        const isPodium = rank != null && rank <= 3;
+        const podiumStyle = isPodium
+          ? PODIUM_ROW_STYLES[rank as 1 | 2 | 3]
+          : undefined;
         const metric = getDeveloperMetric(dev, sortBy, shareLanguage);
         const profileUrl = toSafeHttpsUrl(dev.profileUrl);
         const avatarUrl = toSafeHttpsUrl(dev.avatarUrl);
@@ -97,7 +107,7 @@ export function DeveloperList({
             className={cn(
               "flex items-center gap-3 px-4 py-3",
               podiumStyle,
-              rank > 3 && "border-border border-t",
+              !isPodium && "border-border border-t",
               onDeveloperSelect &&
                 "hover:bg-accent/40 cursor-pointer transition-colors",
             )}
@@ -130,13 +140,13 @@ export function DeveloperList({
             <span
               className={cn(
                 "w-7 shrink-0 text-center text-sm tabular-nums",
-                rank <= 3
+                isPodium
                   ? "text-foreground font-bold"
                   : "text-muted-foreground font-medium",
               )}
-              aria-label={`Rank ${rank}`}
+              aria-label={rank != null ? `Rank ${rank}` : "Unranked"}
             >
-              {rank}
+              {rank ?? "—"}
             </span>
             <Avatar className="size-8">
               {avatarUrl ? (
