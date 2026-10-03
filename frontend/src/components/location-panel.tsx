@@ -1,5 +1,11 @@
-import { memo, useEffect, useMemo, useRef } from "react";
-import { useCountryDevelopers, useLocationDevelopers, useSearchFacets } from "../api/queries";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { Search, X } from "lucide-react";
+import {
+  useCountryDevelopers,
+  useLocationDevelopers,
+  useSearch,
+  useSearchFacets,
+} from "../api/queries";
 import { ALL_CHILE_SLUG, isAllChileLocation } from "../lib/all-chile-location";
 import {
   getFilterListState,
@@ -9,11 +15,18 @@ import {
 import { useStackedSheetDismissGuard } from "../lib/stacked-sheet-dismiss";
 import { cn, formatNumber } from "../lib/utils";
 import { RANK_SORT_LABEL } from "../lib/rank";
-import type { DeveloperSortKey, MapLocation } from "../types/api";
+import {
+  DEFAULT_SEARCH_PARAMS,
+  type DeveloperSortKey,
+  type DeveloperSummary,
+  type MapLocation,
+  type SearchParams,
+} from "../types/api";
 import { DeveloperList } from "./developer-list";
 import { RegionScopeSelect } from "./region-scope-select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -204,6 +217,101 @@ function LocationDevelopersList({
   );
 }
 
+type LocationSearchResultsProps = {
+  slug: string;
+  countryWide: boolean;
+  query: string;
+  scopeName: string;
+  onDeveloperSelect?: (login: string) => void;
+};
+
+/**
+ * Server-side "find your rank" search. Queries `/api/search` scoped to the
+ * current location (or the whole country) by username/name and shows each
+ * match with its true precomputed standing — so a developer ranked deep in the
+ * list is found instantly without paging through the infinite list.
+ */
+function LocationSearchResults({
+  slug,
+  countryWide,
+  query,
+  scopeName,
+  onDeveloperSelect,
+}: LocationSearchResultsProps) {
+  const params = useMemo<SearchParams>(
+    () => ({
+      ...DEFAULT_SEARCH_PARAMS,
+      username: query,
+      displayName: query,
+      locationSlugs: countryWide ? [] : [slug],
+      sort: "rank",
+    }),
+    [query, countryWide, slug],
+  );
+
+  const { data, isPending, isFetching, error } = useSearch(params, true);
+
+  const results = useMemo(() => {
+    const devs = data?.developers ?? [];
+    const positionOf = (dev: DeveloperSummary) =>
+      (countryWide ? dev.rankCountry : dev.rankLocation) ??
+      Number.MAX_SAFE_INTEGER;
+    return [...devs].sort((a, b) => positionOf(a) - positionOf(b));
+  }, [data, countryWide]);
+
+  if (isPending) {
+    return (
+      <div className="space-y-3 px-4 py-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="flex items-center gap-3">
+            <Skeleton className="h-4 w-7" />
+            <Skeleton className="size-8 rounded-full" />
+            <div className="flex-1 space-y-1.5">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-2.5 w-32" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return <p className="text-destructive px-4 py-4 text-sm">{error.message}</p>;
+  }
+
+  if (results.length === 0) {
+    return (
+      <p className="text-muted-foreground px-4 py-4 text-sm">
+        No developer matches “{query}” in {scopeName}.
+      </p>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "transition-opacity duration-150",
+        isFetching && "opacity-60",
+      )}
+    >
+      <p className="text-muted-foreground px-4 pt-3 pb-1 text-xs">
+        {results.length === 1
+          ? `1 match in ${scopeName}`
+          : `${formatNumber(results.length)} matches in ${scopeName}`}
+        {" · ranked position shown"}
+      </p>
+      <DeveloperList
+        developers={results}
+        sortBy="rank"
+        showSummary={false}
+        onDeveloperSelect={onDeveloperSelect}
+        getRank={(dev) => (countryWide ? dev.rankCountry : dev.rankLocation)}
+      />
+    </div>
+  );
+}
+
 type LocationPanelStatsProps = {
   slug: string;
   sortBy: DeveloperSortKey;
@@ -275,12 +383,32 @@ export function LocationPanel({
   const { handleOpenChange, blockOutsideDismiss } =
     useStackedSheetDismissGuard(devPanelOpen);
 
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [prevSlug, setPrevSlug] = useState(slug);
+
+  // Reset the search when the scope (location) changes, using the render-time
+  // reset pattern React recommends over calling setState inside an effect.
+  if (slug !== prevSlug) {
+    setPrevSlug(slug);
+    setSearchInput("");
+    setSearchQuery("");
+  }
+
+  // Debounce the input so we hit /api/search at most once per pause in typing.
+  useEffect(() => {
+    const id = setTimeout(() => setSearchQuery(searchInput.trim()), 250);
+    return () => clearTimeout(id);
+  }, [searchInput]);
+
+  const searchActive = searchQuery.length > 0;
+
   useEffect(() => {
     const viewport = scrollRootRef.current?.querySelector(
       '[data-slot="scroll-area-viewport"]',
     );
     viewport?.scrollTo({ top: 0 });
-  }, [sortBy, slug]);
+  }, [sortBy, slug, searchActive]);
 
   return (
     <Sheet
@@ -335,16 +463,55 @@ export function LocationPanel({
                   </Button>
                 ))}
               </div>
+              <div className="pt-2">
+                <div className="relative">
+                  <Search
+                    className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2"
+                    aria-hidden
+                  />
+                  <Input
+                    type="text"
+                    value={searchInput}
+                    onChange={(event) => setSearchInput(event.target.value)}
+                    placeholder="Find your rank — username or name"
+                    aria-label="Search developers in this scope by username or name"
+                    className="h-8 pr-8 pl-8"
+                  />
+                  {searchInput && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchInput("");
+                        setSearchQuery("");
+                      }}
+                      aria-label="Clear search"
+                      className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2 transition-colors"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
             </SheetHeader>
 
             <ScrollArea ref={scrollRootRef} className="min-h-0 flex-1">
-              <LocationDevelopersList
-                slug={location.slug}
-                sortBy={sortBy}
-                scrollRootRef={scrollRootRef}
-                countryWide={countryWide}
-                onDeveloperSelect={onDeveloperSelect}
-              />
+              {searchActive ? (
+                <LocationSearchResults
+                  slug={location.slug}
+                  countryWide={countryWide}
+                  query={searchQuery}
+                  scopeName={location.name}
+                  onDeveloperSelect={onDeveloperSelect}
+                />
+              ) : (
+                <LocationDevelopersList
+                  slug={location.slug}
+                  sortBy={sortBy}
+                  scrollRootRef={scrollRootRef}
+                  countryWide={countryWide}
+                  onDeveloperSelect={onDeveloperSelect}
+                />
+              )}
             </ScrollArea>
 
             <Separator className="shrink-0" />
